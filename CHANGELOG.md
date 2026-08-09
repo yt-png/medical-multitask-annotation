@@ -12,10 +12,11 @@
 - T1.1：新增 `ImageTextPair`（无 `image_id`）；`common/io.py` 列目录与读 Excel；`preprocess/pair_images_excel.py` 图文一一配对 API
 - 依赖 `openpyxl`；`examples/raw/demo_batch` 假数据样例
 - T1.2：新增 `common/ids.py`（确定性 `image_id`：`{batch_id}__{seq:06d}`）；`preprocess/assign_image_ids.py` 将配对结果绑定为 `ImageRecord`（内存清单，不落盘）
+- T1.3：新增 `common/paths.py`、`preprocess/build_processed.py`；写出 `processed/<batch_id>/manifest.json`（引用原图绝对路径，不复制图像）；接线 `mma preprocess`（可选 `--data-root`）
 
 ### Changed
 
-- 明确 `processed/` 以标准化索引与图文绑定为主；是否复制图像文件留给 P1 按规模与部署决定
+- 明确 `processed/` 以标准化索引与图文绑定为主；T1.3 采用引用原图、不复制图像策略
 
 ### Tests
 
@@ -25,3 +26,4 @@
 - 新增 `tests/test_cli.py`：子命令注册、帮助、参数校验与 stub 退出码
 - 新增 `tests/test_preprocess.py`：T1.1 正常配对与整批失败边界用例
 - 扩展 `tests/test_preprocess.py`：T1.2 赋 ID、确定性、空输入与重复源名、多批次前缀隔离等用例
+- 扩展 `tests/test_preprocess.py` / `tests/test_cli.py`：T1.3 落盘、覆盖、非法 batch_id、端到端与 CLI preprocess

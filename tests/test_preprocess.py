@@ -7,9 +7,16 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 
+import json
+
 from mma.common.ids import generate_image_id
 from mma.common.models import ImageRecord, ImageTextPair
+from mma.common.paths import processed_batch_dir, validate_batch_id
 from mma.preprocess.assign_image_ids import assign_image_ids
+from mma.preprocess.build_processed import (
+    build_processed_batch,
+    write_processed_manifest,
+)
 from mma.preprocess.pair_images_excel import pair_images_with_excel
 
 # Tiny valid JPEG (1x1) for fixture files.
@@ -403,3 +410,104 @@ def test_assign_image_ids_allows_none_pair_batch_id() -> None:
     pairs = _sample_pairs(batch_id=None)
     records = assign_image_ids(pairs, "batch-a")
     assert all(r.batch_id == "batch-a" for r in records)
+
+
+def test_validate_batch_id_and_processed_dir(tmp_path: Path) -> None:
+    assert validate_batch_id(" batch_1 ") == "batch_1"
+    assert processed_batch_dir("batch_1", data_root=tmp_path) == (
+        tmp_path / "processed" / "batch_1"
+    )
+    with pytest.raises(ValueError):
+        validate_batch_id("bad/id")
+    with pytest.raises(ValueError):
+        validate_batch_id("has space")
+
+
+def test_write_processed_manifest_success(tmp_path: Path) -> None:
+    abs_a = str((tmp_path / "a.jpg").resolve())
+    abs_b = str((tmp_path / "b.jpg").resolve())
+    pairs = (
+        ImageTextPair(
+            image_path=abs_a,
+            diagnosis_text="text-a.jpg",
+            source_image_name="a.jpg",
+        ),
+        ImageTextPair(
+            image_path=abs_b,
+            diagnosis_text="text-b.jpg",
+            source_image_name="b.jpg",
+        ),
+    )
+    records = assign_image_ids(pairs, "batch-a")
+    out_dir = tmp_path / "processed" / "batch-a"
+    manifest_path = write_processed_manifest(records, out_dir)
+
+    assert manifest_path == out_dir / "manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert payload["batch_id"] == "batch-a"
+    assert len(payload["items"]) == 2
+    assert payload["items"][0]["image_id"] == "batch-a__000001"
+    assert Path(payload["items"][0]["image_path"]).is_absolute()
+    assert payload["items"][0]["image_path"] == abs_a
+    assert payload["items"][0]["source_image_name"] == "a.jpg"
+    assert payload["items"][0]["diagnosis_text"] == "text-a.jpg"
+
+
+def test_write_processed_manifest_overwrite(tmp_path: Path) -> None:
+    out_dir = tmp_path / "processed" / "batch-a"
+    first = assign_image_ids(_sample_pairs(names=("a.jpg",)), "batch-a")
+    write_processed_manifest(first, out_dir)
+    second = assign_image_ids(
+        _sample_pairs(names=("a.jpg", "b.jpg")),
+        "batch-a",
+    )
+    write_processed_manifest(second, out_dir)
+    payload = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert len(payload["items"]) == 2
+
+
+def test_write_processed_manifest_rejects_empty_and_mixed_batch(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="records must not be empty"):
+        write_processed_manifest((), tmp_path)
+
+    a = assign_image_ids(_sample_pairs(names=("a.jpg",)), "batch-a")
+    b = assign_image_ids(_sample_pairs(names=("b.jpg",)), "batch-b")
+    with pytest.raises(ValueError, match="multiple batch_id"):
+        write_processed_manifest(a + b, tmp_path)
+
+
+def test_build_processed_batch_end_to_end(tmp_path: Path) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    _write_jpeg(images / "a.jpg")
+    _write_jpeg(images / "b.jpg")
+    excel = tmp_path / "diagnoses.xlsx"
+    _write_excel(
+        excel,
+        [
+            ("a.jpg", "findings A"),
+            ("b.jpg", "findings B"),
+        ],
+    )
+    data_root = tmp_path / "data"
+    out_dir = build_processed_batch(
+        "demo_batch",
+        images,
+        excel,
+        data_root=data_root,
+    )
+
+    assert out_dir == data_root / "processed" / "demo_batch"
+    manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["batch_id"] == "demo_batch"
+    assert [item["image_id"] for item in manifest["items"]] == [
+        "demo_batch__000001",
+        "demo_batch__000002",
+    ]
+    for item in manifest["items"]:
+        assert Path(item["image_path"]).is_absolute()
+        assert Path(item["image_path"]).is_file()
+    # Images are referenced, not copied into processed/
+    assert not (out_dir / "images").exists()

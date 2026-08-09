@@ -1,13 +1,132 @@
-"""Tests for unified CLI skeleton (T0.4). No business I/O."""
+"""Tests for unified CLI (preprocess wired in T1.3; others stub)."""
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
+from openpyxl import Workbook
 
 from mma.cli import SUBCOMMANDS, TASK_CHOICES, build_parser, main
+
+_MIN_JPEG = bytes(
+    [
+        0xFF,
+        0xD8,
+        0xFF,
+        0xE0,
+        0x00,
+        0x10,
+        0x4A,
+        0x46,
+        0x49,
+        0x46,
+        0x00,
+        0x01,
+        0x01,
+        0x00,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0xFF,
+        0xDB,
+        0x00,
+        0x43,
+        0x00,
+        *([0x08] * 64),
+        0xFF,
+        0xC0,
+        0x00,
+        0x0B,
+        0x08,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        0x01,
+        0x01,
+        0x11,
+        0x00,
+        0xFF,
+        0xC4,
+        0x00,
+        0x14,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x03,
+        0xFF,
+        0xC4,
+        0x00,
+        0x14,
+        0x10,
+        0x01,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0xFF,
+        0xDA,
+        0x00,
+        0x08,
+        0x01,
+        0x01,
+        0x00,
+        0x00,
+        0x3F,
+        0x00,
+        0x7F,
+        0xFF,
+        0xD9,
+    ]
+)
+
+
+def _prepare_preprocess_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "a.jpg").write_bytes(_MIN_JPEG)
+    excel = tmp_path / "diagnoses.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    assert sheet is not None
+    sheet.append(["image_name", "diagnosis_text"])
+    sheet.append(["a.jpg", "text-a"])
+    workbook.save(excel)
+    data_root = tmp_path / "data"
+    return images, excel, data_root
 
 
 def test_help_lists_all_subcommands() -> None:
@@ -74,6 +193,59 @@ def test_export_split_requires_export() -> None:
     with pytest.raises(SystemExit) as exc:
         main(["export-split", "--batch", "b1", "--task", "seg"])
     assert exc.value.code == 2
+
+
+def test_preprocess_success(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    images, excel, data_root = _prepare_preprocess_inputs(tmp_path)
+    code = main(
+        [
+            "preprocess",
+            "--batch",
+            "batch_cli",
+            "--images",
+            str(images),
+            "--excel",
+            str(excel),
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 0
+    out_dir = data_root / "processed" / "batch_cli"
+    assert str(out_dir) in captured.out
+    manifest = out_dir / "manifest.json"
+    assert manifest.is_file()
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert payload["batch_id"] == "batch_cli"
+    assert len(payload["items"]) == 1
+
+
+def test_preprocess_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    images, excel, data_root = _prepare_preprocess_inputs(tmp_path)
+    code = main(
+        [
+            "preprocess",
+            "--batch",
+            "bad/id",
+            "--images",
+            str(images),
+            "--excel",
+            str(excel),
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "mma preprocess:" in captured.err
+    assert not (data_root / "processed" / "bad").exists()
 
 
 def test_module_entry_help() -> None:

@@ -33,9 +33,17 @@ mma -h
 python -m mma -h
 ```
 
-已注册子命令（T0.4 仅为入口骨架，业务逻辑后续阶段实现）：
+已注册子命令：`preprocess` 已接线；其余仍为骨架 stub：
 
 `preprocess` · `package` · `convert` · `ls-import` · `export-split` · `rework-import` · `apply-current` · `merge`
+
+预处理示例：
+
+```bash
+mma preprocess --batch demo_batch --images examples/raw/demo_batch/images --excel examples/raw/demo_batch/diagnoses.xlsx --data-root data
+```
+
+成功时 stdout 打印 `data/processed/<batch_id>/` 路径；不复制图像，仅写 `manifest.json`（绝对路径引用原图）。
 
 ## 当前进度
 
@@ -43,9 +51,10 @@ python -m mma -h
 - 已完成：P0 / T0.2 核心数据契约（`src/mma/common/models.py`）
 - 已完成：P0 / T0.3 落盘规范（`docs/data_layout.md`）
 - 已完成：P0 / T0.4 统一 CLI 入口（骨架 / stub）
-- 已完成：P1 / T1.1 图文配对 API（`mma.preprocess.pair_images_with_excel`；CLI `preprocess` 仍为 stub，接线留待 T1.3）
-- 已完成：P1 / T1.2 确定性 `image_id` 绑定（`mma.preprocess.assign_image_ids`；不落盘）
-- 后续：P1 / T1.3+（processed 落盘、任务包等，见 `.cursor/rules/Development Tasks.md`）
+- 已完成：P1 / T1.1 图文配对 API（`mma.preprocess.pair_images_with_excel`）
+- 已完成：P1 / T1.2 确定性 `image_id` 绑定（`mma.preprocess.assign_image_ids`）
+- 已完成：P1 / T1.3 标准化 `processed/<batch_id>/` 落盘与 `mma preprocess` 接线
+- 后续：P1 / T1.4+（任务包拆分等，见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 

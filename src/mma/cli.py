@@ -1,7 +1,6 @@
 """Unified CLI entry for the multitask annotation pipeline.
 
-T0.4: subcommand routing and argument parsing only.
-Business modules are wired later (P1–P5); handlers currently return stub.
+T1.3 wires ``preprocess``; other subcommands remain stubs until later stages.
 """
 
 from __future__ import annotations
@@ -9,6 +8,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 TASK_CHOICES = ("seg", "det", "cap")
 
@@ -59,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--excel",
         required=True,
         help="Excel file with diagnosis text",
+    )
+    preprocess.add_argument(
+        "--data-root",
+        default=None,
+        help="Runtime data root (default: ./data)",
     )
 
     package = subparsers.add_parser(
@@ -141,10 +146,30 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_preprocess(args: argparse.Namespace) -> int:
+    from mma.preprocess.build_processed import build_processed_batch
+
+    try:
+        out_dir = build_processed_batch(
+            args.batch,
+            args.images,
+            args.excel,
+            data_root=args.data_root,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"mma preprocess: {exc}", file=sys.stderr)
+        return 2
+
+    print(str(Path(out_dir)))
+    return 0
+
+
 def dispatch(args: argparse.Namespace) -> int:
-    """Route parsed args to handlers. T0.4 handlers are stubs."""
+    """Route parsed args to handlers."""
 
     command = args.command
+    if command == "preprocess":
+        return _run_preprocess(args)
     if command in SUBCOMMANDS:
         return _stub(command)
     print(f"mma: unknown command {command!r}", file=sys.stderr)

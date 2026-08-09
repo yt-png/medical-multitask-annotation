@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any
 
 from openpyxl import load_workbook
 
@@ -95,3 +97,15 @@ def read_diagnosis_excel(excel_path: Path | str) -> list[tuple[str, str]]:
         return records
     finally:
         workbook.close()
+
+
+def write_json(path: Path | str, payload: Any) -> None:
+    """Write ``payload`` as UTF-8 JSON, creating parent directories as needed."""
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
