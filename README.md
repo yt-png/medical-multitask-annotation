@@ -22,7 +22,7 @@ python -m venv .venv
 pip install -e .
 ```
 
-当前阶段无第三方运行时依赖；见 `requirements.txt`。
+运行时依赖见 `requirements.txt`（当前含 `openpyxl`，用于读取诊断 Excel）。
 
 ## CLI
 
@@ -43,7 +43,8 @@ python -m mma -h
 - 已完成：P0 / T0.2 核心数据契约（`src/mma/common/models.py`）
 - 已完成：P0 / T0.3 落盘规范（`docs/data_layout.md`）
 - 已完成：P0 / T0.4 统一 CLI 入口（骨架 / stub）
-- 后续：P1 预处理与任务包等业务模块（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：P1 / T1.1 图文配对 API（`mma.preprocess.pair_images_with_excel`；CLI `preprocess` 仍为 stub，接线留待 T1.3）
+- 后续：P1 / T1.2+（`image_id`、processed 落盘、任务包等，见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 

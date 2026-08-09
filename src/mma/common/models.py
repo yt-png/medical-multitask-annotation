@@ -82,6 +82,19 @@ class ImageRecord:
 
 
 @dataclass(frozen=True)
+class ImageTextPair:
+    """Pre-ID image/text binding from jpg + Excel pairing (T1.1).
+
+    Does not carry image_id; that is assigned in T1.2.
+    """
+
+    image_path: str
+    diagnosis_text: str
+    source_image_name: str
+    batch_id: str | None = None
+
+
+@dataclass(frozen=True)
 class SampleItem:
     """Single sample inside a task package."""
 
