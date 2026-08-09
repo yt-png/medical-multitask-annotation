@@ -54,7 +54,8 @@ mma preprocess --batch demo_batch --images examples/raw/demo_batch/images --exce
 - 已完成：P1 / T1.1 图文配对 API（`mma.preprocess.pair_images_with_excel`）
 - 已完成：P1 / T1.2 确定性 `image_id` 绑定（`mma.preprocess.assign_image_ids`）
 - 已完成：P1 / T1.3 标准化 `processed/<batch_id>/` 落盘与 `mma preprocess` 接线
-- 后续：P1 / T1.4+（任务包拆分等，见 `.cursor/rules/Development Tasks.md`）
+- 已完成：P1 / T1.4 三类全量任务包图像拆分（`mma.packaging.split_task_packages`；CLI `package` 仍 stub，manifest/`package_id` 留待 T1.5）
+- 后续：P1 / T1.5（任务包 `package_id` 与 `manifest.json`，见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 

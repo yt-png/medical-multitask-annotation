@@ -109,3 +109,12 @@ def write_json(path: Path | str, payload: Any) -> None:
         encoding="utf-8",
     )
 
+
+def read_json(path: Path | str) -> Any:
+    """Read a UTF-8 JSON file."""
+
+    target = Path(path)
+    if not target.is_file():
+        raise FileNotFoundError(f"json file not found: {target}")
+    return json.loads(target.read_text(encoding="utf-8"))
+
