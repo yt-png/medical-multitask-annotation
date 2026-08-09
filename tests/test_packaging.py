@@ -8,8 +8,13 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 
-from mma.common.models import SampleItem, TaskType
+from mma.common.ids import generate_package_id
+from mma.common.models import SampleItem, TaskPackage, TaskType
 from mma.common.paths import task_package_dir
+from mma.packaging.build_task_packages import (
+    build_task_packages,
+    write_task_package_manifest,
+)
 from mma.packaging.split_task_packages import (
     load_processed_items,
     split_task_packages,
@@ -261,3 +266,68 @@ def test_split_missing_source_image_fails(tmp_path: Path) -> None:
 def test_split_rejects_invalid_batch_id(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="batch_id"):
         split_task_packages("bad/id", data_root=tmp_path / "data")
+
+
+def test_generate_package_id_format() -> None:
+    assert generate_package_id("batch_a", TaskType.SEG) == "batch_a__seg"
+    assert generate_package_id("batch_a", "DET") == "batch_a__det"
+    assert generate_package_id("batch_a", "cap") == "batch_a__cap"
+
+
+def test_build_task_packages_end_to_end(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    _prepare_processed(tmp_path, "batch_a")
+
+    packages = build_task_packages("batch_a", data_root=data_root)
+
+    assert set(packages) == {TaskType.SEG, TaskType.DET, TaskType.CAP}
+    package_ids = {p.package_id for p in packages.values()}
+    assert package_ids == {"batch_a__seg", "batch_a__det", "batch_a__cap"}
+
+    for task_type, package in packages.items():
+        assert isinstance(package, TaskPackage)
+        assert package.batch_id == "batch_a"
+        assert package.task_type is task_type
+        assert len(package.samples) == 2
+
+        package_dir = task_package_dir("batch_a", task_type, data_root=data_root)
+        manifest_path = package_dir / "manifest.json"
+        assert manifest_path.is_file()
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert payload["package_id"] == package.package_id
+        assert payload["task_type"] == task_type.value
+        assert payload["batch_id"] == "batch_a"
+        assert len(payload["samples"]) == 2
+        assert payload["samples"][0]["image_path"].startswith("images/")
+        for sample in payload["samples"]:
+            assert (package_dir / sample["image_path"]).is_file()
+
+
+def test_build_task_packages_rerun_overwrites_manifest(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    _prepare_processed(tmp_path, "batch_a")
+    first = build_task_packages("batch_a", data_root=data_root)
+    second = build_task_packages("batch_a", data_root=data_root)
+    assert first[TaskType.SEG].package_id == second[TaskType.SEG].package_id
+    assert (
+        data_root / "task_packages" / "batch_a" / "seg" / "manifest.json"
+    ).is_file()
+
+
+def test_write_task_package_manifest_missing_image_fails(tmp_path: Path) -> None:
+    package_dir = tmp_path / "seg"
+    (package_dir / "images").mkdir(parents=True)
+    package = TaskPackage(
+        package_id="batch_a__seg",
+        task_type=TaskType.SEG,
+        samples=(
+            SampleItem(
+                image_id="batch_a__000001",
+                image_path="images/missing.jpg",
+                diagnosis_text="x",
+            ),
+        ),
+        batch_id="batch_a",
+    )
+    with pytest.raises(ValueError, match="package image missing"):
+        write_task_package_manifest(package, package_dir)

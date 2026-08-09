@@ -177,12 +177,6 @@ def test_valid_task_accepted_then_stub(task: str, capsys: pytest.CaptureFixture[
     assert "convert" in err
 
 
-def test_stub_for_package(capsys: pytest.CaptureFixture[str]) -> None:
-    code = main(["package", "--batch", "batch-a"])
-    assert code == 2
-    assert "not implemented yet" in capsys.readouterr().err
-
-
 def test_stub_for_merge(capsys: pytest.CaptureFixture[str]) -> None:
     code = main(["merge", "--batch", "batch-a"])
     assert code == 2
@@ -246,6 +240,68 @@ def test_preprocess_failure(
     assert code == 2
     assert "mma preprocess:" in captured.err
     assert not (data_root / "processed" / "bad").exists()
+
+
+def test_package_success(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    images, excel, data_root = _prepare_preprocess_inputs(tmp_path)
+    assert (
+        main(
+            [
+                "preprocess",
+                "--batch",
+                "batch_pkg",
+                "--images",
+                str(images),
+                "--excel",
+                str(excel),
+                "--data-root",
+                str(data_root),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    code = main(
+        [
+            "package",
+            "--batch",
+            "batch_pkg",
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 0
+    out_dir = data_root / "task_packages" / "batch_pkg"
+    assert str(out_dir) in captured.out
+    for task in ("seg", "det", "cap"):
+        manifest = out_dir / task / "manifest.json"
+        assert manifest.is_file()
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        assert payload["package_id"] == f"batch_pkg__{task}"
+        assert payload["task_type"] == task.upper()
+
+
+def test_package_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = main(
+        [
+            "package",
+            "--batch",
+            "missing_batch",
+            "--data-root",
+            str(tmp_path / "data"),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "mma package:" in captured.err
 
 
 def test_module_entry_help() -> None:

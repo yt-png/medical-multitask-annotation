@@ -26,10 +26,12 @@ pairs = pair_images_with_excel(
 )
 ```
 
-### 生成 processed（T1.3）
+### 生成 processed（T1.3）与任务包（T1.5）
 
 ```bash
 mma preprocess --batch demo_batch --images examples/raw/demo_batch/images --excel examples/raw/demo_batch/diagnoses.xlsx --data-root data
+mma package --batch demo_batch --data-root data
 ```
 
-输出目录：`data/processed/demo_batch/manifest.json`（不复制图像）。
+- processed：`data/processed/demo_batch/manifest.json`（不复制图像）
+- 任务包：`data/task_packages/demo_batch/{seg,det,cap}/`（含 `images/` 与 `manifest.json`）

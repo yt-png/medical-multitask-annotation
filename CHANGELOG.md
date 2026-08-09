@@ -14,11 +14,12 @@
 - T1.2：新增 `common/ids.py`（确定性 `image_id`：`{batch_id}__{seq:06d}`）；`preprocess/assign_image_ids.py` 将配对结果绑定为 `ImageRecord`（内存清单，不落盘）
 - T1.3：新增 `common/paths.py`、`preprocess/build_processed.py`；写出 `processed/<batch_id>/manifest.json`（引用原图绝对路径，不复制图像）；接线 `mma preprocess`（可选 `--data-root`）
 - T1.4：新增 `packaging/split_task_packages.py`；将 processed 全量样本复制到 `task_packages/<batch_id>/{seg,det,cap}/images/`（文件名 `{image_id}{ext}`）；不写任务包 manifest、不赋 `package_id`、不接线 CLI
+- T1.5：新增 `generate_package_id`（`{batch_id}__{seg|det|cap}`）、`packaging/build_task_packages.py`；写出三类任务包 `manifest.json`；接线 `mma package`（可选 `--data-root`）
 
 ### Changed
 
 - 明确 `processed/` 以标准化索引与图文绑定为主；T1.3 采用引用原图、不复制图像策略
-- 任务包阶段复制图像以便网盘分发；正式任务包 `manifest.json` 留待 T1.5
+- 任务包阶段复制图像并写入含 `package_id` 的正式 `manifest.json`（T1.5）
 
 ### Tests
 
@@ -30,3 +31,4 @@
 - 扩展 `tests/test_preprocess.py`：T1.2 赋 ID、确定性、空输入与重复源名、多批次前缀隔离等用例
 - 扩展 `tests/test_preprocess.py` / `tests/test_cli.py`：T1.3 落盘、覆盖、非法 batch_id、端到端与 CLI preprocess
 - 新增 `tests/test_packaging.py`：T1.4 三类全量复制、相对路径样本、缺图/缺 processed 失败等
+- 扩展 `tests/test_packaging.py` / `tests/test_cli.py`：T1.5 package_id、manifest、CLI package 成功/失败

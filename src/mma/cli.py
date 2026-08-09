@@ -1,6 +1,6 @@
 """Unified CLI entry for the multitask annotation pipeline.
 
-T1.3 wires ``preprocess``; other subcommands remain stubs until later stages.
+``preprocess`` and ``package`` are wired; other subcommands remain stubs.
 """
 
 from __future__ import annotations
@@ -71,6 +71,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Split processed batch into SEG/DET/CAP task packages (P1).",
     )
     package.add_argument("--batch", required=True, help="Batch ID")
+    package.add_argument(
+        "--data-root",
+        default=None,
+        help="Runtime data root (default: ./data)",
+    )
 
     convert = subparsers.add_parser(
         "convert",
@@ -164,12 +169,29 @@ def _run_preprocess(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_package(args: argparse.Namespace) -> int:
+    from mma.common.paths import task_packages_batch_dir
+    from mma.packaging.build_task_packages import build_task_packages
+
+    try:
+        build_task_packages(args.batch, data_root=args.data_root)
+        out_dir = task_packages_batch_dir(args.batch, data_root=args.data_root)
+    except (OSError, ValueError) as exc:
+        print(f"mma package: {exc}", file=sys.stderr)
+        return 2
+
+    print(str(Path(out_dir)))
+    return 0
+
+
 def dispatch(args: argparse.Namespace) -> int:
     """Route parsed args to handlers."""
 
     command = args.command
     if command == "preprocess":
         return _run_preprocess(args)
+    if command == "package":
+        return _run_package(args)
     if command in SUBCOMMANDS:
         return _stub(command)
     print(f"mma: unknown command {command!r}", file=sys.stderr)
