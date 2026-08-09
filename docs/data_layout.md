@@ -1,0 +1,218 @@
+# 批次 / 任务包 / 结果包落盘规范
+
+本文档约定本地运行时数据目录的命名、层级与职责，供 P1–P5 与 CLI 统一遵循。  
+运行时根目录为项目下的 `data/`（已列入 `.gitignore`，不入库）。
+
+相关数据契约见 `src/mma/common/models.py`。
+
+---
+
+## 1. 总原则
+
+1. **批次隔离**：几乎所有阶段以 `batch_id` 为一级键。
+2. **三任务物理隔离**：自 `task_packages` 起，SEG / DET / CAP 使用独立子目录；合并前互不写对方路径。
+3. **唯一汇合点**：仅 `final/<batch_id>/` 合并三类最终结果。
+4. **当前有效结果权威目录**：`results/<batch_id>/<task>/current/` 只保留覆盖后的当前版。
+5. **网盘友好**：整目录拷贝某一任务子树即可分发/回收；传输过程无自动化代码要求。
+
+---
+
+## 2. 命名约定
+
+### 2.1 标识符
+
+| 标识 | 规则 | 目录中的体现 |
+|---|---|---|
+| `batch_id` | 字母、数字、`-`、`_`；禁止 `/`、`\` 及空白 | `data/<stage>/<batch_id>/` |
+| `task_type`（契约） | `SEG` / `DET` / `CAP` | — |
+| 任务子目录名 | 小写：`seg` / `det` / `cap`（与 CLI `--task` 一致） | `.../<batch_id>/{seg,det,cap}/` |
+| `package_id` | 全局可区分的字符串 | **不**单独建目录层；写入该任务包 `manifest.json` |
+| `image_id` | 批内唯一 | **不**作为海量目录层级；写入清单/结果 JSON；图像文件建议 `{image_id}.jpg` 或源名 + 清单映射 |
+
+目录名与清单字段中的 `batch_id` 必须一致。  
+契约枚举值为大写（`SEG`）；路径段为小写（`seg`）。
+
+### 2.2 路径相对性
+
+清单与结果 JSON 内的文件路径，默认写成**相对于所属阶段包根目录**的相对路径（例如相对 `task_packages/<batch_id>/seg/`）。  
+跨阶段引用时，由后续模块按本规范解析，不在路径中写绝对盘符（便于网盘迁移）。
+
+---
+
+## 3. 目录树
+
+```text
+data/
+├── raw/<batch_id>/
+├── processed/<batch_id>/
+├── task_packages/<batch_id>/{seg,det,cap}/
+├── prelabels/<batch_id>/{seg,det,cap}/
+├── ls_import/<batch_id>/{seg,det,cap}/
+├── ls_export/<batch_id>/{seg,det,cap}/
+├── results/<batch_id>/{seg,det,cap}/
+│   ├── normal/
+│   ├── rework/
+│   └── current/
+└── final/<batch_id>/
+```
+
+---
+
+## 4. 各目录职责与建议内容
+
+### 4.1 `raw/<batch_id>/`
+
+| 项目 | 说明 |
+|---|---|
+| 职责 | 原始输入；流水线只读 |
+| 内容 | 原始 `.jpg`、诊断文本 Excel（如 `.xlsx`/`.xls`） |
+| 关键文件 | 可由数据处理人员约定；P1 通过 CLI 参数显式传入图像目录与 Excel 路径 |
+
+### 4.2 `processed/<batch_id>/`
+
+| 项目 | 说明 |
+|---|---|
+| 职责 | 预处理阶段产出的**标准化索引与图文绑定结果**（稳定 `image_id` + 图像与诊断文本一一对应） |
+| 必须内容 | `manifest.json`（或同等清单：每条含 `image_id`、`image_path`、`diagnosis_text`、可选 `source_image_name` / `batch_id`） |
+| 图像文件 | **不强制**在本目录复制或落盘图像；`image_path` 可指向 `raw` 或其他约定位置 |
+| 是否复制图像 | 由 **P1 实现阶段**根据数据规模、磁盘占用与部署方式决定（引用原图 / 复制到本目录 / 其它策略均可，但须在清单中写清可解析路径） |
+| 消费者 | 任务包拆分（P1） |
+
+### 4.3 `task_packages/<batch_id>/{seg,det,cap}/`
+
+| 项目 | 说明 |
+|---|---|
+| 职责 | 按任务类型拆分的**全量**任务包（每类样本数 = 预处理有效图像数 N） |
+| 建议内容 | `images/`、诊断文本清单、`manifest.json` |
+| `manifest.json` 必填 | `package_id`、`task_type`（`SEG`/`DET`/`CAP`）、`batch_id`、样本列表（`image_id`、`image_path`、`diagnosis_text`） |
+| 网盘 | 整目录分发给对应任务标注员 |
+
+同一 `batch_id` 下恰好三个任务目录；每个目录对应一个 `package_id`（写在 manifest 中，不另建 `package_id` 目录层）。
+
+### 4.4 `prelabels/<batch_id>/{seg,det,cap}/`
+
+| 项目 | 说明 |
+|---|---|
+| 职责 | 外部预标注原始输出落点（人工放入） |
+| 内容 | 算法/大模型原始格式文件；平台本阶段不生成 |
+| 消费者 | 格式转换（P2） |
+
+### 4.5 `ls_import/<batch_id>/{seg,det,cap}/`
+
+| 项目 | 说明 |
+|---|---|
+| 职责 | Label Studio 可导入任务与配套资源 |
+| 内容 | 导入 JSON、本地图像路径约定所需文件；返工再导入任务也落在此树（可由文件名或子目录区分首轮/返工，实现阶段再定最小必要约定） |
+| 消费者 | Label Studio 本地导入（P3 / P4 返工） |
+
+### 4.6 `ls_export/<batch_id>/{seg,det,cap}/`
+
+| 项目 | 说明 |
+|---|---|
+| 职责 | Label Studio 本轮导出原文 |
+| 建议 | 按轮次分子目录，避免覆盖历史排障材料：`round_001/`、`round_002/`、… |
+| 内容 | 导出 JSON（及 LS 附带资源，若有） |
+
+### 4.7 `results/<batch_id>/{seg,det,cap}/`
+
+#### `normal/`
+
+- 本轮分类结果：`needs_rework == false`
+- 建议按轮次：`normal/round_XXX/`
+- 用于网盘回传「正常结果包」
+
+#### `rework/`
+
+- 本轮分类结果：`needs_rework == true`
+- 建议按轮次：`rework/round_XXX/`
+- 用于网盘回传与返工再导入输入
+
+#### `current/`
+
+- **该任务、该批次的唯一当前有效结果权威目录**
+- 写入语义：同 `image_id` **覆盖**旧标注与旧勾选，不并行保留多版有效结果
+- 合并（P5）只读各任务的 `current/`
+- 建议清单文件：`current/annotations.json`（或等价；字段对齐 `TaskAnnotationResult`）
+
+`normal/` / `rework/` 是轮次快照；**业务上的当前有效状态以 `current/` 为准**。
+
+### 4.8 `final/<batch_id>/`
+
+| 项目 | 说明 |
+|---|---|
+| 职责 | 三任务合并后的多任务最终数据集 |
+| 前置 | 三路 `results/<batch_id>/{seg,det,cap}/current/` 均就绪，且无返工残留 |
+| 内容 | 按 `image_id` 对齐的合并清单/目录；每条必须含 SEG + DET + CAP；缺任务必须阻断，禁止静默缺字段 |
+
+---
+
+## 5. 数据生命周期与目录映射
+
+```text
+raw
+  → processed                 # P1 预处理
+  → task_packages/{seg,det,cap}
+  → prelabels/{seg,det,cap}   # 外部预标注，人工放入
+  → ls_import/{seg,det,cap}   # P2/P3
+  → ls_export/{seg,det,cap}/round_XXX
+  → results/.../normal|rework/round_XXX
+  → results/.../current       # 覆盖写入当前有效版
+  →（返工闭环：rework → ls_import → ls_export → 分类 → 覆盖 current）
+  → final                     # P5，三任务均无返工后
+```
+
+| 业务状态（单任务、单图） | 主要落盘 |
+|---|---|
+| 待预标注 | `task_packages` 已有；`prelabels` 尚无对应项 |
+| 已预标注待人工 | `prelabels` + `ls_import` |
+| 本轮已确认（无需/需返工） | `ls_export` → `results/.../normal` 或 `rework` |
+| 当前有效结果 | `results/.../current` |
+| 可进入最终集合并 | 三路 `current` 就绪且均无需返工 → `final` |
+
+---
+
+## 6. 三任务独立链路（落盘约束）
+
+1. 自 `task_packages` 至 `results`，一律按 `{seg,det,cap}` 分目录。
+2. 任一任务目录的写入不得改写另外两个任务目录。
+3. CLI 带 `--task {seg|det|cap}` 时仅触达对应子树。
+4. 唯一跨任务汇合目录为 `final/<batch_id>/`。
+
+---
+
+## 7. 返工覆盖规则（落盘语义）
+
+1. 每轮导出解析后，将有效结果**覆盖写入**对应任务的 `current/`。
+2. 同一 `image_id` + 同一任务再次写入时，替换旧标注与「人工确认 / 是否返工」勾选。
+3. `current/` 中不并行保留历史多版本作为有效结果。
+4. `ls_export` 与 `normal`/`rework` 的轮次目录用于追溯与网盘协作，不替代 `current/` 的权威语义。
+5. 返工再导入必须能展示上一轮结果：实现时应从 `current/`（或本轮 rework 包内携带的当前标注）生成导入任务。
+6. 仅当三任务 `current/` 全部 `needs_rework == false`（且 `image_id` 集合完整）时，才允许生成 `final/<batch_id>/`。
+
+---
+
+## 8. 关键文件约定（最小集）
+
+| 位置 | 文件 | 用途 |
+|---|---|---|
+| `processed/<batch_id>/` | `manifest.json` | 标准化索引与图文绑定清单（含 `image_id`、`image_path`、`diagnosis_text`）；图像是否复制见 §4.2 |
+| `task_packages/<batch_id>/<task>/` | `manifest.json` | `package_id`、`task_type`、`batch_id`、样本列表 |
+| `results/<batch_id>/<task>/current/` | `annotations.json` | 当前有效 `TaskAnnotationResult` 列表 |
+| `final/<batch_id>/` | `manifest.json`（或等价） | 合并后的多任务记录清单 |
+
+轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。
+
+具体 JSON 字段以 `mma.common.models` 为准；Label Studio 导入/导出细格式由后续 `docs/formats.md` 约定。
+
+---
+
+## 9. 与后续任务的边界
+
+| 本规范包含 | 本规范不包含 |
+|---|---|
+| 目录层级、命名、职责、覆盖语义 | 真实 jpg/Excel 读写实现 |
+| 与 `batch_id` / `package_id` / `task_type` / `image_id` 的对应关系 | Label Studio XML / 导入 JSON 细节 |
+| 三任务隔离与 `final` 汇合规则 | 网盘自动上传下载、预标注算法调用 |
+| `processed/` 必须产出索引与图文绑定 | 是否在 `processed/` 复制图像文件（属 P1 实现决策） |
+
+路径解析辅助代码（如 `common/paths.py`）可在后续实现任务中按本文档落地，不在 T0.3 范围内。

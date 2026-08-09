@@ -28,7 +28,12 @@ pip install -e .
 
 - 已完成：P0 / T0.1 工程初始化（可安装本地工程）
 - 已完成：P0 / T0.2 核心数据契约（`src/mma/common/models.py`）
-- 后续：目录规范、CLI 与业务模块（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：P0 / T0.3 落盘规范（`docs/data_layout.md`）
+- 后续：CLI 与业务模块（见 `.cursor/rules/Development Tasks.md`）
+
+## 文档
+
+- 数据目录与落盘约定：[docs/data_layout.md](docs/data_layout.md)
 
 ## 开发说明
 
