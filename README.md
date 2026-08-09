@@ -24,12 +24,26 @@ pip install -e .
 
 当前阶段无第三方运行时依赖；见 `requirements.txt`。
 
+## CLI
+
+安装后可使用：
+
+```bash
+mma -h
+python -m mma -h
+```
+
+已注册子命令（T0.4 仅为入口骨架，业务逻辑后续阶段实现）：
+
+`preprocess` · `package` · `convert` · `ls-import` · `export-split` · `rework-import` · `apply-current` · `merge`
+
 ## 当前进度
 
 - 已完成：P0 / T0.1 工程初始化（可安装本地工程）
 - 已完成：P0 / T0.2 核心数据契约（`src/mma/common/models.py`）
 - 已完成：P0 / T0.3 落盘规范（`docs/data_layout.md`）
-- 后续：CLI 与业务模块（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：P0 / T0.4 统一 CLI 入口（骨架 / stub）
+- 后续：P1 预处理与任务包等业务模块（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 
