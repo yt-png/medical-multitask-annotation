@@ -1,0 +1,2 @@
+# Runtime dependencies for medical-multitask-annotation (mma).
+# T0.1: no third-party packages yet. Add packages only when a later task requires them.
