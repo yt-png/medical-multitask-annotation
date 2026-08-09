@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 from openpyxl import Workbook
 
-from mma.common.models import ImageTextPair
+from mma.common.ids import generate_image_id
+from mma.common.models import ImageRecord, ImageTextPair
+from mma.preprocess.assign_image_ids import assign_image_ids
 from mma.preprocess.pair_images_excel import pair_images_with_excel
 
 # Tiny valid JPEG (1x1) for fixture files.
@@ -304,3 +306,100 @@ def test_examples_raw_demo_batch_pairs() -> None:
     pairs = pair_images_with_excel(images, excel, batch_id="demo_batch")
     assert len(pairs) >= 1
     assert all(p.diagnosis_text for p in pairs)
+
+
+def _sample_pairs(
+    *,
+    batch_id: str | None = None,
+    names: tuple[str, ...] = ("a.jpg", "b.jpg"),
+) -> tuple[ImageTextPair, ...]:
+    return tuple(
+        ImageTextPair(
+            image_path=f"/tmp/images/{name}",
+            diagnosis_text=f"text-{name}",
+            source_image_name=name,
+            batch_id=batch_id,
+        )
+        for name in names
+    )
+
+
+def test_generate_image_id_format() -> None:
+    assert generate_image_id("demo_batch", 1) == "demo_batch__000001"
+    assert generate_image_id("demo_batch", 12) == "demo_batch__000012"
+
+
+def test_assign_image_ids_success() -> None:
+    pairs = _sample_pairs(batch_id="batch-a")
+    records = assign_image_ids(pairs, "batch-a")
+
+    assert len(records) == 2
+    assert all(isinstance(r, ImageRecord) for r in records)
+    assert records[0].image_id == "batch-a__000001"
+    assert records[1].image_id == "batch-a__000002"
+    assert records[0].image_path == pairs[0].image_path
+    assert records[0].diagnosis_text == pairs[0].diagnosis_text
+    assert records[0].source_image_name == "a.jpg"
+    assert records[0].batch_id == "batch-a"
+
+
+def test_assign_image_ids_deterministic() -> None:
+    pairs = _sample_pairs()
+    first = assign_image_ids(pairs, "batch-a")
+    second = assign_image_ids(pairs, "batch-a")
+    assert [r.image_id for r in first] == [r.image_id for r in second]
+
+
+def test_assign_image_ids_unique_within_batch() -> None:
+    pairs = _sample_pairs(names=("a.jpg", "b.jpg", "c.jpg"))
+    records = assign_image_ids(pairs, "batch-a")
+    ids = [r.image_id for r in records]
+    assert len(ids) == len(set(ids)) == 3
+
+
+def test_assign_image_ids_multi_batch_prefix_isolation() -> None:
+    """Same source names / sequences in two batches get distinct prefixed IDs."""
+
+    pairs = _sample_pairs(names=("a.jpg", "b.jpg"))
+    batch_a = assign_image_ids(pairs, "batch-a")
+    batch_b = assign_image_ids(pairs, "batch-b")
+
+    ids_a = [r.image_id for r in batch_a]
+    ids_b = [r.image_id for r in batch_b]
+
+    assert ids_a == ["batch-a__000001", "batch-a__000002"]
+    assert ids_b == ["batch-b__000001", "batch-b__000002"]
+    assert set(ids_a).isdisjoint(set(ids_b))
+    assert all(r.batch_id == "batch-a" for r in batch_a)
+    assert all(r.batch_id == "batch-b" for r in batch_b)
+
+
+def test_assign_image_ids_rejects_empty_batch_id() -> None:
+    pairs = _sample_pairs()
+    with pytest.raises(ValueError, match="batch_id"):
+        assign_image_ids(pairs, "")
+    with pytest.raises(ValueError, match="batch_id"):
+        assign_image_ids(pairs, "   ")
+
+
+def test_assign_image_ids_rejects_empty_pairs() -> None:
+    with pytest.raises(ValueError, match="pairs must not be empty"):
+        assign_image_ids((), "batch-a")
+
+
+def test_assign_image_ids_rejects_duplicate_source_name() -> None:
+    pairs = _sample_pairs(names=("A.jpg", "a.jpg"))
+    with pytest.raises(ValueError, match="duplicate source_image_name"):
+        assign_image_ids(pairs, "batch-a")
+
+
+def test_assign_image_ids_rejects_mismatched_pair_batch_id() -> None:
+    pairs = _sample_pairs(batch_id="other-batch")
+    with pytest.raises(ValueError, match="does not match"):
+        assign_image_ids(pairs, "batch-a")
+
+
+def test_assign_image_ids_allows_none_pair_batch_id() -> None:
+    pairs = _sample_pairs(batch_id=None)
+    records = assign_image_ids(pairs, "batch-a")
+    assert all(r.batch_id == "batch-a" for r in records)

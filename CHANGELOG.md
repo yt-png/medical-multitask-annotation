@@ -11,6 +11,7 @@
 - 统一 CLI 入口（`src/mma/cli.py`、`python -m mma`、控制台脚本 `mma`）：八个子命令骨架，业务暂为 stub
 - T1.1：新增 `ImageTextPair`（无 `image_id`）；`common/io.py` 列目录与读 Excel；`preprocess/pair_images_excel.py` 图文一一配对 API
 - 依赖 `openpyxl`；`examples/raw/demo_batch` 假数据样例
+- T1.2：新增 `common/ids.py`（确定性 `image_id`：`{batch_id}__{seq:06d}`）；`preprocess/assign_image_ids.py` 将配对结果绑定为 `ImageRecord`（内存清单，不落盘）
 
 ### Changed
 
@@ -23,3 +24,4 @@
 - T0.3 为目录规范文档，无新增可执行业务逻辑测试
 - 新增 `tests/test_cli.py`：子命令注册、帮助、参数校验与 stub 退出码
 - 新增 `tests/test_preprocess.py`：T1.1 正常配对与整批失败边界用例
+- 扩展 `tests/test_preprocess.py`：T1.2 赋 ID、确定性、空输入与重复源名、多批次前缀隔离等用例
