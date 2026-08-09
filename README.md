@@ -27,7 +27,8 @@ pip install -e .
 ## 当前进度
 
 - 已完成：P0 / T0.1 工程初始化（可安装本地工程）
-- 后续：数据契约、目录规范、CLI 与业务模块（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：P0 / T0.2 核心数据契约（`src/mma/common/models.py`）
+- 后续：目录规范、CLI 与业务模块（见 `.cursor/rules/Development Tasks.md`）
 
 ## 开发说明
 

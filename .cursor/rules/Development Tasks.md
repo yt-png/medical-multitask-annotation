@@ -132,7 +132,7 @@
 
 
 ```Plain Text
-medical-multitask-annotation/
+多任务标注平台/
 ├── README.md
 ├── requirements.txt
 ├── pyproject.toml                 # 可选

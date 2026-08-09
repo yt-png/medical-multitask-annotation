@@ -1,0 +1,280 @@
+"""Tests for core data contracts (T0.2). No real image/Excel I/O."""
+
+from __future__ import annotations
+
+import pytest
+
+from mma.common.models import (
+    BatchContext,
+    BBox,
+    BundleKind,
+    CapAnnotation,
+    DetAnnotation,
+    ImageRecord,
+    MergedMultitaskRecord,
+    ResultBundle,
+    SampleItem,
+    SegAnnotation,
+    TaskAnnotationResult,
+    TaskPackage,
+    TaskType,
+    assert_annotation_matches_task,
+)
+
+
+def test_task_type_values() -> None:
+    assert {t.value for t in TaskType} == {"SEG", "DET", "CAP"}
+
+
+def test_bundle_kind_values() -> None:
+    assert {k.value for k in BundleKind} == {"normal", "rework"}
+
+
+def test_construct_image_record_and_sample() -> None:
+    image = ImageRecord(
+        image_id="img-001",
+        image_path="images/img-001.jpg",
+        diagnosis_text="benign nodule",
+        batch_id="batch-a",
+        source_image_name="raw_001.jpg",
+    )
+    sample = SampleItem(
+        image_id=image.image_id,
+        image_path=image.image_path,
+        diagnosis_text=image.diagnosis_text,
+    )
+    assert sample.image_id == "img-001"
+    assert image.batch_id == "batch-a"
+
+
+def test_construct_task_package_allows_empty_samples() -> None:
+    package = TaskPackage(
+        package_id="pkg-seg-1",
+        task_type=TaskType.SEG,
+        samples=(),
+        batch_id="batch-a",
+    )
+    assert package.samples == ()
+    assert package.task_type is TaskType.SEG
+
+
+def test_construct_task_package_with_samples() -> None:
+    samples = (
+        SampleItem("img-1", "a.jpg", "text-a"),
+        SampleItem("img-2", "b.jpg", "text-b"),
+    )
+    package = TaskPackage(
+        package_id="pkg-det-1",
+        task_type=TaskType.DET,
+        samples=samples,
+    )
+    assert len(package.samples) == 2
+
+
+def test_construct_annotations_and_results() -> None:
+    seg = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.SEG,
+        annotation=SegAnnotation(mask_ref="masks/img-1.png"),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    det = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.DET,
+        annotation=DetAnnotation(bboxes=(BBox(0.1, 0.2, 0.3, 0.4),)),
+        human_confirmed=True,
+        needs_rework=False,
+        package_id="pkg-det-1",
+        export_round=1,
+    )
+    cap = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.CAP,
+        annotation=CapAnnotation(caption="left lung opacity"),
+        human_confirmed=True,
+        needs_rework=True,
+    )
+    assert isinstance(seg.annotation, SegAnnotation)
+    assert det.package_id == "pkg-det-1"
+    assert cap.needs_rework is True
+
+
+def test_construct_result_bundles() -> None:
+    normal_item = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.SEG,
+        annotation=SegAnnotation(mask_ref="m1"),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    rework_item = TaskAnnotationResult(
+        image_id="img-2",
+        task_type=TaskType.SEG,
+        annotation=SegAnnotation(mask_ref="m2"),
+        human_confirmed=True,
+        needs_rework=True,
+    )
+    normal = ResultBundle(
+        bundle_kind=BundleKind.NORMAL,
+        task_type=TaskType.SEG,
+        items=(normal_item,),
+        batch_id="batch-a",
+    )
+    rework = ResultBundle(
+        bundle_kind=BundleKind.REWORK,
+        task_type=TaskType.SEG,
+        items=(rework_item,),
+    )
+    assert normal.bundle_kind is BundleKind.NORMAL
+    assert rework.bundle_kind is BundleKind.REWORK
+
+
+def test_construct_merged_multitask_record() -> None:
+    record = MergedMultitaskRecord(
+        image_id="img-1",
+        seg=SegAnnotation(mask_ref="m1"),
+        det=DetAnnotation(bboxes=()),
+        cap=CapAnnotation(caption="ok"),
+        image_path="a.jpg",
+        diagnosis_text="diag",
+    )
+    assert record.seg.mask_ref == "m1"
+    assert record.cap.caption == "ok"
+
+
+def test_seg_result_rejects_det_annotation() -> None:
+    with pytest.raises(ValueError, match="does not match"):
+        TaskAnnotationResult(
+            image_id="img-1",
+            task_type=TaskType.SEG,
+            annotation=DetAnnotation(bboxes=()),
+            human_confirmed=True,
+            needs_rework=False,
+        )
+
+
+def test_det_result_rejects_cap_annotation() -> None:
+    with pytest.raises(ValueError, match="does not match"):
+        TaskAnnotationResult(
+            image_id="img-1",
+            task_type=TaskType.DET,
+            annotation=CapAnnotation(caption="x"),
+            human_confirmed=True,
+            needs_rework=False,
+        )
+
+
+def test_cap_result_rejects_seg_annotation() -> None:
+    with pytest.raises(ValueError, match="does not match"):
+        assert_annotation_matches_task(
+            TaskType.CAP,
+            SegAnnotation(mask_ref="m"),
+        )
+
+
+def test_normal_bundle_rejects_rework_item() -> None:
+    item = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.DET,
+        annotation=DetAnnotation(bboxes=()),
+        human_confirmed=True,
+        needs_rework=True,
+    )
+    with pytest.raises(ValueError, match="NORMAL bundle"):
+        ResultBundle(
+            bundle_kind=BundleKind.NORMAL,
+            task_type=TaskType.DET,
+            items=(item,),
+        )
+
+
+def test_rework_bundle_rejects_normal_item() -> None:
+    item = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.DET,
+        annotation=DetAnnotation(bboxes=()),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    with pytest.raises(ValueError, match="REWORK bundle"):
+        ResultBundle(
+            bundle_kind=BundleKind.REWORK,
+            task_type=TaskType.DET,
+            items=(item,),
+        )
+
+
+def test_bundle_rejects_mismatched_item_task_type() -> None:
+    item = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.SEG,
+        annotation=SegAnnotation(mask_ref="m"),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    with pytest.raises(ValueError, match="item task_type"):
+        ResultBundle(
+            bundle_kind=BundleKind.NORMAL,
+            task_type=TaskType.CAP,
+            items=(item,),
+        )
+
+
+def test_frozen_image_record_is_immutable() -> None:
+    image = ImageRecord(
+        image_id="img-1",
+        image_path="a.jpg",
+        diagnosis_text="t",
+    )
+    with pytest.raises(AttributeError):
+        image.image_id = "img-2"  # type: ignore[misc]
+
+
+def test_current_version_semantics_by_replacement() -> None:
+    """Overwrite semantics: replace object for same image_id + task_type."""
+
+    first = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.CAP,
+        annotation=CapAnnotation(caption="v1"),
+        human_confirmed=True,
+        needs_rework=True,
+        export_round=1,
+    )
+    second = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.CAP,
+        annotation=CapAnnotation(caption="v2"),
+        human_confirmed=True,
+        needs_rework=False,
+        export_round=2,
+    )
+    current = { (first.image_id, first.task_type): first }
+    current[(second.image_id, second.task_type)] = second
+    assert current[("img-1", TaskType.CAP)].annotation.caption == "v2"
+    assert current[("img-1", TaskType.CAP)].needs_rework is False
+
+
+def test_optional_fields_default_none() -> None:
+    result = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.SEG,
+        annotation=SegAnnotation(mask_ref="m"),
+        human_confirmed=False,
+        needs_rework=False,
+    )
+    image = ImageRecord(
+        image_id="img-1",
+        image_path="a.jpg",
+        diagnosis_text="t",
+    )
+    assert result.package_id is None
+    assert result.export_round is None
+    assert image.batch_id is None
+    assert image.source_image_name is None
+
+
+def test_batch_context() -> None:
+    ctx = BatchContext(batch_id="batch-a")
+    assert ctx.batch_id == "batch-a"
