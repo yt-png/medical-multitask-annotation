@@ -1,0 +1,31 @@
+<View>
+  <View style="display: flex; gap: 1em;">
+    <View style="flex: 2;">
+      <Header value="原图与检测框"/>
+      <Image name="image" value="$image"/>
+      <RectangleLabels name="det_bbox" toName="image">
+        <Label value="object" background="#0000FF"/>
+      </RectangleLabels>
+    </View>
+    <View style="flex: 1;">
+      <Header value="原始诊断文本"/>
+      <Text name="diagnosis_text_view" value="$diagnosis_text"/>
+      <Header value="image_id"/>
+      <Text name="image_id_view" value="$image_id"/>
+      <Header value="package_id"/>
+      <Text name="package_id_view" value="$package_id"/>
+    </View>
+  </View>
+
+  <Header value="人工确认（必选）"/>
+  <Choices name="human_confirmed" toName="image" required="true" choice="single" showInline="true">
+    <Choice value="yes" hint="是（已人工确认）"/>
+    <Choice value="no" hint="否（未确认）"/>
+  </Choices>
+
+  <Header value="是否需要返工"/>
+  <Choices name="needs_rework" toName="image" choice="single" showInline="true">
+    <Choice value="yes" hint="是（需要返工）"/>
+    <Choice value="no" hint="否（不需要返工）"/>
+  </Choices>
+</View>

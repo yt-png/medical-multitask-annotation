@@ -275,6 +275,21 @@ item = ExampleSegAdapter().adapt_item(
 
 ---
 
-## 12. 版本
+## 12. DET Labeling Config（T3.2）
+
+配置文件：`src/mma/labelstudio/configs/det.xml`（包内可通过 `mma.labelstudio.det_config_path` / `load_det_config_text` 读取）。
+
+| 工作台控件 | 对齐约定 |
+|---|---|
+| `Image name="image"` / `$image` | 与 T2.2 `data.image`、`DEFAULT_LS_RESULT_SPECS[DET].to_name` |
+| `RectangleLabels name="det_bbox"` | 与 `from_name=det_bbox`；标签 `object`；多框叠在原图上编辑 |
+| `$diagnosis_text` / `$image_id` / `$package_id` 只读 Text | 与转换 `data.*` 一致；**无** `$mask_ref` |
+| `Choices name="human_confirmed"` / `needs_rework` | 与 SEG 相同：`yes`/`no`；对齐契约字段 |
+
+DET 多框预填已由 T2.2 `bboxes[]` → `predictions` 完成，本任务仅定工作台 XML。
+
+---
+
+## 13. 版本
 
 当前中间格式 `schema_version`：`1.0`。后续不兼容变更应递增版本并在本文档说明。

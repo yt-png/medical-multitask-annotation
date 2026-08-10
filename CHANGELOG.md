@@ -4,6 +4,8 @@
 
 ### Added
 
+- T3.2：新增 DET Label Studio 工作台配置 `src/mma/labelstudio/configs/det.xml`（原图 + RectangleLabels `det_bbox`/`object`、原文与 ID 只读、双 Choices；无 mask 侧栏）
+- T3.2：新增 `mma.labelstudio.det_config_path` / `load_det_config_text`
 - T3.1b：新增 `src/mma/converters/seg_brush.py`（Pillow 读 mask、8 连通拆分、LS 兼容 brush RLE）；`item_to_ls_task` / `document_to_ls_tasks` 支持可选 `mask_root`
 - 依赖：`Pillow>=10.0.0`（`requirements.txt` / `pyproject.toml`）
 - T3.1：新增 SEG Label Studio 工作台配置 `src/mma/labelstudio/configs/seg.xml`（原图 + BrushLabels `seg_mask`/`lesion`、原文与 ID 只读、双 Choices；`mask_ref` 仅路径追溯）
@@ -22,9 +24,11 @@
 - `docs/formats.md` / `README.md` / `examples/README.md`：补充 T2.2–T2.4 说明（CLI `convert` 仍未接线）
 - `docs/formats.md` / `README.md`：补充 T3.1 SEG 工作台控制名对齐说明（不含 T3.1b 叠图预填）
 - `docs/formats.md` / `README.md`：补充 T3.1b `mask_root` 叠图预填与连通域规则
+- `docs/formats.md` / `README.md`：补充 T3.2 DET 工作台控制名对齐说明
 
 ### Tests
 
+- 新增 `tests/test_labelstudio_det_config.py`：DET XML 打包可读、Rectangle 绑定、禁止 Brush/`$mask_ref`、只读字段与双 Choices 契约
 - 新增 `tests/test_seg_brush.py`：mask 读取、8 连通、RLE、缺文件/尺寸不一致、converter 接线
 - 扩展 `tests/test_convert.py`：`mask_root` 下 SEG 发射 brush results
 - 新增 `tests/test_labelstudio_seg_config.py`：SEG XML 打包可读、结构、Brush 绑定、禁止 `$mask_ref` 作主图、只读字段与双 Choices 契约
