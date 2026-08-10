@@ -1,7 +1,8 @@
 """Core data contracts for the multitask annotation pipeline.
 
-Coordinate systems for bbox/mask encodings are left to later format modules.
-These models only define field names, types, and light consistency checks.
+Prelabel intermediate formats (pixel bbox, mask file refs, etc.) live in
+``mma.formats`` — see ``docs/formats.md``. This module defines business-stage
+field names, types, and light consistency checks only.
 """
 
 from __future__ import annotations
@@ -37,7 +38,8 @@ class BatchContext:
 class BBox:
     """Axis-aligned box: x, y, width, height.
 
-    Coordinate space (normalized vs pixels) is defined by later format specs.
+    Coordinate space is not fixed here. Prelabel intermediate DET uses
+    ``mma.formats.PrelabelBBox`` (pixel coordinates); see ``docs/formats.md``.
     """
 
     x: float
@@ -48,21 +50,24 @@ class BBox:
 
 @dataclass(frozen=True)
 class SegAnnotation:
-    """SEG annotation payload; mask stored as a string reference."""
+    """SEG annotation payload; mask stored as a string reference.
+
+    Prelabel-stage SEG uses ``mma.formats.SegPrelabelPayload`` (file ref only).
+    """
 
     mask_ref: str
 
 
 @dataclass(frozen=True)
 class DetAnnotation:
-    """DET annotation payload."""
+    """DET annotation payload (post-confirmation / merge stage)."""
 
     bboxes: tuple[BBox, ...]
 
 
 @dataclass(frozen=True)
 class CapAnnotation:
-    """CAP annotation payload."""
+    """CAP annotation payload (post-confirmation / merge stage)."""
 
     caption: str
 

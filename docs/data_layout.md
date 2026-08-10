@@ -93,9 +93,10 @@ data/
 
 | 项目 | 说明 |
 |---|---|
-| 职责 | 外部预标注原始输出落点（人工放入） |
-| 内容 | 算法/大模型原始格式文件；平台本阶段不生成 |
-| 消费者 | 格式转换（P2） |
+| 职责 | 预标注落点：可含算法原始输出；**统一中间格式**主文件为 `prelabels.json` |
+| 必须内容（中间格式就绪后） | `prelabels.json`（字段见 `docs/formats.md`；关联键为 `image_id`） |
+| SEG 资源 | 建议 `masks/` 子目录；`mask_ref` 相对本任务 prelabels 目录根 |
+| 消费者 | 格式转换（P2）；测试样例见 `examples/prelabels/` |
 
 ### 4.5 `ls_import/<batch_id>/{seg,det,cap}/`
 
@@ -197,12 +198,13 @@ raw
 |---|---|---|
 | `processed/<batch_id>/` | `manifest.json` | 标准化索引与图文绑定清单（含 `image_id`、`image_path`、`diagnosis_text`）；图像是否复制见 §4.2 |
 | `task_packages/<batch_id>/<task>/` | `manifest.json` | `package_id`、`task_type`、`batch_id`、样本列表 |
+| `prelabels/<batch_id>/<task>/` | `prelabels.json` | 统一中间格式（`docs/formats.md`）；关联键 `image_id` |
 | `results/<batch_id>/<task>/current/` | `annotations.json` | 当前有效 `TaskAnnotationResult` 列表 |
 | `final/<batch_id>/` | `manifest.json`（或等价） | 合并后的多任务记录清单 |
 
 轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。
 
-具体 JSON 字段以 `mma.common.models` 为准；Label Studio 导入/导出细格式由后续 `docs/formats.md` 约定。
+业务结果 JSON 字段以 `mma.common.models` 为准；预标注统一中间格式与 Label Studio 转换约定见 `docs/formats.md`。
 
 ---
 

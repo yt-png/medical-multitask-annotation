@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-08-10
+
+### Added
+
+- T2.1：新增预标注统一中间格式层（`src/mma/formats/`）：`PrelabelDocument` / `PrelabelItem`、SEG/DET/CAP 载荷、`PrelabelBBox`（像素坐标）及校验/解析 API
+- 包内样例 JSON：`src/mma/formats/{seg,det,cap}.json`；测试落盘样例：`examples/prelabels/demo_batch/{seg,det,cap}/prelabels.json`
+- 文档：`docs/formats.md`（关联键 `image_id`；运行时主文件名 `prelabels.json`）
+
+### Changed
+
+- `docs/data_layout.md`：补充 `prelabels.json` 与中间格式约定
+- `common/models.py`：仅注释指向 formats 层（字段与语义不变）
+
+### Tests
+
+- 新增 `tests/test_formats.py`：样例加载、往返序列化、任务/载荷匹配、bbox/空框/重复 `image_id` 等边界与异常用例
+
 ## 2026-08-09
 
 ### Added

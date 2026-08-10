@@ -51,11 +51,13 @@ mma package --batch demo_batch --data-root data
 
 - 已完成：P0 / T0.1–T0.4 工程骨架、契约、落盘规范、CLI 入口
 - 已完成：P1 / T1.1–T1.5 预处理与三类任务包（配对、`image_id`、processed 落盘、拆包图像、`package_id`+manifest、CLI）
-- 后续：P2 预标注格式统一等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：P2 / T2.1 预标注统一中间格式（类型、校验、样例 JSON、文档；不含转换与算法）
+- 后续：T2.2 转换、T2.3 适配器接口等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 
 - 数据目录与落盘约定：[docs/data_layout.md](docs/data_layout.md)
+- 预标注统一中间格式：[docs/formats.md](docs/formats.md)
 
 ## 开发说明
 
