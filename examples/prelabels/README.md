@@ -28,3 +28,5 @@ demo_batch/
 ```text
 data/prelabels/demo_batch/{seg,det,cap}/prelabels.json
 ```
+
+端到端「假 raw → Example adapter → LS JSON」演示见上级 [examples/README.md](../README.md) 与 `examples/scripts/run_p2_demo.py`（T2.4）。

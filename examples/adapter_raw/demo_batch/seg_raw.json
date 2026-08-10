@@ -1,0 +1,10 @@
+{
+  "items": [
+    {
+      "mask_ref": "masks/demo_batch__000001.png"
+    },
+    {
+      "mask_ref": "masks/demo_batch__000002.png"
+    }
+  ]
+}

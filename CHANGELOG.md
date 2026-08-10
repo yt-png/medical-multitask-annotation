@@ -9,18 +9,20 @@
 - 文档：`docs/formats.md`（关联键 `image_id`；运行时主文件名 `prelabels.json`）
 - T2.2：新增 `src/mma/converters/to_labelstudio.py`（`item_to_ls_task` / `document_to_ls_tasks`）；DET 经调用方 `ImageMetadata` 做像素→百分比；SEG 仅 `data.mask_ref` + 空 `result` 预留
 - T2.3：新增 `src/mma/adapters/`（`AdapterContext`、三类 Base/`NotImplementedError`、Example 适配器）；raw 仅 Mapping，信封由调用方注入
+- T2.4：新增 `examples/adapter_raw/` 假算法 raw + `contexts.json`；`examples/scripts/run_p2_demo.py`；`tests/test_p2_pipeline.py` 端到端链路
 
 ### Changed
 
 - `docs/data_layout.md`：补充 `prelabels.json` 与中间格式约定
 - `common/models.py`：仅注释指向 formats 层（字段与语义不变）
-- `docs/formats.md` / `README.md`：补充 T2.2 Label Studio import 与 T2.3 adapters 说明（CLI `convert` 仍未接线）
+- `docs/formats.md` / `README.md` / `examples/README.md`：补充 T2.2–T2.4 说明（CLI `convert` 仍未接线）
 
 ### Tests
 
 - 新增 `tests/test_formats.py`：样例加载、往返序列化、任务/载荷匹配、bbox/空框/重复 `image_id` 等边界与异常用例
 - 新增 `tests/test_convert.py`：SEG/DET/CAP 转换、百分比换算、缺 metadata、空框与 `image_path=None` 等
 - 新增 `tests/test_adapters.py`：Base `NotImplementedError`、Example 映射、信封注入、与 T2.2 链路冒烟
+- 新增 `tests/test_p2_pipeline.py`：raw → ExampleAdapter → PrelabelDocument → LS converter 三类任务
 
 ## 2026-08-09
 
