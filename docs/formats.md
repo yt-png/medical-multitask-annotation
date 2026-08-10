@@ -248,6 +248,21 @@ item = ExampleSegAdapter().adapt_item(
 
 ---
 
-## 11. 版本
+## 11. SEG Labeling Config（T3.1）
+
+配置文件：`src/mma/labelstudio/configs/seg.xml`（包内可通过 `mma.labelstudio.seg_config_path` / `load_seg_config_text` 读取）。
+
+| 工作台控件 | 对齐约定 |
+|---|---|
+| `Image name="image"` / `$image` | 与 T2.2 `data.image`、`DEFAULT_LS_RESULT_SPECS[SEG].to_name` |
+| `BrushLabels name="seg_mask"` | 与 `from_name=seg_mask`；标签 `lesion`；叠在原图上编辑 |
+| `$diagnosis_text` / `$image_id` 等只读 Text | 与转换 `data.*` 字段名一致；`$mask_ref` 仅路径追溯，**不是**预标注主展示 |
+| `Choices name="human_confirmed"` / `needs_rework` | value 为 `yes`/`no`；对齐契约 `human_confirmed` / `needs_rework` |
+
+预标注 brush 叠图写入 `predictions`（含连通域拆分）属 **T3.1b**，不在 T3.1 范围。
+
+---
+
+## 12. 版本
 
 当前中间格式 `schema_version`：`1.0`。后续不兼容变更应递增版本并在本文档说明。

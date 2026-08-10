@@ -4,6 +4,8 @@
 
 ### Added
 
+- T3.1：新增 SEG Label Studio 工作台配置 `src/mma/labelstudio/configs/seg.xml`（原图 + BrushLabels `seg_mask`/`lesion`、原文与 ID 只读、双 Choices；`mask_ref` 仅路径追溯）
+- T3.1：新增 `mma.labelstudio.seg_config_path` / `load_seg_config_text`；`pyproject.toml` 打包 `*.xml`
 - T2.1：新增预标注统一中间格式层（`src/mma/formats/`）：`PrelabelDocument` / `PrelabelItem`、SEG/DET/CAP 载荷、`PrelabelBBox`（像素坐标）及校验/解析 API
 - 包内样例 JSON：`src/mma/formats/{seg,det,cap}.json`；测试落盘样例：`examples/prelabels/demo_batch/{seg,det,cap}/prelabels.json`
 - 文档：`docs/formats.md`（关联键 `image_id`；运行时主文件名 `prelabels.json`）
@@ -16,9 +18,11 @@
 - `docs/data_layout.md`：补充 `prelabels.json` 与中间格式约定
 - `common/models.py`：仅注释指向 formats 层（字段与语义不变）
 - `docs/formats.md` / `README.md` / `examples/README.md`：补充 T2.2–T2.4 说明（CLI `convert` 仍未接线）
+- `docs/formats.md` / `README.md`：补充 T3.1 SEG 工作台控制名对齐说明（不含 T3.1b 叠图预填）
 
 ### Tests
 
+- 新增 `tests/test_labelstudio_seg_config.py`：SEG XML 打包可读、结构、Brush 绑定、禁止 `$mask_ref` 作主图、只读字段与双 Choices 契约
 - 新增 `tests/test_formats.py`：样例加载、往返序列化、任务/载荷匹配、bbox/空框/重复 `image_id` 等边界与异常用例
 - 新增 `tests/test_convert.py`：SEG/DET/CAP 转换、百分比换算、缺 metadata、空框与 `image_path=None` 等
 - 新增 `tests/test_adapters.py`：Base `NotImplementedError`、Example 映射、信封注入、与 T2.2 链路冒烟

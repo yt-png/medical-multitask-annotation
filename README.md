@@ -70,12 +70,13 @@ python examples/scripts/run_p2_demo.py
 - 已完成：P0 / T0.1–T0.4 工程骨架、契约、落盘规范、CLI 入口
 - 已完成：P1 / T1.1–T1.5 预处理与三类任务包（配对、`image_id`、processed 落盘、拆包图像、`package_id`+manifest、CLI）
 - 已完成：P2 / T2.1–T2.4 预标注统一中间格式、LS 转换 API、适配器接口/示例、假 raw 样例与端到端演示脚本/测试（不含真实算法与 CLI convert）
-- 后续：T3 工作台与导入等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T3.1 SEG Label Studio 工作台 XML（`src/mma/labelstudio/configs/seg.xml`）；叠图预填（T3.1b）与 DET/CAP 工作台尚未做
+- 后续：T3.1b / T3.2–T3.5 等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 
 - 数据目录与落盘约定：[docs/data_layout.md](docs/data_layout.md)
-- 预标注统一中间格式：[docs/formats.md](docs/formats.md)
+- 预标注统一中间格式与 SEG 工作台控制名对齐：[docs/formats.md](docs/formats.md)
 
 ## 开发说明
 
