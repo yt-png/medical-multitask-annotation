@@ -290,6 +290,20 @@ DET 多框预填已由 T2.2 `bboxes[]` → `predictions` 完成，本任务仅�
 
 ---
 
-## 13. 版本
+## 13. CAP Labeling Config（T3.3）
+
+配置文件：`src/mma/labelstudio/configs/cap.xml`（包内可通过 `mma.labelstudio.cap_config_path` / `load_cap_config_text` 读取）。
+
+| 工作台控件 | 对齐约定 |
+|---|---|
+| `Image name="image"` / `$image` | 与 T2.2 `data.image`、`DEFAULT_LS_RESULT_SPECS[CAP].to_name` |
+| `TextArea name="cap_text"` | 与 `from_name=cap_text`；可编辑预标注文本；由 T2.2 `predictions` 预填 |
+| `$diagnosis_text` 只读 Text | 原始诊断对照；**不可**用 TextArea 编辑原文 |
+| `$image_id` / `$package_id` 只读 Text | 追溯；**无** `$mask_ref` |
+| `Choices name="human_confirmed"` / `needs_rework` | 与 SEG/DET 相同：`yes`/`no` |
+
+---
+
+## 14. 版本
 
 当前中间格式 `schema_version`：`1.0`。后续不兼容变更应递增版本并在本文档说明。

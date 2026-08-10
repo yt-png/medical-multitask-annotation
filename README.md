@@ -76,12 +76,13 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T3.1 SEG Label Studio 工作台 XML（`src/mma/labelstudio/configs/seg.xml`）
 - 已完成：T3.1b SEG 叠图预填（`mask_root` → 8 连通 brush RLE；无 `mask_root` 仍空 result）
 - 已完成：T3.2 DET Label Studio 工作台 XML（`src/mma/labelstudio/configs/det.xml`）
-- 后续：T3.3–T3.5 等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T3.3 CAP Label Studio 工作台 XML（`src/mma/labelstudio/configs/cap.xml`）
+- 后续：T3.4–T3.5 等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 
 - 数据目录与落盘约定：[docs/data_layout.md](docs/data_layout.md)
-- 预标注统一中间格式与 SEG/DET 工作台控制名对齐：[docs/formats.md](docs/formats.md)
+- 预标注统一中间格式与 SEG/DET/CAP 工作台控制名对齐：[docs/formats.md](docs/formats.md)
 
 ## 开发说明
 

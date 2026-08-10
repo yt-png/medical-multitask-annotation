@@ -4,6 +4,8 @@
 
 ### Added
 
+- T3.3：新增 CAP Label Studio 工作台配置 `src/mma/labelstudio/configs/cap.xml`（原图 + 可编辑 TextArea `cap_text`、只读原文与 ID、双 Choices）
+- T3.3：新增 `mma.labelstudio.cap_config_path` / `load_cap_config_text`
 - T3.2：新增 DET Label Studio 工作台配置 `src/mma/labelstudio/configs/det.xml`（原图 + RectangleLabels `det_bbox`/`object`、原文与 ID 只读、双 Choices；无 mask 侧栏）
 - T3.2：新增 `mma.labelstudio.det_config_path` / `load_det_config_text`
 - T3.1b：新增 `src/mma/converters/seg_brush.py`（Pillow 读 mask、8 连通拆分、LS 兼容 brush RLE）；`item_to_ls_task` / `document_to_ls_tasks` 支持可选 `mask_root`
@@ -25,9 +27,11 @@
 - `docs/formats.md` / `README.md`：补充 T3.1 SEG 工作台控制名对齐说明（不含 T3.1b 叠图预填）
 - `docs/formats.md` / `README.md`：补充 T3.1b `mask_root` 叠图预填与连通域规则
 - `docs/formats.md` / `README.md`：补充 T3.2 DET 工作台控制名对齐说明
+- `docs/formats.md` / `README.md`：补充 T3.3 CAP 工作台控制名对齐说明
 
 ### Tests
 
+- 新增 `tests/test_labelstudio_cap_config.py`：CAP XML 打包可读、TextArea `cap_text`、原文只读分离、禁止 Brush/Rectangle/`$mask_ref`、双 Choices 契约
 - 新增 `tests/test_labelstudio_det_config.py`：DET XML 打包可读、Rectangle 绑定、禁止 Brush/`$mask_ref`、只读字段与双 Choices 契约
 - 新增 `tests/test_seg_brush.py`：mask 读取、8 连通、RLE、缺文件/尺寸不一致、converter 接线
 - 扩展 `tests/test_convert.py`：`mask_root` 下 SEG 发射 brush results
