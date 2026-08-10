@@ -4,6 +4,7 @@
 
 ### Added
 
+- T3.5：新增 `docs/labelstudio_usage.md`（本地 LS：Local Files、三任务 XML、导入 `tasks.json`、标注勾选与导出落盘建议）
 - T3.4：新增 `src/mma/importers/build_ls_tasks.py`（读 prelabels + task_packages 图像 → `ls_import/.../tasks.json`；`/data/local-files/?d=` URL；SEG 默认 `mask_root`）
 - T3.4：接线 `mma ls-import --batch --task [--data-root] [--local-root]`；`paths.py` 增加 `prelabels_task_dir` / `ls_import_task_dir`
 - T3.3：新增 CAP Label Studio 工作台配置 `src/mma/labelstudio/configs/cap.xml`（原图 + 可编辑 TextArea `cap_text`、只读原文与 ID、双 Choices）
@@ -34,6 +35,7 @@
 
 ### Tests
 
+- 新增 `tests/test_docs_labelstudio_usage.py`：操作说明文档存在性与关键主题标记
 - 新增 `tests/test_build_ls_tasks.py`：三任务构建、local-files URL、缺文件失败、不复制图像、CLI 成功/失败
 - 新增 `tests/test_labelstudio_cap_config.py`：CAP XML 打包可读、TextArea `cap_text`、原文只读分离、禁止 Brush/Rectangle/`$mask_ref`、双 Choices 契约
 - 新增 `tests/test_labelstudio_det_config.py`：DET XML 打包可读、Rectangle 绑定、禁止 Brush/`$mask_ref`、只读字段与双 Choices 契约

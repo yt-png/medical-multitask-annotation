@@ -88,12 +88,14 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T3.2 DET Label Studio 工作台 XML（`src/mma/labelstudio/configs/det.xml`）
 - 已完成：T3.3 CAP Label Studio 工作台 XML（`src/mma/labelstudio/configs/cap.xml`）
 - 已完成：T3.4 生成 LS 导入任务（`importers/build_ls_tasks.py`、`mma ls-import`、local-files URL）
-- 后续：T3.5 等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T3.5 Label Studio 本地使用说明（`docs/labelstudio_usage.md`）
+- 后续：P4 导出分类与返工覆盖等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 
 - 数据目录与落盘约定：[docs/data_layout.md](docs/data_layout.md)
 - 预标注统一中间格式与 SEG/DET/CAP 工作台控制名对齐：[docs/formats.md](docs/formats.md)
+- Label Studio 本地导入与标注操作：[docs/labelstudio_usage.md](docs/labelstudio_usage.md)
 
 ## 开发说明
 
