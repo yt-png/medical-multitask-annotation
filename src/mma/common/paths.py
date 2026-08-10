@@ -66,6 +66,16 @@ def task_packages_batch_dir(
     return root / "task_packages" / cleaned
 
 
+def task_dir_name(task: str | TaskType) -> str:
+    """Return lowercase task subdirectory name ``seg`` / ``det`` / ``cap``."""
+
+    key: str | TaskType = task if isinstance(task, TaskType) else str(task)
+    try:
+        return _TASK_DIR_NAMES[key]
+    except KeyError as exc:
+        raise ValueError(f"unsupported task type for package dir: {task!r}") from exc
+
+
 def task_package_dir(
     batch_id: str,
     task: str | TaskType,
@@ -74,11 +84,32 @@ def task_package_dir(
 ) -> Path:
     """Return ``{data_root}/task_packages/{batch_id}/{seg|det|cap}``."""
 
-    key: str | TaskType = task if isinstance(task, TaskType) else str(task)
-    try:
-        task_dir = _TASK_DIR_NAMES[key]
-    except KeyError as exc:
-        raise ValueError(
-            f"unsupported task type for package dir: {task!r}"
-        ) from exc
-    return task_packages_batch_dir(batch_id, data_root=data_root) / task_dir
+    return task_packages_batch_dir(batch_id, data_root=data_root) / task_dir_name(
+        task
+    )
+
+
+def prelabels_task_dir(
+    batch_id: str,
+    task: str | TaskType,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/prelabels/{batch_id}/{seg|det|cap}``."""
+
+    cleaned = validate_batch_id(batch_id)
+    root = default_data_root() if data_root is None else Path(data_root)
+    return root / "prelabels" / cleaned / task_dir_name(task)
+
+
+def ls_import_task_dir(
+    batch_id: str,
+    task: str | TaskType,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/ls_import/{batch_id}/{seg|det|cap}``."""
+
+    cleaned = validate_batch_id(batch_id)
+    root = default_data_root() if data_root is None else Path(data_root)
+    return root / "ls_import" / cleaned / task_dir_name(task)

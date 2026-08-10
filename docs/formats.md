@@ -221,7 +221,7 @@ doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 tasks = document_to_ls_tasks(doc, mask_root=Path("data/prelabels/demo_batch/seg"))
 ```
 
-真实本地导入路径策略见后续 T3.4；本阶段不写 `data/ls_import/`。
+本地导入落盘（T3.4）：`mma.importers.build_ls_import_tasks` / `mma ls-import` 写出 `data/ls_import/<batch>/<task>/tasks.json`，并将 `data.image` 重写为 `/data/local-files/?d=...`（相对 `local_root`，默认等于 `data_root`）。详见 `docs/data_layout.md` §4.5。
 
 ---
 

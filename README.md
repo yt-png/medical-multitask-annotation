@@ -33,7 +33,7 @@ mma -h
 python -m mma -h
 ```
 
-已注册子命令：`preprocess`、`package` 已接线；其余仍为骨架 stub：
+已注册子命令：`preprocess`、`package`、`ls-import` 已接线；其余仍为骨架 stub：
 
 `preprocess` · `package` · `convert` · `ls-import` · `export-split` · `rework-import` · `apply-current` · `merge`
 
@@ -46,6 +46,16 @@ mma package --batch demo_batch --data-root data
 
 - `preprocess`：写出 `data/processed/<batch_id>/manifest.json`（引用原图，不复制）
 - `package`：复制三类全量图像并写出各任务包 `manifest.json`（含 `package_id`）
+
+生成 Label Studio 导入任务（需已有 `prelabels/` 与 `task_packages/` 图像）：
+
+```bash
+mma ls-import --batch demo_batch --task seg --data-root data
+```
+
+- 写出 `data/ls_import/<batch>/<task>/tasks.json`
+- `data.image` 使用 `/data/local-files/?d=task_packages/...`（可用 `--local-root` 覆盖相对根）
+- SEG 默认启用 prelabels 目录为 `mask_root` 以叠图预填
 
 预标注 → Label Studio import（T2.2 / T3.1b，Python API，CLI `convert` 仍为 stub）：
 
@@ -77,7 +87,8 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T3.1b SEG 叠图预填（`mask_root` → 8 连通 brush RLE；无 `mask_root` 仍空 result）
 - 已完成：T3.2 DET Label Studio 工作台 XML（`src/mma/labelstudio/configs/det.xml`）
 - 已完成：T3.3 CAP Label Studio 工作台 XML（`src/mma/labelstudio/configs/cap.xml`）
-- 后续：T3.4–T3.5 等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T3.4 生成 LS 导入任务（`importers/build_ls_tasks.py`、`mma ls-import`、local-files URL）
+- 后续：T3.5 等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 

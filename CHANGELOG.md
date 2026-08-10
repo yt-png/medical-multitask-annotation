@@ -4,6 +4,8 @@
 
 ### Added
 
+- T3.4：新增 `src/mma/importers/build_ls_tasks.py`（读 prelabels + task_packages 图像 → `ls_import/.../tasks.json`；`/data/local-files/?d=` URL；SEG 默认 `mask_root`）
+- T3.4：接线 `mma ls-import --batch --task [--data-root] [--local-root]`；`paths.py` 增加 `prelabels_task_dir` / `ls_import_task_dir`
 - T3.3：新增 CAP Label Studio 工作台配置 `src/mma/labelstudio/configs/cap.xml`（原图 + 可编辑 TextArea `cap_text`、只读原文与 ID、双 Choices）
 - T3.3：新增 `mma.labelstudio.cap_config_path` / `load_cap_config_text`
 - T3.2：新增 DET Label Studio 工作台配置 `src/mma/labelstudio/configs/det.xml`（原图 + RectangleLabels `det_bbox`/`object`、原文与 ID 只读、双 Choices；无 mask 侧栏）
@@ -28,9 +30,11 @@
 - `docs/formats.md` / `README.md`：补充 T3.1b `mask_root` 叠图预填与连通域规则
 - `docs/formats.md` / `README.md`：补充 T3.2 DET 工作台控制名对齐说明
 - `docs/formats.md` / `README.md`：补充 T3.3 CAP 工作台控制名对齐说明
+- `docs/data_layout.md` / `docs/formats.md` / `README.md`：补充 T3.4 local-files 与 `ls-import` 约定
 
 ### Tests
 
+- 新增 `tests/test_build_ls_tasks.py`：三任务构建、local-files URL、缺文件失败、不复制图像、CLI 成功/失败
 - 新增 `tests/test_labelstudio_cap_config.py`：CAP XML 打包可读、TextArea `cap_text`、原文只读分离、禁止 Brush/Rectangle/`$mask_ref`、双 Choices 契约
 - 新增 `tests/test_labelstudio_det_config.py`：DET XML 打包可读、Rectangle 绑定、禁止 Brush/`$mask_ref`、只读字段与双 Choices 契约
 - 新增 `tests/test_seg_brush.py`：mask 读取、8 连通、RLE、缺文件/尺寸不一致、converter 接线

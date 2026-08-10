@@ -1,4 +1,4 @@
-"""Tests for unified CLI (preprocess wired in T1.3; others stub)."""
+"""Tests for unified CLI (preprocess/package/ls-import wired; others stub)."""
 
 from __future__ import annotations
 

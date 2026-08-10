@@ -1,6 +1,7 @@
 """Unified CLI entry for the multitask annotation pipeline.
 
-``preprocess`` and ``package`` are wired; other subcommands remain stubs.
+``preprocess``, ``package``, and ``ls-import`` are wired; other subcommands
+remain stubs.
 """
 
 from __future__ import annotations
@@ -91,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     ls_import = subparsers.add_parser(
         "ls-import",
-        help="Build Label Studio import tasks (P3).",
+        help="Build Label Studio import tasks with local-files image URLs (P3).",
     )
     ls_import.add_argument("--batch", required=True, help="Batch ID")
     ls_import.add_argument(
@@ -99,6 +100,19 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         choices=TASK_CHOICES,
         help="Task type subdirectory",
+    )
+    ls_import.add_argument(
+        "--data-root",
+        default=None,
+        help="Runtime data root (default: ./data)",
+    )
+    ls_import.add_argument(
+        "--local-root",
+        default=None,
+        help=(
+            "Label Studio local storage root for /data/local-files/?d= paths "
+            "(default: same as --data-root)"
+        ),
     )
 
     export_split = subparsers.add_parser(
@@ -184,6 +198,24 @@ def _run_package(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_ls_import(args: argparse.Namespace) -> int:
+    from mma.importers.build_ls_tasks import build_ls_import_tasks
+
+    try:
+        out_path = build_ls_import_tasks(
+            args.batch,
+            args.task,
+            data_root=args.data_root,
+            local_root=args.local_root,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"mma ls-import: {exc}", file=sys.stderr)
+        return 2
+
+    print(str(Path(out_path)))
+    return 0
+
+
 def dispatch(args: argparse.Namespace) -> int:
     """Route parsed args to handlers."""
 
@@ -192,6 +224,8 @@ def dispatch(args: argparse.Namespace) -> int:
         return _run_preprocess(args)
     if command == "package":
         return _run_package(args)
+    if command == "ls-import":
+        return _run_ls_import(args)
     if command in SUBCOMMANDS:
         return _stub(command)
     print(f"mma: unknown command {command!r}", file=sys.stderr)

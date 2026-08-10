@@ -103,8 +103,13 @@ data/
 | 项目 | 说明 |
 |---|---|
 | 职责 | Label Studio 可导入任务与配套资源 |
-| 内容 | 导入 JSON、本地图像路径约定所需文件；返工再导入任务也落在此树（可由文件名或子目录区分首轮/返工，实现阶段再定最小必要约定） |
-| 消费者 | Label Studio 本地导入（P3 / P4 返工） |
+| 必须内容（T3.4） | `tasks.json`：LS 导入任务数组 |
+| 图像 | **不复制**；`data.image` 使用 Local Files URL：`/data/local-files/?d=<相对 local_root 的正斜杠路径>` |
+| 默认相对路径 | 相对 `data_root`（常与 LS Local storage 根一致），例如 `task_packages/<batch_id>/seg/images/<image_id>.jpg` |
+| 图像来源 | 优先解析 `task_packages/<batch_id>/<task>/images/{image_id}.jpg\|.jpeg` |
+| 输入 | `prelabels/<batch_id>/<task>/prelabels.json`；SEG 默认以该 prelabels 目录为 `mask_root` 生成 brush 预填 |
+| CLI | `mma ls-import --batch <id> --task {seg\|det\|cap} [--data-root] [--local-root]` |
+| 消费者 | Label Studio 本地导入（P3 / P4 返工）；工作台 XML 仍用包内 `labelstudio/configs/*.xml`（不拷贝到本目录） |
 
 ### 4.6 `ls_export/<batch_id>/{seg,det,cap}/`
 
