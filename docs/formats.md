@@ -191,7 +191,7 @@ doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 
 | 任务 | 转换要点 |
 |---|---|
-| SEG | `data.mask_ref` 保留文件引用；`predictions[].result` 为空列表（结构预留）；**不**读 mask、**不**生成 brush/RLE |
+| SEG | 无 `mask_root` 时：`data.mask_ref` + `predictions[].result=[]`（兼容 T2.2）。传入 `mask_root`（T3.1b）时：读取相对该根的 `mask_ref`，按 8 连通拆分前景，每块一条 `brushlabels` RLE（`format=rle`，标签 `lesion`）；缺文件严格失败。 |
 | DET | 调用方传入 `ImageMetadata(width, height)`；像素框转为 LS **百分比** `rectanglelabels`；空框 → `result: []` |
 | CAP | 原文在 `data.diagnosis_text`；预标注在 textarea `value.text` |
 
@@ -207,6 +207,18 @@ tasks = document_to_ls_tasks(
         for item in doc.items
     },
 )
+```
+
+SEG 叠图预填示例：
+
+```python
+from pathlib import Path
+from mma.converters import document_to_ls_tasks
+from mma.formats import load_prelabel_document
+
+doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
+# mask_root = 含 masks/ 与 prelabels.json 的任务 prelabels 目录
+tasks = document_to_ls_tasks(doc, mask_root=Path("data/prelabels/demo_batch/seg"))
 ```
 
 真实本地导入路径策略见后续 T3.4；本阶段不写 `data/ls_import/`。
@@ -259,7 +271,7 @@ item = ExampleSegAdapter().adapt_item(
 | `$diagnosis_text` / `$image_id` 等只读 Text | 与转换 `data.*` 字段名一致；`$mask_ref` 仅路径追溯，**不是**预标注主展示 |
 | `Choices name="human_confirmed"` / `needs_rework` | value 为 `yes`/`no`；对齐契约 `human_confirmed` / `needs_rework` |
 
-预标注 brush 叠图写入 `predictions`（含连通域拆分）属 **T3.1b**，不在 T3.1 范围。
+预标注 brush 叠图写入 `predictions`（含连通域拆分）属 **T3.1b**：调用 `item_to_ls_task` / `document_to_ls_tasks` 时传入 `mask_root`；实现见 `mma.converters.seg_brush`。
 
 ---
 

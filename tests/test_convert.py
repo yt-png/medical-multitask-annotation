@@ -150,6 +150,33 @@ def test_seg_and_cap_ignore_metadata() -> None:
     assert task["predictions"][0]["result"] == []
 
 
+def test_seg_with_mask_root_emits_brush_results(tmp_path: Path) -> None:
+    from PIL import Image
+
+    mask_dir = tmp_path / "masks"
+    mask_dir.mkdir()
+    img = Image.new("L", (4, 4), 0)
+    img.putpixel((0, 0), 255)
+    img.putpixel((3, 3), 255)
+    img.save(mask_dir / "a.png")
+
+    item = PrelabelItem(
+        schema_version=SCHEMA_VERSION,
+        batch_id="b",
+        package_id="b__seg",
+        task_type=TaskType.SEG,
+        image_id="b__000001",
+        diagnosis_text="diag",
+        payload=SegPrelabelPayload(mask_ref="masks/a.png"),
+    )
+    task = item_to_ls_task(item, mask_root=tmp_path)
+    results = task["predictions"][0]["result"]
+    assert len(results) == 2
+    assert results[0]["value"]["format"] == "rle"
+    assert results[0]["from_name"] == "seg_mask"
+    assert task["data"][DATA_KEY_MASK_REF] == "masks/a.png"
+
+
 def test_det_empty_bboxes_keeps_predictions_structure() -> None:
     item = PrelabelItem(
         schema_version=SCHEMA_VERSION,

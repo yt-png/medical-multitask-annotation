@@ -1,14 +1,15 @@
-"""Convert unified prelabel intermediate format to Label Studio import JSON (T2.2).
+"""Convert unified prelabel intermediate format to Label Studio import JSON.
 
-Does not wire CLI, read mask files, produce RLE, or define Label Studio XML.
-``from_name`` / ``to_name`` / ``type`` defaults live in ``DEFAULT_LS_RESULT_SPECS``
-and may be adjusted when T3 XML configs are finalized.
+SEG brush RLE prefill (T3.1b) is optional via ``mask_root``. Does not wire CLI
+or define Label Studio XML. ``from_name`` / ``to_name`` / ``type`` defaults live
+in ``DEFAULT_LS_RESULT_SPECS``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from mma.common.models import TaskType
@@ -98,16 +99,30 @@ def _build_common_data(item: PrelabelItem) -> dict[str, Any]:
     }
 
 
-def _build_seg_results(item: PrelabelItem) -> list[dict[str, Any]]:
-    """SEG predictions are structurally reserved; no brush/RLE payload yet.
+def _build_seg_results(
+    item: PrelabelItem,
+    *,
+    mask_root: Path | str | None = None,
+    image_metadata: ImageMetadata | None = None,
+) -> list[dict[str, Any]]:
+    """Build SEG prediction results.
 
-    Mask file reading and RLE encoding are out of scope for T2.2. The resource
-    reference is carried on ``data[mask_ref]`` instead of a fake LS brush result.
+    Without ``mask_root``, returns ``[]`` (T2.2-compatible). With ``mask_root``,
+    reads ``mask_ref`` and emits one brush RLE result per 8-connected component
+    (T3.1b). ``data.mask_ref`` is still set by the caller.
     """
 
     assert isinstance(item.payload, SegPrelabelPayload)
-    _ = item.payload  # validated; mask_ref lives in data
-    return []
+    if mask_root is None:
+        return []
+    # Lazy import avoids circular dependency with ``seg_brush``.
+    from mma.converters.seg_brush import build_seg_brush_results
+
+    return build_seg_brush_results(
+        item,
+        mask_root=mask_root,
+        image_metadata=image_metadata,
+    )
 
 
 def _build_det_results(
@@ -164,13 +179,18 @@ def item_to_ls_task(
     item: PrelabelItem,
     *,
     image_metadata: ImageMetadata | None = None,
+    mask_root: Path | str | None = None,
 ) -> dict[str, Any]:
     """Convert one ``PrelabelItem`` to a Label Studio import task dict.
 
     ``id`` is set to ``image_id`` as an auxiliary LS task identifier only.
     The system association key remains ``data.image_id``.
 
-    For DET, ``image_metadata`` is required (pixel → percent). SEG/CAP ignore it.
+    For DET, ``image_metadata`` is required (pixel → percent).
+    For SEG, pass ``mask_root`` to emit brush RLE prefill (T3.1b); omit it to
+    keep empty ``predictions[].result`` (T2.2-compatible). Optional SEG
+    ``image_metadata`` is only used to validate mask size when provided.
+    CAP ignores ``mask_root`` / ``image_metadata``.
     """
 
     assert_payload_matches_task(item.task_type, item.payload)
@@ -179,7 +199,11 @@ def item_to_ls_task(
     if item.task_type is TaskType.SEG:
         assert isinstance(item.payload, SegPrelabelPayload)
         data[DATA_KEY_MASK_REF] = item.payload.mask_ref
-        result = _build_seg_results(item)
+        result = _build_seg_results(
+            item,
+            mask_root=mask_root,
+            image_metadata=image_metadata,
+        )
     elif item.task_type is TaskType.DET:
         meta = _require_det_metadata(item, image_metadata)
         result = _build_det_results(item, meta)
@@ -204,11 +228,13 @@ def document_to_ls_tasks(
     document: PrelabelDocument,
     *,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None = None,
+    mask_root: Path | str | None = None,
 ) -> list[dict[str, Any]]:
     """Convert a ``PrelabelDocument`` to a list of Label Studio import tasks.
 
     When ``document.task_type`` is DET, ``image_metadata_by_id`` must map every
     item ``image_id`` to an ``ImageMetadata``.
+    For SEG, optional ``mask_root`` enables brush RLE prefill for all items.
     """
 
     metadata_map = image_metadata_by_id or {}
@@ -230,7 +256,15 @@ def document_to_ls_tasks(
                     f"image_id={item.image_id!r}, package_id={item.package_id!r}"
                 )
             meta = metadata_map[item.image_id]
+        elif document.task_type is TaskType.SEG:
+            meta = metadata_map.get(item.image_id)
 
-        tasks.append(item_to_ls_task(item, image_metadata=meta))
+        tasks.append(
+            item_to_ls_task(
+                item,
+                image_metadata=meta,
+                mask_root=mask_root,
+            )
+        )
 
     return tasks

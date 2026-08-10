@@ -1,5 +1,6 @@
 """Converters from unified prelabel format to downstream import formats."""
 
+from mma.converters.seg_brush import build_seg_brush_results
 from mma.converters.to_labelstudio import (
     DATA_KEY_BATCH_ID,
     DATA_KEY_DIAGNOSIS_TEXT,
@@ -24,6 +25,7 @@ __all__ = [
     "DEFAULT_LS_RESULT_SPECS",
     "MODEL_VERSION",
     "ImageMetadata",
+    "build_seg_brush_results",
     "document_to_ls_tasks",
     "item_to_ls_task",
 ]

@@ -22,7 +22,7 @@ python -m venv .venv
 pip install -e .
 ```
 
-运行时依赖见 `requirements.txt`（当前含 `openpyxl`，用于读取诊断 Excel）。
+运行时依赖见 `requirements.txt`（`openpyxl` 读诊断 Excel；`Pillow` 用于 SEG mask 叠图预填）。
 
 ## CLI
 
@@ -47,14 +47,17 @@ mma package --batch demo_batch --data-root data
 - `preprocess`：写出 `data/processed/<batch_id>/manifest.json`（引用原图，不复制）
 - `package`：复制三类全量图像并写出各任务包 `manifest.json`（含 `package_id`）
 
-预标注 → Label Studio import（T2.2，Python API，CLI `convert` 仍为 stub）：
+预标注 → Label Studio import（T2.2 / T3.1b，Python API，CLI `convert` 仍为 stub）：
 
 ```python
+from pathlib import Path
 from mma.converters import ImageMetadata, document_to_ls_tasks
 from mma.formats import load_prelabel_document
 
 doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
-tasks = document_to_ls_tasks(doc)  # DET 需额外传入 image_metadata_by_id
+tasks = document_to_ls_tasks(doc)  # 无 mask_root：result 为空（兼容 T2.2）
+# SEG 叠图预填：传入含 masks/ 的 prelabels 任务目录
+# tasks = document_to_ls_tasks(doc, mask_root=Path("data/prelabels/demo_batch/seg"))
 ```
 
 P2 端到端演示（T2.4，假 raw → Example adapter → LS JSON）：
@@ -70,8 +73,9 @@ python examples/scripts/run_p2_demo.py
 - 已完成：P0 / T0.1–T0.4 工程骨架、契约、落盘规范、CLI 入口
 - 已完成：P1 / T1.1–T1.5 预处理与三类任务包（配对、`image_id`、processed 落盘、拆包图像、`package_id`+manifest、CLI）
 - 已完成：P2 / T2.1–T2.4 预标注统一中间格式、LS 转换 API、适配器接口/示例、假 raw 样例与端到端演示脚本/测试（不含真实算法与 CLI convert）
-- 已完成：T3.1 SEG Label Studio 工作台 XML（`src/mma/labelstudio/configs/seg.xml`）；叠图预填（T3.1b）与 DET/CAP 工作台尚未做
-- 后续：T3.1b / T3.2–T3.5 等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T3.1 SEG Label Studio 工作台 XML（`src/mma/labelstudio/configs/seg.xml`）
+- 已完成：T3.1b SEG 叠图预填（`mask_root` → 8 连通 brush RLE；无 `mask_root` 仍空 result）
+- 后续：T3.2–T3.5 等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 
