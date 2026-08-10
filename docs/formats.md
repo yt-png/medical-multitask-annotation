@@ -171,6 +171,83 @@ doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 
 ---
 
-## 9. 版本
+## 9. Label Studio import JSON（T2.2）
 
-当前 `schema_version`：`1.0`。后续不兼容变更应递增版本并在本文档说明。
+实现：`src/mma/converters/to_labelstudio.py`。  
+公开 API：`item_to_ls_task` / `document_to_ls_tasks`（**未**接线 `mma convert`）。
+
+### 9.1 共性
+
+| 字段 | 说明 |
+|---|---|
+| 顶层 `id` | 等于 `image_id`，仅为 LS 任务辅助标识 |
+| `data.image_id` | **系统关联主键** |
+| `data.image` | 透传 `PrelabelItem.image_path`（可为 `null`）；不复制、不重写路径 |
+| `data.diagnosis_text` | 原始诊断文本 |
+| `predictions` | 始终存在；`model_version` 为 `mma-prelabel-1.0` |
+| 控制名 | 集中在 `DEFAULT_LS_RESULT_SPECS`；T3 XML 应对齐后可统一改 |
+
+### 9.2 分任务
+
+| 任务 | 转换要点 |
+|---|---|
+| SEG | `data.mask_ref` 保留文件引用；`predictions[].result` 为空列表（结构预留）；**不**读 mask、**不**生成 brush/RLE |
+| DET | 调用方传入 `ImageMetadata(width, height)`；像素框转为 LS **百分比** `rectanglelabels`；空框 → `result: []` |
+| CAP | 原文在 `data.diagnosis_text`；预标注在 textarea `value.text` |
+
+```python
+from mma.converters import ImageMetadata, document_to_ls_tasks
+from mma.formats import load_prelabel_document
+
+doc = load_prelabel_document("examples/prelabels/demo_batch/det/prelabels.json")
+tasks = document_to_ls_tasks(
+    doc,
+    image_metadata_by_id={
+        item.image_id: ImageMetadata(width=640, height=480)
+        for item in doc.items
+    },
+)
+```
+
+真实本地导入路径策略见后续 T3.4；本阶段不写 `data/ls_import/`。
+
+---
+
+## 10. 算法原始输出适配器（T2.3）
+
+实现：`src/mma/adapters/`（`AdapterContext` + 三类 Base/Example）。
+
+| 角色 | 说明 |
+|---|---|
+| Base（`*PrelabelAdapter`） | `adapt_payload` 默认 `NotImplementedError`，约束未来真实算法适配器 |
+| Example（`Example*Adapter`） | 假 `Mapping` raw → 合法 Payload；可 `adapt_item` 组 `PrelabelItem` |
+| `AdapterContext` | 信封字段由**调用方注入**（`batch_id` / `package_id` / `image_id` / `diagnosis_text` 等） |
+
+约定：
+
+- raw **仅** `Mapping`（调用方若有文件需先自行读成 dict）。  
+- 主输出为 **Payload**；`adapt_item` 组装单条 `PrelabelItem`；**不**在 adapter 内生成 `PrelabelDocument`。  
+- **不**实现真实 SEG/DET/CAP 算法或大模型调用。
+
+```python
+from mma.adapters import AdapterContext, ExampleSegAdapter
+from mma.common.models import TaskType
+
+ctx = AdapterContext(
+    batch_id="demo_batch",
+    package_id="demo_batch__seg",
+    task_type=TaskType.SEG,
+    image_id="demo_batch__000001",
+    diagnosis_text="original diagnosis",
+)
+item = ExampleSegAdapter().adapt_item(
+    {"mask_ref": "masks/demo_batch__000001.png"},
+    context=ctx,
+)
+```
+
+---
+
+## 11. 版本
+
+当前中间格式 `schema_version`：`1.0`。后续不兼容变更应递增版本并在本文档说明。

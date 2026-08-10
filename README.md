@@ -47,12 +47,22 @@ mma package --batch demo_batch --data-root data
 - `preprocess`：写出 `data/processed/<batch_id>/manifest.json`（引用原图，不复制）
 - `package`：复制三类全量图像并写出各任务包 `manifest.json`（含 `package_id`）
 
+预标注 → Label Studio import（T2.2，Python API，CLI `convert` 仍为 stub）：
+
+```python
+from mma.converters import ImageMetadata, document_to_ls_tasks
+from mma.formats import load_prelabel_document
+
+doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
+tasks = document_to_ls_tasks(doc)  # DET 需额外传入 image_metadata_by_id
+```
+
 ## 当前进度
 
 - 已完成：P0 / T0.1–T0.4 工程骨架、契约、落盘规范、CLI 入口
 - 已完成：P1 / T1.1–T1.5 预处理与三类任务包（配对、`image_id`、processed 落盘、拆包图像、`package_id`+manifest、CLI）
-- 已完成：P2 / T2.1 预标注统一中间格式（类型、校验、样例 JSON、文档；不含转换与算法）
-- 后续：T2.2 转换、T2.3 适配器接口等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：P2 / T2.1–T2.3 预标注统一中间格式、→ LS import 转换 API、算法 raw→中间格式适配器接口/示例（不含真实算法与 CLI convert）
+- 后续：T2.4 样例脚本、T3 工作台与导入等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 
