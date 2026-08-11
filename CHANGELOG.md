@@ -4,6 +4,8 @@
 
 ### Added
 
+- T5.1：新增 `src/mma/merge/validate_ready.py`（三路 `current/` 就绪校验：可加载、非空、无返工、全人工确认、`image_id` 集合一致）
+- `src/mma/merge/__init__.py` 导出 `validate_ready`
 - P4 CLI：接线 `mma rework-import --batch --task --export [--data-root] [--local-root]`
 - 新增 `src/mma/importers/rework_import_from_export.py`（parse → split → extract raw → `build_rework_ls_tasks` → `rework_tasks.json`）
 - `importers/__init__.py` 导出 `rework_import_from_export` / `REWORK_TASKS_JSON_NAME`
@@ -36,6 +38,7 @@
 
 ### Tests
 
+- 新增 `tests/test_validate_ready.py`：通过、缺文件、空列表、返工残留、未确认、多违规汇总、id 集合不一致、非法 batch、不写 final
 - 新增 `tests/test_rework_import_from_export.py`：混合 CAP、空返工、SEG/DET、异常、不覆盖 `tasks.json`
 - 扩展 `tests/test_cli.py`：`rework-import` 参数/成功/失败
 - 新增 `tests/test_export_split_from_export.py`：混合/全 normal/全 rework、DET、异常、不写 current/无 round

@@ -123,7 +123,8 @@ python examples/scripts/run_p2_demo.py
 - 已完成：接线 `mma export-split --batch --task --export [--data-root]`（`exporters/export_split_from_export.py` → normal/rework）
 - 已完成：接线 `mma rework-import --batch --task --export [--data-root] [--local-root]`（`importers/rework_import_from_export.py` → `rework_tasks.json`）
 - 已完成：T4.5 读取 current 清单（`exporters/load_current.py` + `current_annotations` 序列化；供 P5 merge）
-- 后续：P5 合并与 ready 校验等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T5.1 合并就绪校验（`merge/validate_ready.py`：无返工、全确认、三路 `image_id` 一致）
+- 后续：T5.2–T5.4 合并与 `final/`、`mma merge` CLI（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 
