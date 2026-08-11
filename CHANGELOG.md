@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-08-11
+
+### Added
+
+- T4.1：新增 `src/mma/exporters/parse_ls_export.py`（解析 LS 导出 JSON → `TaskAnnotationResult`；支持 SEG/DET/CAP）
+- T4.1：新增 `src/mma/exporters/__init__.py` 导出 `parse_ls_export` / `parse_ls_export_data`
+- SEG：`SegAnnotation.mask_ref` 取自 `data.mask_ref`（不把 brush RLE 写入契约）
+- DET：百分比框转像素，尺寸由显式参数 `image_metadata_by_id` 提供（不从导出 JSON 猜测）
+- 勾选：`human_confirmed` 缺失/非法报错；`needs_rework` 缺失默认 `False`；同文件重复 `image_id` 严格失败
+- T4.2：新增 `src/mma/exporters/split_by_rework.py`（按 `needs_rework` 拆成 normal / rework，保序；不做落盘与 ResultBundle）
+- T4.2：`exporters/__init__.py` 导出 `split_by_rework`
+
+### Tests
+
+- 新增 `tests/test_parse_ls_export.py`：三任务解析、勾选默认/非法、重复 ID、DET metadata、真实 demo 导出冒烟
+- 新增 `tests/test_split_by_rework.py`：空输入、全正常、全返工、混合保序、非法类型
+
 ## 2026-08-10
 
 ### Added
