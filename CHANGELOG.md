@@ -4,6 +4,8 @@
 
 ### Added
 
+- T5.2：新增 `src/mma/merge/merge_multitask.py`（`validate_ready` 后按 SEG 顺序合并为 `MergedMultitaskRecord`；缺任务防御报错；不写 `final/`）
+- `merge/__init__.py` 导出 `merge_multitask`
 - T5.1：新增 `src/mma/merge/validate_ready.py`（三路 `current/` 就绪校验：可加载、非空、无返工、全人工确认、`image_id` 集合一致）
 - `src/mma/merge/__init__.py` 导出 `validate_ready`
 - P4 CLI：接线 `mma rework-import --batch --task --export [--data-root] [--local-root]`
@@ -38,6 +40,7 @@
 
 ### Tests
 
+- 新增 `tests/test_merge_multitask.py`：成功顺序与载荷、未就绪失败、patch 后门禁缺任务、非法 batch、不写 final
 - 新增 `tests/test_validate_ready.py`：通过、缺文件、空列表、返工残留、未确认、多违规汇总、id 集合不一致、非法 batch、不写 final
 - 新增 `tests/test_rework_import_from_export.py`：混合 CAP、空返工、SEG/DET、异常、不覆盖 `tasks.json`
 - 扩展 `tests/test_cli.py`：`rework-import` 参数/成功/失败
