@@ -1,12 +1,14 @@
-"""Merge SEG/DET/CAP current results by image_id (T5.2).
+"""Merge SEG/DET/CAP current results by image_id (T5.2 / T5.3).
 
-Calls ``validate_ready`` first. Returns in-memory ``MergedMultitaskRecord``
-tuples only; does not write ``final/``.
+Calls ``validate_ready`` first. T5.3: ``assert_no_missing_tasks`` blocks
+missing DET/CAP for an ``image_id`` (no silent incomplete fields).
+Returns in-memory ``MergedMultitaskRecord`` tuples only; does not write
+``final/``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TypeVar
 
@@ -23,6 +25,23 @@ from mma.exporters.load_current import load_current
 from mma.merge.validate_ready import validate_ready
 
 _T = TypeVar("_T")
+
+
+def assert_no_missing_tasks(
+    image_id: str,
+    det_by_id: Mapping[str, TaskAnnotationResult],
+    cap_by_id: Mapping[str, TaskAnnotationResult],
+) -> None:
+    """Fail closed if DET or CAP is missing for ``image_id`` (T5.3).
+
+    Does not check empty payloads or ids present only in DET/CAP.
+    Raises ``ValueError`` on the first missing task.
+    """
+
+    if image_id not in det_by_id:
+        raise ValueError(f"missing DET annotation for image_id={image_id!r}")
+    if image_id not in cap_by_id:
+        raise ValueError(f"missing CAP annotation for image_id={image_id!r}")
 
 
 def merge_multitask(
@@ -50,14 +69,7 @@ def merge_multitask(
     merged: list[MergedMultitaskRecord] = []
     for seg_item in seg_items:
         image_id = seg_item.image_id
-        if image_id not in det_by_id:
-            raise ValueError(
-                f"missing DET annotation for image_id={image_id!r}"
-            )
-        if image_id not in cap_by_id:
-            raise ValueError(
-                f"missing CAP annotation for image_id={image_id!r}"
-            )
+        assert_no_missing_tasks(image_id, det_by_id, cap_by_id)
 
         seg = _require_annotation(
             seg_item,

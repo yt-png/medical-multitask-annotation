@@ -1,4 +1,4 @@
-"""Tests for multitask merge by image_id (T5.2)."""
+"""Tests for multitask merge by image_id (T5.2 / T5.3)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ from mma.common.models import (
     TaskType,
 )
 from mma.exporters import overwrite_current
-from mma.merge import merge_multitask
+from mma.merge import assert_no_missing_tasks, merge_multitask
+from mma.merge.merge_multitask import _require_annotation
 
 
 def _seg(image_id: str, *, mask_ref: str | None = None) -> TaskAnnotationResult:
@@ -115,7 +116,9 @@ def test_merge_rejects_not_ready(tmp_path: Path) -> None:
         merge_multitask("batch1", data_root=tmp_path)
 
 
-def test_merge_missing_task_after_validate_bypass(tmp_path: Path) -> None:
+def test_merge_missing_cap_after_validate_bypass(tmp_path: Path) -> None:
+    """T5.3: secondary check blocks missing CAP when validate_ready is bypassed."""
+
     overwrite_current(
         [_seg("img-a"), _seg("img-b")],
         batch_id="batch1",
@@ -138,6 +141,66 @@ def test_merge_missing_task_after_validate_bypass(tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="missing CAP") as exc:
             merge_multitask("batch1", data_root=tmp_path)
     assert "img-b" in str(exc.value)
+
+
+def test_merge_missing_det_after_validate_bypass(tmp_path: Path) -> None:
+    """T5.3: secondary check blocks missing DET when validate_ready is bypassed."""
+
+    overwrite_current(
+        [_seg("img-a"), _seg("img-b")],
+        batch_id="batch1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_det("img-a")],
+        batch_id="batch1",
+        task_type=TaskType.DET,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_cap("img-a"), _cap("img-b")],
+        batch_id="batch1",
+        task_type=TaskType.CAP,
+        data_root=tmp_path,
+    )
+    with patch("mma.merge.merge_multitask.validate_ready", return_value=None):
+        with pytest.raises(ValueError, match="missing DET") as exc:
+            merge_multitask("batch1", data_root=tmp_path)
+    assert "img-b" in str(exc.value)
+
+
+def test_assert_no_missing_tasks_ok() -> None:
+    det_by_id = {"img-a": _det("img-a")}
+    cap_by_id = {"img-a": _cap("img-a")}
+    assert_no_missing_tasks("img-a", det_by_id, cap_by_id)
+
+
+def test_assert_no_missing_tasks_missing_det() -> None:
+    with pytest.raises(ValueError, match="missing DET") as exc:
+        assert_no_missing_tasks("img-a", {}, {"img-a": _cap("img-a")})
+    assert "img-a" in str(exc.value)
+
+
+def test_assert_no_missing_tasks_missing_cap() -> None:
+    with pytest.raises(ValueError, match="missing CAP") as exc:
+        assert_no_missing_tasks("img-a", {"img-a": _det("img-a")}, {})
+    assert "img-a" in str(exc.value)
+
+
+def test_require_annotation_type_mismatch() -> None:
+    """T5.3: wrong annotation type is blocked (no silent field reuse)."""
+
+    item = _cap("img-a")
+    with pytest.raises(ValueError, match="type mismatch") as exc:
+        _require_annotation(
+            item,
+            DetAnnotation,
+            image_id="img-a",
+            task_label="DET",
+        )
+    assert "img-a" in str(exc.value)
+    assert "DetAnnotation" in str(exc.value)
 
 
 def test_invalid_batch_id_raises(tmp_path: Path) -> None:

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-12
+
+### Added
+
+- T5.3：`assert_no_missing_tasks`（合并缺任务阻断：缺 DET/CAP 即 `ValueError`；禁止静默缺字段；不写 `final/`）
+- `merge/__init__.py` 导出 `assert_no_missing_tasks`
+
+### Changed
+
+- `merge_multitask` 改为调用 `assert_no_missing_tasks`（保留 `validate_ready` 后的二次校验）
+
+### Tests
+
+- 扩展 `tests/test_merge_multitask.py`：缺 DET/CAP（旁路门禁）、直接测 `assert_no_missing_tasks`、类型不符阻断
+
 ## 2026-08-11
 
 ### Added

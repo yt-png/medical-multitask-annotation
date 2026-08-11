@@ -125,6 +125,7 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T4.5 读取 current 清单（`exporters/load_current.py` + `current_annotations` 序列化；供 P5 merge）
 - 已完成：T5.1 合并就绪校验（`merge/validate_ready.py`：无返工、全确认、三路 `image_id` 一致）
 - 已完成：T5.2 按 `image_id` 合并（`merge/merge_multitask.py` → `MergedMultitaskRecord`；含缺任务防御）
+- 已完成：T5.3 缺任务阻断（`assert_no_missing_tasks`：禁止静默缺字段；合并二次校验）
 - 后续：T5.4 输出 `final/`、`mma merge` CLI（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
