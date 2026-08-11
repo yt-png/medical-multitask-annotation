@@ -168,7 +168,13 @@ data/ls_export/<batch_id>/<task>/
 
 可选按轮次分子目录，例如 `round_001/`，避免覆盖历史排障材料。
 
-导出后的**按返工分类、返工再导入、结果覆盖**由 **P4** 模块处理，不在本文展开。
+导出后可用 P4 覆盖写入当前有效结果：
+
+```bash
+mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
+```
+
+写出 `data/results/<batch_id>/<task>/current/annotations.json`（含本轮仍需返工样本）。按返工分类与返工再导入的 CLI 仍待接线。
 
 ---
 
@@ -192,6 +198,9 @@ mma ls-import --batch <batch_id> --task {seg|det|cap} --data-root data
 
 # 可选：Local storage 根与 data 不同时
 mma ls-import --batch <batch_id> --task seg --data-root data --local-root D:\path\to\local_root
+
+# 导出后覆盖 current/
+mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 ```
 
 - [data_layout.md](data_layout.md) — `ls_import` / `ls_export` / `task_packages` / `prelabels`

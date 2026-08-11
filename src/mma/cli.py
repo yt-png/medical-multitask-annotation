@@ -1,7 +1,7 @@
 """Unified CLI entry for the multitask annotation pipeline.
 
-``preprocess``, ``package``, and ``ls-import`` are wired; other subcommands
-remain stubs.
+``preprocess``, ``package``, ``ls-import``, and ``apply-current`` are wired;
+other subcommands remain stubs.
 """
 
 from __future__ import annotations
@@ -155,6 +155,16 @@ def build_parser() -> argparse.ArgumentParser:
         choices=TASK_CHOICES,
         help="Task type subdirectory",
     )
+    apply_current.add_argument(
+        "--export",
+        required=True,
+        help="Path to Label Studio export JSON",
+    )
+    apply_current.add_argument(
+        "--data-root",
+        default=None,
+        help="Runtime data root (default: ./data)",
+    )
 
     merge = subparsers.add_parser(
         "merge",
@@ -216,6 +226,24 @@ def _run_ls_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_apply_current(args: argparse.Namespace) -> int:
+    from mma.exporters.apply_current_from_export import apply_current_from_export
+
+    try:
+        out_path = apply_current_from_export(
+            args.export,
+            batch_id=args.batch,
+            task=args.task,
+            data_root=args.data_root,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"mma apply-current: {exc}", file=sys.stderr)
+        return 2
+
+    print(str(Path(out_path)))
+    return 0
+
+
 def dispatch(args: argparse.Namespace) -> int:
     """Route parsed args to handlers."""
 
@@ -226,6 +254,8 @@ def dispatch(args: argparse.Namespace) -> int:
         return _run_package(args)
     if command == "ls-import":
         return _run_ls_import(args)
+    if command == "apply-current":
+        return _run_apply_current(args)
     if command in SUBCOMMANDS:
         return _stub(command)
     print(f"mma: unknown command {command!r}", file=sys.stderr)

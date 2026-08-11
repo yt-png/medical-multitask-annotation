@@ -1,4 +1,4 @@
-"""Tests for unified CLI (preprocess/package/ls-import wired; others stub)."""
+"""Tests for unified CLI (preprocess/package/ls-import/apply-current wired; others stub)."""
 
 from __future__ import annotations
 
@@ -187,6 +187,128 @@ def test_export_split_requires_export() -> None:
     with pytest.raises(SystemExit) as exc:
         main(["export-split", "--batch", "b1", "--task", "seg"])
     assert exc.value.code == 2
+
+
+def test_apply_current_requires_export() -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["apply-current", "--batch", "b1", "--task", "cap"])
+    assert exc.value.code == 2
+
+
+def _write_cap_export(path: Path, *, image_id: str = "img-a", caption: str = "hi") -> None:
+    payload = [
+        {
+            "data": {
+                "image_id": image_id,
+                "package_id": "batch_cli__cap",
+                "diagnosis_text": "diag",
+            },
+            "annotations": [
+                {
+                    "id": 1,
+                    "was_cancelled": False,
+                    "updated_at": "2026-08-11T00:00:00.000000Z",
+                    "result": [
+                        {
+                            "from_name": "cap_text",
+                            "to_name": "image",
+                            "type": "textarea",
+                            "value": {"text": [caption]},
+                        },
+                        {
+                            "from_name": "human_confirmed",
+                            "to_name": "image",
+                            "type": "choices",
+                            "value": {"choices": ["yes"]},
+                        },
+                        {
+                            "from_name": "needs_rework",
+                            "to_name": "image",
+                            "type": "choices",
+                            "value": {"choices": ["no"]},
+                        },
+                    ],
+                }
+            ],
+        }
+    ]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_apply_current_success(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    data_root = tmp_path / "data"
+    export = tmp_path / "cap_export.json"
+    _write_cap_export(export)
+    code = main(
+        [
+            "apply-current",
+            "--batch",
+            "batch_cli",
+            "--task",
+            "cap",
+            "--export",
+            str(export),
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 0
+    out_file = (
+        data_root / "results" / "batch_cli" / "cap" / "current" / "annotations.json"
+    )
+    assert out_file.is_file()
+    assert str(out_file.resolve()) in captured.out or str(out_file) in captured.out
+    payload = json.loads(out_file.read_text(encoding="utf-8"))
+    assert payload[0]["image_id"] == "img-a"
+    assert payload[0]["annotation"]["caption"] == "hi"
+
+
+def test_apply_current_missing_export(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = main(
+        [
+            "apply-current",
+            "--batch",
+            "batch_cli",
+            "--task",
+            "cap",
+            "--export",
+            str(tmp_path / "missing.json"),
+            "--data-root",
+            str(tmp_path / "data"),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "mma apply-current:" in captured.err
+
+
+def test_stub_for_export_split_and_rework_import(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = main(
+        [
+            "export-split",
+            "--batch",
+            "b1",
+            "--task",
+            "seg",
+            "--export",
+            "x.json",
+        ]
+    )
+    assert code == 2
+    assert "not implemented yet" in capsys.readouterr().err
+
+    code = main(["rework-import", "--batch", "b1", "--task", "cap"])
+    assert code == 2
+    assert "not implemented yet" in capsys.readouterr().err
 
 
 def test_preprocess_success(
