@@ -33,7 +33,7 @@ mma -h
 python -m mma -h
 ```
 
-已注册子命令：`preprocess`、`package`、`ls-import`、`apply-current` 已接线；其余仍为骨架 stub：
+已注册子命令：`preprocess`、`package`、`ls-import`、`export-split`、`apply-current` 已接线；其余仍为骨架 stub：
 
 `preprocess` · `package` · `convert` · `ls-import` · `export-split` · `rework-import` · `apply-current` · `merge`
 
@@ -65,6 +65,15 @@ mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_bat
 
 - 解析导出（含仍需返工样本）并覆盖写入 `data/results/<batch>/<task>/current/annotations.json`
 - DET 从 `task_packages/.../images/` 读取图像尺寸做百分比→像素换算
+
+按返工分类写出结果包（P4）：
+
+```bash
+mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
+```
+
+- 写出 `data/results/<batch>/<task>/normal/annotations.json` 与 `.../rework/annotations.json`（空侧为 `[]`）
+- 不写入 `current/`（请另用 `apply-current`）
 
 预标注 → Label Studio import（T2.2 / T3.1b，Python API，CLI `convert` 仍为 stub）：
 
@@ -103,8 +112,9 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T4.3 返工再导入（S2 旁路 raw result → `importers/build_rework_tasks.py`）
 - 已完成：T4.4 覆盖写入 `results/.../current/annotations.json`（`exporters/overwrite_current.py`）
 - 已完成：接线 `mma apply-current --batch --task --export [--data-root]`（`exporters/apply_current_from_export.py`）
+- 已完成：接线 `mma export-split --batch --task --export [--data-root]`（`exporters/export_split_from_export.py` → normal/rework）
 - 已完成：T4.5 读取 current 清单（`exporters/load_current.py` + `current_annotations` 序列化；供 P5 merge）
-- 后续：P4 `export-split` / `rework-import` CLI 接线；P5 合并与 ready 校验等（见 `.cursor/rules/Development Tasks.md`）
+- 后续：P4 `rework-import` CLI 接线；P5 合并与 ready 校验等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 

@@ -4,6 +4,10 @@
 
 ### Added
 
+- P4 CLI：接线 `mma export-split --batch --task --export [--data-root]`
+- 新增 `src/mma/exporters/export_split_from_export.py`（parse → split → 写 normal/rework `annotations.json`；空侧 `[]`）
+- `paths.py`：新增 `results_normal_dir` / `results_rework_dir`
+- `exporters/__init__.py` 导出 `export_split_from_export`
 - P4 CLI：接线 `mma apply-current --batch --task --export [--data-root]`
 - 新增 `src/mma/exporters/apply_current_from_export.py`（parse LS 导出 → 全量 `overwrite_current`；DET 从任务包图像读尺寸）
 - `exporters/__init__.py` 导出 `apply_current_from_export`
@@ -25,12 +29,14 @@
 ### Changed
 
 - `overwrite_current` 改为复用 `current_annotations` 读写，避免重复定义落盘格式
-- README / `docs/labelstudio_usage.md`：补充 `apply-current` 用法
+- README / `docs/labelstudio_usage.md`：补充 `apply-current` / `export-split` 用法
 
 ### Tests
 
+- 新增 `tests/test_export_split_from_export.py`：混合/全 normal/全 rework、DET、异常、不写 current/无 round
+- 扩展 `tests/test_cli.py`：`export-split` 成功/失败；`rework-import` 仍 stub
 - 新增 `tests/test_apply_current_from_export.py`：CAP/SEG 写入、DET 尺寸、缺图失败、覆盖、空导出 no-op、不写 normal/rework
-- 扩展 `tests/test_cli.py`：`apply-current` 参数/成功/失败；`export-split`/`rework-import` 仍 stub
+- 扩展 `tests/test_cli.py`：`apply-current` 参数/成功/失败
 - 新增 `tests/test_parse_ls_export.py`：三任务解析、勾选默认/非法、重复 ID、DET metadata、真实 demo 导出冒烟
 - 新增 `tests/test_split_by_rework.py`：空输入、全正常、全返工、混合保序、非法类型
 - 新增 `tests/test_extract_ls_raw_results.py`：旁路提取、深拷贝、取消标注跳过、重复 ID

@@ -1,4 +1,4 @@
-"""Tests for unified CLI (preprocess/package/ls-import/apply-current wired; others stub)."""
+"""Tests for unified CLI (preprocess/package/ls-import/export-split/apply-current wired; others stub)."""
 
 from __future__ import annotations
 
@@ -289,26 +289,70 @@ def test_apply_current_missing_export(
     assert "mma apply-current:" in captured.err
 
 
-def test_stub_for_export_split_and_rework_import(
+def test_stub_for_rework_import(capsys: pytest.CaptureFixture[str]) -> None:
+    code = main(["rework-import", "--batch", "b1", "--task", "cap"])
+    assert code == 2
+    assert "not implemented yet" in capsys.readouterr().err
+
+
+def test_export_split_success(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    data_root = tmp_path / "data"
+    export = tmp_path / "cap_export.json"
+    _write_cap_export(export, image_id="img-a", caption="hi")
+    code = main(
+        [
+            "export-split",
+            "--batch",
+            "batch_cli",
+            "--task",
+            "cap",
+            "--export",
+            str(export),
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 0
+    normal = (
+        data_root / "results" / "batch_cli" / "cap" / "normal" / "annotations.json"
+    )
+    rework = (
+        data_root / "results" / "batch_cli" / "cap" / "rework" / "annotations.json"
+    )
+    assert normal.is_file()
+    assert rework.is_file()
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert str(normal.resolve()) in lines[0] or str(normal) in lines[0]
+    assert str(rework.resolve()) in lines[1] or str(rework) in lines[1]
+    assert json.loads(normal.read_text(encoding="utf-8"))[0]["image_id"] == "img-a"
+    assert json.loads(rework.read_text(encoding="utf-8")) == []
+
+
+def test_export_split_missing_export(
+    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     code = main(
         [
             "export-split",
             "--batch",
-            "b1",
+            "batch_cli",
             "--task",
-            "seg",
+            "cap",
             "--export",
-            "x.json",
+            str(tmp_path / "missing.json"),
+            "--data-root",
+            str(tmp_path / "data"),
         ]
     )
+    captured = capsys.readouterr()
     assert code == 2
-    assert "not implemented yet" in capsys.readouterr().err
-
-    code = main(["rework-import", "--batch", "b1", "--task", "cap"])
-    assert code == 2
-    assert "not implemented yet" in capsys.readouterr().err
+    assert "mma export-split:" in captured.err
 
 
 def test_preprocess_success(

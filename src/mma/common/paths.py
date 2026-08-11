@@ -137,3 +137,25 @@ def results_current_dir(
     """Return ``{data_root}/results/{batch_id}/{seg|det|cap}/current``."""
 
     return results_task_dir(batch_id, task, data_root=data_root) / "current"
+
+
+def results_normal_dir(
+    batch_id: str,
+    task: str | TaskType,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/results/{batch_id}/{seg|det|cap}/normal``."""
+
+    return results_task_dir(batch_id, task, data_root=data_root) / "normal"
+
+
+def results_rework_dir(
+    batch_id: str,
+    task: str | TaskType,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/results/{batch_id}/{seg|det|cap}/rework``."""
+
+    return results_task_dir(batch_id, task, data_root=data_root) / "rework"
