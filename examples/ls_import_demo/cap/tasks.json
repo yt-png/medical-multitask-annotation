@@ -1,0 +1,56 @@
+[
+  {
+    "id": "demo_batch__000001",
+    "data": {
+      "image": "optional/auxiliary/demo_batch__000001.jpg",
+      "diagnosis_text": "right lung nodule, benign appearance",
+      "image_id": "demo_batch__000001",
+      "package_id": "demo_batch__cap",
+      "batch_id": "demo_batch"
+    },
+    "predictions": [
+      {
+        "model_version": "mma-prelabel-1.0",
+        "result": [
+          {
+            "from_name": "cap_text",
+            "to_name": "image",
+            "type": "textarea",
+            "value": {
+              "text": [
+                "A small nodule is visible in the right lung field."
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "demo_batch__000002",
+    "data": {
+      "image": null,
+      "diagnosis_text": "left lower lobe opacity",
+      "image_id": "demo_batch__000002",
+      "package_id": "demo_batch__cap",
+      "batch_id": "demo_batch"
+    },
+    "predictions": [
+      {
+        "model_version": "mma-prelabel-1.0",
+        "result": [
+          {
+            "from_name": "cap_text",
+            "to_name": "image",
+            "type": "textarea",
+            "value": {
+              "text": [
+                "Opacity noted in the left lower lobe."
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

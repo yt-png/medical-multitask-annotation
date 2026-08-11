@@ -1,0 +1,71 @@
+[
+  {
+    "id": "demo_batch__000001",
+    "data": {
+      "image": "optional/auxiliary/demo_batch__000001.jpg",
+      "diagnosis_text": "right lung nodule, benign appearance",
+      "image_id": "demo_batch__000001",
+      "package_id": "demo_batch__det",
+      "batch_id": "demo_batch"
+    },
+    "predictions": [
+      {
+        "model_version": "mma-prelabel-1.0",
+        "result": [
+          {
+            "original_width": 640,
+            "original_height": 480,
+            "image_rotation": 0,
+            "from_name": "det_bbox",
+            "to_name": "image",
+            "type": "rectanglelabels",
+            "value": {
+              "x": 18.75,
+              "y": 16.770833333333332,
+              "width": 10.0,
+              "height": 10.0,
+              "rotation": 0.0,
+              "rectanglelabels": [
+                "object"
+              ]
+            }
+          },
+          {
+            "original_width": 640,
+            "original_height": 480,
+            "image_rotation": 0,
+            "from_name": "det_bbox",
+            "to_name": "image",
+            "type": "rectanglelabels",
+            "value": {
+              "x": 46.875,
+              "y": 43.75,
+              "width": 6.25,
+              "height": 7.5,
+              "rotation": 0.0,
+              "rectanglelabels": [
+                "object"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "demo_batch__000002",
+    "data": {
+      "image": null,
+      "diagnosis_text": "left lower lobe opacity",
+      "image_id": "demo_batch__000002",
+      "package_id": "demo_batch__det",
+      "batch_id": "demo_batch"
+    },
+    "predictions": [
+      {
+        "model_version": "mma-prelabel-1.0",
+        "result": []
+      }
+    ]
+  }
+]

@@ -93,7 +93,8 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T4.2 按 `needs_rework` 拆分 normal/rework（`exporters/split_by_rework.py`）
 - 已完成：T4.3 返工再导入（S2 旁路 raw result → `importers/build_rework_tasks.py`）
 - 已完成：T4.4 覆盖写入 `results/.../current/annotations.json`（`exporters/overwrite_current.py`；CLI `apply-current` 仍未接线）
-- 后续：T4.5 current 清单读取、P5 合并等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T4.5 读取 current 清单（`exporters/load_current.py` + `current_annotations` 序列化；供 P5 merge）
+- 后续：P5 合并与 ready 校验等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 

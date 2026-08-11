@@ -15,6 +15,13 @@
 - T4.3：新增 `src/mma/importers/build_rework_tasks.py`（返工导入 tasks；`predictions` 仅用旁路 raw；图文来自 task_packages manifest；不预填双勾选）
 - T4.4：新增 `src/mma/exporters/overwrite_current.py`（按 `image_id` 覆盖写入 `results/.../current/annotations.json`；空输入 no-op；保序+新 id 追加）
 - `paths.py`：新增 `results_task_dir` / `results_current_dir`
+-新增examples/scripts/run_p4_current_demo.py用来生成annotation.json为后续T4.5提供前提数据
+- T4.5：新增 `src/mma/exporters/current_annotations.py`（`TaskAnnotationResult` ↔ JSON 公共序列化，兼容 T4.4 格式）
+- T4.5：新增 `src/mma/exporters/load_current.py`（`load_current` / `load_current_annotations_file`；缺文件 `FileNotFoundError`）
+
+### Changed
+
+- `overwrite_current` 改为复用 `current_annotations` 读写，避免重复定义落盘格式
 
 ### Tests
 
@@ -23,6 +30,7 @@
 - 新增 `tests/test_extract_ls_raw_results.py`：旁路提取、深拷贝、取消标注跳过、重复 ID
 - 新增 `tests/test_build_rework_tasks.py`：SEG RLE 回放、剥离勾选、CAP/DET 用 raw、缺旁路失败
 - 新增 `tests/test_overwrite_current.py`：首次写入、同 id 覆盖勾选、子集合并保序、空输入 no-op、三任务形状
+- 新增 `tests/test_load_current.py`：往返加载、缺文件、非法结构、重复 ID、task_type 不一致、可选 demo 冒烟
 
 ## 2026-08-10
 
