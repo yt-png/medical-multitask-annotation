@@ -1,4 +1,4 @@
-"""Tests for unified CLI (preprocess/package/ls-import/export-split/apply-current wired; others stub)."""
+"""Tests for unified CLI (preprocess/package/ls-import/export-split/rework-import/apply-current wired; others stub)."""
 
 from __future__ import annotations
 
@@ -195,6 +195,12 @@ def test_apply_current_requires_export() -> None:
     assert exc.value.code == 2
 
 
+def test_rework_import_requires_export() -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["rework-import", "--batch", "b1", "--task", "cap"])
+    assert exc.value.code == 2
+
+
 def _write_cap_export(path: Path, *, image_id: str = "img-a", caption: str = "hi") -> None:
     payload = [
         {
@@ -289,10 +295,120 @@ def test_apply_current_missing_export(
     assert "mma apply-current:" in captured.err
 
 
-def test_stub_for_rework_import(capsys: pytest.CaptureFixture[str]) -> None:
-    code = main(["rework-import", "--batch", "b1", "--task", "cap"])
+def test_rework_import_success(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from PIL import Image
+
+    data_root = tmp_path / "data"
+    batch_id = "batch_cli"
+    image_id = "img-a"
+    package_dir = data_root / "task_packages" / batch_id / "cap"
+    images_dir = package_dir / "images"
+    images_dir.mkdir(parents=True)
+    Image.new("RGB", (8, 8), color=(1, 2, 3)).save(images_dir / f"{image_id}.jpg")
+    (package_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "package_id": f"{batch_id}__cap",
+                "task_type": "CAP",
+                "batch_id": batch_id,
+                "samples": [
+                    {
+                        "image_id": image_id,
+                        "image_path": f"images/{image_id}.jpg",
+                        "diagnosis_text": "cli diag",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    export = tmp_path / "cap_export.json"
+    payload = [
+        {
+            "data": {
+                "image_id": image_id,
+                "package_id": f"{batch_id}__cap",
+                "diagnosis_text": "diag",
+            },
+            "annotations": [
+                {
+                    "id": 1,
+                    "was_cancelled": False,
+                    "updated_at": "2026-08-11T00:00:00.000000Z",
+                    "result": [
+                        {
+                            "from_name": "cap_text",
+                            "to_name": "image",
+                            "type": "textarea",
+                            "value": {"text": ["need rework"]},
+                        },
+                        {
+                            "from_name": "human_confirmed",
+                            "to_name": "image",
+                            "type": "choices",
+                            "value": {"choices": ["yes"]},
+                        },
+                        {
+                            "from_name": "needs_rework",
+                            "to_name": "image",
+                            "type": "choices",
+                            "value": {"choices": ["yes"]},
+                        },
+                    ],
+                }
+            ],
+        }
+    ]
+    export.write_text(json.dumps(payload), encoding="utf-8")
+
+    code = main(
+        [
+            "rework-import",
+            "--batch",
+            batch_id,
+            "--task",
+            "cap",
+            "--export",
+            str(export),
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 0
+    out_file = (
+        data_root / "ls_import" / batch_id / "cap" / "rework_tasks.json"
+    )
+    assert out_file.is_file()
+    assert str(out_file.resolve()) in captured.out or str(out_file) in captured.out
+    tasks = json.loads(out_file.read_text(encoding="utf-8"))
+    assert len(tasks) == 1
+    assert tasks[0]["id"] == image_id
+
+
+def test_rework_import_missing_export(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = main(
+        [
+            "rework-import",
+            "--batch",
+            "batch_cli",
+            "--task",
+            "cap",
+            "--export",
+            str(tmp_path / "missing.json"),
+            "--data-root",
+            str(tmp_path / "data"),
+        ]
+    )
+    captured = capsys.readouterr()
     assert code == 2
-    assert "not implemented yet" in capsys.readouterr().err
+    assert "mma rework-import:" in captured.err
 
 
 def test_export_split_success(

@@ -33,7 +33,7 @@ mma -h
 python -m mma -h
 ```
 
-已注册子命令：`preprocess`、`package`、`ls-import`、`export-split`、`apply-current` 已接线；其余仍为骨架 stub：
+已注册子命令：`preprocess`、`package`、`ls-import`、`export-split`、`rework-import`、`apply-current` 已接线；其余仍为骨架 stub：
 
 `preprocess` · `package` · `convert` · `ls-import` · `export-split` · `rework-import` · `apply-current` · `merge`
 
@@ -75,6 +75,14 @@ mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batc
 - 写出 `data/results/<batch>/<task>/normal/annotations.json` 与 `.../rework/annotations.json`（空侧为 `[]`）
 - 不写入 `current/`（请另用 `apply-current`）
 
+生成返工再导入任务（P4，可见上一轮标注、不预填双勾选）：
+
+```bash
+mma rework-import --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
+```
+
+- 写出 `data/ls_import/<batch>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`；无返工样本时为 `[]`）
+
 预标注 → Label Studio import（T2.2 / T3.1b，Python API，CLI `convert` 仍为 stub）：
 
 ```python
@@ -113,8 +121,9 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T4.4 覆盖写入 `results/.../current/annotations.json`（`exporters/overwrite_current.py`）
 - 已完成：接线 `mma apply-current --batch --task --export [--data-root]`（`exporters/apply_current_from_export.py`）
 - 已完成：接线 `mma export-split --batch --task --export [--data-root]`（`exporters/export_split_from_export.py` → normal/rework）
+- 已完成：接线 `mma rework-import --batch --task --export [--data-root] [--local-root]`（`importers/rework_import_from_export.py` → `rework_tasks.json`）
 - 已完成：T4.5 读取 current 清单（`exporters/load_current.py` + `current_annotations` 序列化；供 P5 merge）
-- 后续：P4 `rework-import` CLI 接线；P5 合并与 ready 校验等（见 `.cursor/rules/Development Tasks.md`）
+- 后续：P5 合并与 ready 校验等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 

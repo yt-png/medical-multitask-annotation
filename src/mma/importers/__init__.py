@@ -11,13 +11,19 @@ from mma.importers.build_rework_tasks import (
     REWORK_MODEL_VERSION,
     build_rework_ls_tasks,
 )
+from mma.importers.rework_import_from_export import (
+    REWORK_TASKS_JSON_NAME,
+    rework_import_from_export,
+)
 
 __all__ = [
     "LOCAL_FILES_PREFIX",
     "REWORK_MODEL_VERSION",
+    "REWORK_TASKS_JSON_NAME",
     "TASKS_JSON_NAME",
     "build_ls_import_tasks",
     "build_rework_ls_tasks",
+    "rework_import_from_export",
     "rewrite_task_image_urls",
     "to_local_files_url",
 ]

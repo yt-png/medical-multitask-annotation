@@ -4,6 +4,9 @@
 
 ### Added
 
+- P4 CLI：接线 `mma rework-import --batch --task --export [--data-root] [--local-root]`
+- 新增 `src/mma/importers/rework_import_from_export.py`（parse → split → extract raw → `build_rework_ls_tasks` → `rework_tasks.json`）
+- `importers/__init__.py` 导出 `rework_import_from_export` / `REWORK_TASKS_JSON_NAME`
 - P4 CLI：接线 `mma export-split --batch --task --export [--data-root]`
 - 新增 `src/mma/exporters/export_split_from_export.py`（parse → split → 写 normal/rework `annotations.json`；空侧 `[]`）
 - `paths.py`：新增 `results_normal_dir` / `results_rework_dir`
@@ -29,12 +32,14 @@
 ### Changed
 
 - `overwrite_current` 改为复用 `current_annotations` 读写，避免重复定义落盘格式
-- README / `docs/labelstudio_usage.md`：补充 `apply-current` / `export-split` 用法
+- README / `docs/labelstudio_usage.md`：补充 `apply-current` / `export-split` / `rework-import` 用法
 
 ### Tests
 
+- 新增 `tests/test_rework_import_from_export.py`：混合 CAP、空返工、SEG/DET、异常、不覆盖 `tasks.json`
+- 扩展 `tests/test_cli.py`：`rework-import` 参数/成功/失败
 - 新增 `tests/test_export_split_from_export.py`：混合/全 normal/全 rework、DET、异常、不写 current/无 round
-- 扩展 `tests/test_cli.py`：`export-split` 成功/失败；`rework-import` 仍 stub
+- 扩展 `tests/test_cli.py`：`export-split` 成功/失败
 - 新增 `tests/test_apply_current_from_export.py`：CAP/SEG 写入、DET 尺寸、缺图失败、覆盖、空导出 no-op、不写 normal/rework
 - 扩展 `tests/test_cli.py`：`apply-current` 参数/成功/失败
 - 新增 `tests/test_parse_ls_export.py`：三任务解析、勾选默认/非法、重复 ID、DET metadata、真实 demo 导出冒烟
