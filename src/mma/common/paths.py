@@ -113,3 +113,27 @@ def ls_import_task_dir(
     cleaned = validate_batch_id(batch_id)
     root = default_data_root() if data_root is None else Path(data_root)
     return root / "ls_import" / cleaned / task_dir_name(task)
+
+
+def results_task_dir(
+    batch_id: str,
+    task: str | TaskType,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/results/{batch_id}/{seg|det|cap}``."""
+
+    cleaned = validate_batch_id(batch_id)
+    root = default_data_root() if data_root is None else Path(data_root)
+    return root / "results" / cleaned / task_dir_name(task)
+
+
+def results_current_dir(
+    batch_id: str,
+    task: str | TaskType,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/results/{batch_id}/{seg|det|cap}/current``."""
+
+    return results_task_dir(batch_id, task, data_root=data_root) / "current"

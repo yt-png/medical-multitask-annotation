@@ -1,9 +1,17 @@
 """Label Studio export parsers and result post-processing (P4)."""
 
+from mma.exporters.extract_ls_raw_results import (
+    extract_ls_raw_results,
+    extract_ls_raw_results_data,
+)
+from mma.exporters.overwrite_current import overwrite_current
 from mma.exporters.parse_ls_export import parse_ls_export, parse_ls_export_data
 from mma.exporters.split_by_rework import split_by_rework
 
 __all__ = [
+    "extract_ls_raw_results",
+    "extract_ls_raw_results_data",
+    "overwrite_current",
     "parse_ls_export",
     "parse_ls_export_data",
     "split_by_rework",

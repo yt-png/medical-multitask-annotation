@@ -89,7 +89,11 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T3.3 CAP Label Studio 工作台 XML（`src/mma/labelstudio/configs/cap.xml`）
 - 已完成：T3.4 生成 LS 导入任务（`importers/build_ls_tasks.py`、`mma ls-import`、local-files URL）
 - 已完成：T3.5 Label Studio 本地使用说明（`docs/labelstudio_usage.md`）
-- 后续：P4 导出分类与返工覆盖等（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T4.1 LS 导出解析 → `TaskAnnotationResult`（`exporters/parse_ls_export.py`）
+- 已完成：T4.2 按 `needs_rework` 拆分 normal/rework（`exporters/split_by_rework.py`）
+- 已完成：T4.3 返工再导入（S2 旁路 raw result → `importers/build_rework_tasks.py`）
+- 已完成：T4.4 覆盖写入 `results/.../current/annotations.json`（`exporters/overwrite_current.py`；CLI `apply-current` 仍未接线）
+- 后续：T4.5 current 清单读取、P5 合并等（见 `.cursor/rules/Development Tasks.md`）
 
 ## 文档
 

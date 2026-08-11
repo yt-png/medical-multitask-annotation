@@ -11,11 +11,18 @@
 - 勾选：`human_confirmed` 缺失/非法报错；`needs_rework` 缺失默认 `False`；同文件重复 `image_id` 严格失败
 - T4.2：新增 `src/mma/exporters/split_by_rework.py`（按 `needs_rework` 拆成 normal / rework，保序；不做落盘与 ResultBundle）
 - T4.2：`exporters/__init__.py` 导出 `split_by_rework`
+- T4.3 / S2：新增 `src/mma/exporters/extract_ls_raw_results.py`（旁路 `image_id →` 原始 LS `result`；不改 T4.1 返回接口）
+- T4.3：新增 `src/mma/importers/build_rework_tasks.py`（返工导入 tasks；`predictions` 仅用旁路 raw；图文来自 task_packages manifest；不预填双勾选）
+- T4.4：新增 `src/mma/exporters/overwrite_current.py`（按 `image_id` 覆盖写入 `results/.../current/annotations.json`；空输入 no-op；保序+新 id 追加）
+- `paths.py`：新增 `results_task_dir` / `results_current_dir`
 
 ### Tests
 
 - 新增 `tests/test_parse_ls_export.py`：三任务解析、勾选默认/非法、重复 ID、DET metadata、真实 demo 导出冒烟
 - 新增 `tests/test_split_by_rework.py`：空输入、全正常、全返工、混合保序、非法类型
+- 新增 `tests/test_extract_ls_raw_results.py`：旁路提取、深拷贝、取消标注跳过、重复 ID
+- 新增 `tests/test_build_rework_tasks.py`：SEG RLE 回放、剥离勾选、CAP/DET 用 raw、缺旁路失败
+- 新增 `tests/test_overwrite_current.py`：首次写入、同 id 覆盖勾选、子集合并保序、空输入 no-op、三任务形状
 
 ## 2026-08-10
 
