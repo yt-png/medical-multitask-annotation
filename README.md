@@ -33,7 +33,7 @@ mma -h
 python -m mma -h
 ```
 
-已注册子命令：`preprocess`、`package`、`ls-import`、`export-split`、`rework-import`、`apply-current` 已接线；其余仍为骨架 stub：
+已注册子命令：`preprocess`、`package`、`ls-import`、`export-split`、`rework-import`、`apply-current`、`merge` 已接线；`convert` 仍为骨架 stub：
 
 `preprocess` · `package` · `convert` · `ls-import` · `export-split` · `rework-import` · `apply-current` · `merge`
 
@@ -83,6 +83,15 @@ mma rework-import --batch demo_batch --task cap --export data/ls_export/demo_bat
 
 - 写出 `data/ls_import/<batch>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`；无返工样本时为 `[]`）
 
+三任务合并写出最终集（P5，需三路 `current/` 就绪且 `processed` 可回填图文）：
+
+```bash
+mma merge --batch demo_batch --data-root data
+```
+
+- 写出 `data/final/<batch>/manifest.json`（`{batch_id, items}`，每条含 SEG+DET+CAP 与 `image_path`/`diagnosis_text`）
+- 未就绪或缺任务时失败且不改写已有 final
+
 预标注 → Label Studio import（T2.2 / T3.1b，Python API，CLI `convert` 仍为 stub）：
 
 ```python
@@ -126,7 +135,7 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T5.1 合并就绪校验（`merge/validate_ready.py`：无返工、全确认、三路 `image_id` 一致）
 - 已完成：T5.2 按 `image_id` 合并（`merge/merge_multitask.py` → `MergedMultitaskRecord`；含缺任务防御）
 - 已完成：T5.3 缺任务阻断（`assert_no_missing_tasks`：禁止静默缺字段；合并二次校验）
-- 后续：T5.4 输出 `final/`、`mma merge` CLI（见 `.cursor/rules/Development Tasks.md`）
+- 已完成：T5.4 输出 `final/` 与接线 `mma merge --batch [--data-root]`（`merge/merge_to_final.py` + `write_final.py`）
 
 ## 文档
 

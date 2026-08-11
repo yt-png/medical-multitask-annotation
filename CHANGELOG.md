@@ -4,15 +4,23 @@
 
 ### Added
 
+- T5.4：新增 `src/mma/merge/write_final.py`（`write_final_manifest` 原子写出 `final/<batch>/manifest.json`）
+- T5.4：新增 `src/mma/merge/merge_to_final.py`（`merge_multitask` → processed 回填图文 → 写盘）
+- `paths.py`：新增 `final_batch_dir`
+- CLI：接线 `mma merge --batch [--data-root]`
+- `merge/__init__.py` 导出 `merge_to_final` / `write_final_manifest` / `FINAL_MANIFEST_NAME`
 - T5.3：`assert_no_missing_tasks`（合并缺任务阻断：缺 DET/CAP 即 `ValueError`；禁止静默缺字段；不写 `final/`）
 - `merge/__init__.py` 导出 `assert_no_missing_tasks`
 
 ### Changed
 
 - `merge_multitask` 改为调用 `assert_no_missing_tasks`（保留 `validate_ready` 后的二次校验）
+- `docs/data_layout.md`：钉死 `final/<batch_id>/manifest.json` 对齐 `MergedMultitaskRecord`
 
 ### Tests
 
+- 新增 `tests/test_merge_to_final.py`：写盘形状、成功回填、覆盖、未就绪保旧、缺任务/缺 processed 不写、非法 batch
+- 扩展 `tests/test_cli.py`：`merge` 成功/失败（原 merge stub 改为 convert stub）
 - 扩展 `tests/test_merge_multitask.py`：缺 DET/CAP（旁路门禁）、直接测 `assert_no_missing_tasks`、类型不符阻断
 
 ## 2026-08-11

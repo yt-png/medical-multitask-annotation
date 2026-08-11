@@ -54,6 +54,18 @@ def processed_batch_dir(
     return root / "processed" / cleaned
 
 
+def final_batch_dir(
+    batch_id: str,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/final/{batch_id}``."""
+
+    cleaned = validate_batch_id(batch_id)
+    root = default_data_root() if data_root is None else Path(data_root)
+    return root / "final" / cleaned
+
+
 def task_packages_batch_dir(
     batch_id: str,
     *,

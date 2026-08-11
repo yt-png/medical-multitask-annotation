@@ -1,4 +1,4 @@
-"""Tests for unified CLI (preprocess/package/ls-import/export-split/rework-import/apply-current wired; others stub)."""
+"""Tests for unified CLI (preprocess/package/ls-import/export-split/rework-import/apply-current/merge wired; convert stub)."""
 
 from __future__ import annotations
 
@@ -177,10 +177,12 @@ def test_valid_task_accepted_then_stub(task: str, capsys: pytest.CaptureFixture[
     assert "convert" in err
 
 
-def test_stub_for_merge(capsys: pytest.CaptureFixture[str]) -> None:
-    code = main(["merge", "--batch", "batch-a"])
+def test_stub_for_convert(capsys: pytest.CaptureFixture[str]) -> None:
+    code = main(["convert", "--batch", "batch-a", "--task", "cap"])
     assert code == 2
-    assert "merge" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "not implemented yet" in err
+    assert "convert" in err
 
 
 def test_export_split_requires_export() -> None:
@@ -584,6 +586,125 @@ def test_package_failure(
     captured = capsys.readouterr()
     assert code == 2
     assert "mma package:" in captured.err
+
+
+def _write_merge_ready_fixture(data_root: Path, batch_id: str = "batch_merge") -> None:
+    from mma.common.io import write_json
+    from mma.common.models import (
+        BBox,
+        CapAnnotation,
+        DetAnnotation,
+        SegAnnotation,
+        TaskAnnotationResult,
+        TaskType,
+    )
+    from mma.exporters import overwrite_current
+
+    def seg(image_id: str) -> TaskAnnotationResult:
+        return TaskAnnotationResult(
+            image_id=image_id,
+            task_type=TaskType.SEG,
+            annotation=SegAnnotation(mask_ref=f"masks/{image_id}.png"),
+            human_confirmed=True,
+            needs_rework=False,
+        )
+
+    def det(image_id: str) -> TaskAnnotationResult:
+        return TaskAnnotationResult(
+            image_id=image_id,
+            task_type=TaskType.DET,
+            annotation=DetAnnotation(
+                bboxes=(BBox(x=1.0, y=2.0, width=3.0, height=4.0),)
+            ),
+            human_confirmed=True,
+            needs_rework=False,
+        )
+
+    def cap(image_id: str) -> TaskAnnotationResult:
+        return TaskAnnotationResult(
+            image_id=image_id,
+            task_type=TaskType.CAP,
+            annotation=CapAnnotation(caption=f"cap-{image_id}"),
+            human_confirmed=True,
+            needs_rework=False,
+        )
+
+    image_id = "img-a"
+    overwrite_current(
+        [seg(image_id)],
+        batch_id=batch_id,
+        task_type=TaskType.SEG,
+        data_root=data_root,
+    )
+    overwrite_current(
+        [det(image_id)],
+        batch_id=batch_id,
+        task_type=TaskType.DET,
+        data_root=data_root,
+    )
+    overwrite_current(
+        [cap(image_id)],
+        batch_id=batch_id,
+        task_type=TaskType.CAP,
+        data_root=data_root,
+    )
+    write_json(
+        data_root / "processed" / batch_id / "manifest.json",
+        {
+            "batch_id": batch_id,
+            "items": [
+                {
+                    "image_id": image_id,
+                    "image_path": f"/img/{image_id}.jpg",
+                    "diagnosis_text": f"diag-{image_id}",
+                    "source_image_name": f"{image_id}.jpg",
+                }
+            ],
+        },
+    )
+
+
+def test_merge_success(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    data_root = tmp_path / "data"
+    _write_merge_ready_fixture(data_root)
+    code = main(
+        [
+            "merge",
+            "--batch",
+            "batch_merge",
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 0
+    out_file = data_root / "final" / "batch_merge" / "manifest.json"
+    assert out_file.is_file()
+    assert str(out_file.resolve()) in captured.out or str(out_file) in captured.out
+    payload = json.loads(out_file.read_text(encoding="utf-8"))
+    assert payload["items"][0]["image_id"] == "img-a"
+    assert payload["items"][0]["cap"]["caption"] == "cap-img-a"
+
+
+def test_merge_failure_not_ready(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = main(
+        [
+            "merge",
+            "--batch",
+            "missing_batch",
+            "--data-root",
+            str(tmp_path / "data"),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "mma merge:" in captured.err
 
 
 def test_module_entry_help() -> None:

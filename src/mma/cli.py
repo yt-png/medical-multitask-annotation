@@ -1,8 +1,8 @@
 """Unified CLI entry for the multitask annotation pipeline.
 
 ``preprocess``, ``package``, ``ls-import``, ``export-split``,
-``rework-import``, and ``apply-current`` are wired; other subcommands remain
-stubs.
+``rework-import``, ``apply-current``, and ``merge`` are wired; ``convert``
+remains a stub.
 """
 
 from __future__ import annotations
@@ -195,6 +195,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Merge SEG/DET/CAP current results into final dataset (P5).",
     )
     merge.add_argument("--batch", required=True, help="Batch ID")
+    merge.add_argument(
+        "--data-root",
+        default=None,
+        help="Runtime data root (default: ./data)",
+    )
 
     return parser
 
@@ -306,6 +311,22 @@ def _run_rework_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_merge(args: argparse.Namespace) -> int:
+    from mma.merge.merge_to_final import merge_to_final
+
+    try:
+        out_path = merge_to_final(
+            args.batch,
+            data_root=args.data_root,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"mma merge: {exc}", file=sys.stderr)
+        return 2
+
+    print(str(Path(out_path)))
+    return 0
+
+
 def dispatch(args: argparse.Namespace) -> int:
     """Route parsed args to handlers."""
 
@@ -322,6 +343,8 @@ def dispatch(args: argparse.Namespace) -> int:
         return _run_export_split(args)
     if command == "rework-import":
         return _run_rework_import(args)
+    if command == "merge":
+        return _run_merge(args)
     if command in SUBCOMMANDS:
         return _stub(command)
     print(f"mma: unknown command {command!r}", file=sys.stderr)

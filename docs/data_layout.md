@@ -147,8 +147,8 @@ data/
 | 项目 | 说明 |
 |---|---|
 | 职责 | 三任务合并后的多任务最终数据集 |
-| 前置 | 三路 `results/<batch_id>/{seg,det,cap}/current/` 均就绪，且无返工残留 |
-| 内容 | 按 `image_id` 对齐的合并清单/目录；每条必须含 SEG + DET + CAP；缺任务必须阻断，禁止静默缺字段 |
+| 前置 | 三路 `results/<batch_id>/{seg,det,cap}/current/` 均就绪，且无返工残留；`processed/<batch_id>/manifest.json` 可回填图文 |
+| 内容 | 关键清单 `manifest.json`：`{"batch_id", "items"}`；每条对齐 `MergedMultitaskRecord`（必含 SEG+DET+CAP，以及 `image_path`/`diagnosis_text`）；缺任务必须阻断，禁止静默缺字段；不在此目录复制媒体文件 |
 
 ---
 
@@ -205,7 +205,7 @@ raw
 | `task_packages/<batch_id>/<task>/` | `manifest.json` | `package_id`、`task_type`、`batch_id`、样本列表 |
 | `prelabels/<batch_id>/<task>/` | `prelabels.json` | 统一中间格式（`docs/formats.md`）；关联键 `image_id` |
 | `results/<batch_id>/<task>/current/` | `annotations.json` | 当前有效 `TaskAnnotationResult` 列表 |
-| `final/<batch_id>/` | `manifest.json`（或等价） | 合并后的多任务记录清单 |
+| `final/<batch_id>/` | `manifest.json` | 合并后的多任务记录清单（字段对齐 `MergedMultitaskRecord`） |
 
 轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。
 
