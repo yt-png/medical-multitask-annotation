@@ -15,6 +15,7 @@ from mma.common.io import read_json, write_json
 from mma.common.models import TaskAnnotationResult, TaskType
 from mma.common.paths import (
     default_data_root,
+    results_manual_masks_dir,
     results_normal_dir,
     results_rework_dir,
     validate_batch_id,
@@ -67,10 +68,15 @@ def export_split_from_export(
             data_root=root,
         )
 
+    seg_mask_dir = None
+    if task_type is TaskType.SEG:
+        seg_mask_dir = results_manual_masks_dir(cleaned, data_root=root)
+
     results = parse_ls_export(
         path,
         task_type=task_type,
         image_metadata_by_id=metadata,
+        seg_manual_mask_dir=seg_mask_dir,
     )
     normal, rework = split_by_rework(results)
 

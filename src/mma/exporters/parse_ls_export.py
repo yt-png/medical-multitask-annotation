@@ -38,14 +38,24 @@ def parse_ls_export(
     *,
     task_type: TaskType,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None = None,
+    seg_manual_mask_dir: Path | str | None = None,
 ) -> tuple[TaskAnnotationResult, ...]:
-    """Load a Label Studio export JSON file and parse task results."""
+    """Load a Label Studio export JSON file and parse task results.
+
+    When ``task_type`` is SEG and ``seg_manual_mask_dir`` is set, brush RLE
+    results are decoded and written as ``{image_id}_manual.png`` under that
+    directory; ``SegAnnotation.mask_ref`` becomes
+    ``manual_masks/{image_id}_manual.png``. If the directory is omitted (unit
+    tests / legacy callers), SEG keeps ``data.mask_ref`` even when brush
+    results are present.
+    """
 
     payload = read_json(path)
     return parse_ls_export_data(
         payload,
         task_type=task_type,
         image_metadata_by_id=image_metadata_by_id,
+        seg_manual_mask_dir=seg_manual_mask_dir,
     )
 
 
@@ -54,6 +64,7 @@ def parse_ls_export_data(
     *,
     task_type: TaskType,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None = None,
+    seg_manual_mask_dir: Path | str | None = None,
 ) -> tuple[TaskAnnotationResult, ...]:
     """Parse an in-memory Label Studio export payload (task list)."""
 
@@ -76,6 +87,7 @@ def parse_ls_export_data(
             task,
             task_type=task_type,
             image_metadata_by_id=image_metadata_by_id,
+            seg_manual_mask_dir=seg_manual_mask_dir,
             index=index,
         )
         if parsed.image_id in seen_image_ids:
@@ -90,6 +102,7 @@ def _parse_one_task(
     *,
     task_type: TaskType,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
+    seg_manual_mask_dir: Path | str | None,
     index: int,
 ) -> TaskAnnotationResult:
     data = task.get("data")
@@ -130,6 +143,7 @@ def _parse_one_task(
         image_id=image_id,
         task_data=data,
         image_metadata_by_id=image_metadata_by_id,
+        seg_manual_mask_dir=seg_manual_mask_dir,
     )
 
     package_id_raw = data.get(DATA_KEY_PACKAGE_ID)
@@ -318,9 +332,15 @@ def _parse_annotation_payload(
     image_id: str,
     task_data: dict[str, Any],
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
+    seg_manual_mask_dir: Path | str | None,
 ) -> SegAnnotation | DetAnnotation | CapAnnotation:
     if task_type is TaskType.SEG:
-        return _parse_seg_annotation(task_data, image_id=image_id)
+        return _parse_seg_annotation(
+            result_items,
+            task_data=task_data,
+            image_id=image_id,
+            seg_manual_mask_dir=seg_manual_mask_dir,
+        )
     if task_type is TaskType.DET:
         return _parse_det_annotation(
             result_items,
@@ -332,14 +352,77 @@ def _parse_annotation_payload(
     raise ValueError(f"unsupported task type: {task_type!r}")  # pragma: no cover
 
 
-def _parse_seg_annotation(task_data: dict[str, Any], *, image_id: str) -> SegAnnotation:
-    mask_ref = task_data.get(DATA_KEY_MASK_REF)
-    if not isinstance(mask_ref, str) or not mask_ref.strip():
+def _parse_seg_annotation(
+    result_items: Sequence[Any],
+    *,
+    task_data: dict[str, Any],
+    image_id: str,
+    seg_manual_mask_dir: Path | str | None,
+) -> SegAnnotation:
+    """Build SEG payload: prefer brush RLE when ``seg_manual_mask_dir`` is set."""
+
+    from mma.converters.seg_brush import write_manual_mask_from_brush_results
+
+    fallback_ref = task_data.get(DATA_KEY_MASK_REF)
+    if not isinstance(fallback_ref, str) or not fallback_ref.strip():
         raise ValueError(
             f"SEG requires non-empty data.{DATA_KEY_MASK_REF} "
             f"(image_id={image_id!r})"
         )
-    return SegAnnotation(mask_ref=mask_ref.strip())
+    fallback_ref = fallback_ref.strip()
+
+    brush_entries = _collect_seg_brush_entries(result_items, image_id=image_id)
+    if not brush_entries or seg_manual_mask_dir is None:
+        return SegAnnotation(mask_ref=fallback_ref)
+
+    mask_ref = write_manual_mask_from_brush_results(
+        brush_entries,
+        image_id=image_id,
+        manual_mask_dir=seg_manual_mask_dir,
+    )
+    return SegAnnotation(mask_ref=mask_ref)
+
+
+def _collect_seg_brush_entries(
+    result_items: Sequence[Any],
+    *,
+    image_id: str,
+) -> list[dict[str, Any]]:
+    """Collect SEG brush results using DEFAULT_LS_RESULT_SPECS style.
+
+    Primary match: ``from_name == seg_mask`` and ``value.format == "rle"``.
+    ``type`` may be missing or equal to the configured brush type (DET/CAP style).
+    """
+
+    spec = DEFAULT_LS_RESULT_SPECS[TaskType.SEG]
+    from_name = spec["from_name"]
+    expected_type = spec["type"]
+    entries: list[dict[str, Any]] = []
+    for entry in _iter_result_items(result_items, image_id=image_id):
+        if entry.get("from_name") != from_name:
+            continue
+        if entry.get("type") not in (None, expected_type):
+            raise ValueError(
+                f"SEG result type must be {expected_type!r} "
+                f"(image_id={image_id!r}, got {entry.get('type')!r})"
+            )
+        value = entry.get("value")
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"SEG brush value must be an object (image_id={image_id!r})"
+            )
+        fmt = value.get("format")
+        if fmt != "rle":
+            raise ValueError(
+                f"SEG brush value.format must be 'rle' "
+                f"(image_id={image_id!r}, got {fmt!r})"
+            )
+        if "rle" not in value:
+            raise ValueError(
+                f"SEG brush value missing rle (image_id={image_id!r})"
+            )
+        entries.append(entry)
+    return entries
 
 
 def _parse_det_annotation(

@@ -52,7 +52,8 @@ data/
 ├── results/<batch_id>/{seg,det,cap}/
 │   ├── normal/
 │   ├── rework/
-│   └── current/
+│   ├── current/
+│   └── manual_masks/          # 仅 seg：人工确认 brush 落盘
 └── final/<batch_id>/
 ```
 
@@ -139,6 +140,13 @@ data/
 - 写入语义：同 `image_id` **覆盖**旧标注与旧勾选，不并行保留多版有效结果
 - 合并（P5）只读各任务的 `current/`
 - 建议清单文件：`current/annotations.json`（或等价；字段对齐 `TaskAnnotationResult`）
+
+#### `manual_masks/`（仅 SEG）
+
+- 路径：`results/<batch_id>/seg/manual_masks/`
+- 由 `apply-current` / `export-split` 在解析到 LS brush RLE 时写出：`{image_id}_manual.png`
+- `SegAnnotation.mask_ref` 存相对 `results/<batch_id>/seg/` 的路径：`manual_masks/{image_id}_manual.png`
+- **不**覆盖 `prelabels/<batch_id>/seg/masks/` 原始预标注；无 brush 时仍使用导出 `data.mask_ref`
 
 `normal/` / `rework/` 是轮次快照；**业务上的当前有效状态以 `current/` 为准**。
 

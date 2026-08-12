@@ -12,7 +12,11 @@ from PIL import Image
 
 from mma.common.io import read_json
 from mma.common.models import TaskType
-from mma.common.paths import default_data_root, validate_batch_id
+from mma.common.paths import (
+    default_data_root,
+    results_manual_masks_dir,
+    validate_batch_id,
+)
 from mma.converters import ImageMetadata
 from mma.exporters.overwrite_current import overwrite_current
 from mma.exporters.parse_ls_export import parse_ls_export
@@ -57,10 +61,15 @@ def apply_current_from_export(
             data_root=root,
         )
 
+    seg_mask_dir = None
+    if task_type is TaskType.SEG:
+        seg_mask_dir = results_manual_masks_dir(cleaned, data_root=root)
+
     results = parse_ls_export(
         path,
         task_type=task_type,
         image_metadata_by_id=metadata,
+        seg_manual_mask_dir=seg_mask_dir,
     )
     return overwrite_current(
         results,

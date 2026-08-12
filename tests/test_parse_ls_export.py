@@ -117,17 +117,23 @@ def _seg_task(
     rework: str | None = "no",
     package_id: str = "demo_batch__seg",
     include_brush: bool = True,
+    brush_rle: list[int] | None = None,
+    original_width: int = 2,
+    original_height: int = 2,
 ) -> dict:
     results: list[dict] = []
     if include_brush:
+        rle = brush_rle if brush_rle is not None else [0, 1, 2]
         results.append(
             {
                 "from_name": "seg_mask",
                 "to_name": "image",
                 "type": "brushlabels",
+                "original_width": original_width,
+                "original_height": original_height,
                 "value": {
                     "format": "rle",
-                    "rle": [0, 1, 2],
+                    "rle": rle,
                     "brushlabels": ["lesion"],
                 },
             }
@@ -226,7 +232,7 @@ def test_parse_det_with_boxes_requires_metadata() -> None:
         )
 
 
-def test_parse_seg_uses_data_mask_ref_not_rle() -> None:
+def test_parse_seg_without_manual_dir_keeps_data_mask_ref() -> None:
     data = [
         _seg_task(
             image_id="img-seg-1",
@@ -239,6 +245,62 @@ def test_parse_seg_uses_data_mask_ref_not_rle() -> None:
     assert isinstance(annotation, SegAnnotation)
     assert annotation.mask_ref == "masks/img-seg-1.png"
     assert "rle" not in annotation.mask_ref
+
+
+def test_parse_seg_no_brush_keeps_data_mask_ref(tmp_path: Path) -> None:
+    data = [
+        _seg_task(
+            image_id="img-seg-nb",
+            mask_ref="masks/prelabel.png",
+            include_brush=False,
+        )
+    ]
+    results = parse_ls_export_data(
+        data,
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=tmp_path / "manual_masks",
+    )
+    assert results[0].annotation.mask_ref == "masks/prelabel.png"
+    assert not (tmp_path / "manual_masks").exists()
+
+
+def test_parse_seg_with_brush_and_manual_dir_writes_mask(tmp_path: Path) -> None:
+    from mma.converters.seg_brush import (
+        load_foreground_mask,
+        manual_mask_ref,
+        mask_to_ls_rle,
+    )
+
+    binary = [
+        [0, 1],
+        [1, 0],
+    ]
+    rle = mask_to_ls_rle(binary)
+    data = [
+        _seg_task(
+            image_id="img-manual",
+            mask_ref="masks/old.png",
+            brush_rle=rle,
+            original_width=2,
+            original_height=2,
+        )
+    ]
+    mask_dir = tmp_path / "manual_masks"
+    results = parse_ls_export_data(
+        data,
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=mask_dir,
+    )
+    annotation = results[0].annotation
+    assert isinstance(annotation, SegAnnotation)
+    assert annotation.mask_ref == manual_mask_ref("img-manual")
+    out_file = mask_dir / "img-manual_manual.png"
+    assert out_file.is_file()
+    loaded, width, height = load_foreground_mask(out_file)
+    assert (width, height) == (2, 2)
+    assert loaded == binary
+    # Must not touch a prelabel path under the same tree
+    assert not (tmp_path / "masks" / "old.png").exists()
 
 
 def test_needs_rework_defaults_false_when_missing() -> None:

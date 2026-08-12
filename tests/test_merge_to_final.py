@@ -218,3 +218,41 @@ def test_merge_to_final_missing_processed_image_id(tmp_path: Path) -> None:
 def test_invalid_batch_id_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="batch_id"):
         merge_to_final("bad/id", data_root=tmp_path)
+
+
+def test_merge_to_final_keeps_manual_mask_ref(tmp_path: Path) -> None:
+    image_id = "img-a"
+    overwrite_current(
+        [
+            TaskAnnotationResult(
+                image_id=image_id,
+                task_type=TaskType.SEG,
+                annotation=SegAnnotation(
+                    mask_ref=f"manual_masks/{image_id}_manual.png"
+                ),
+                human_confirmed=True,
+                needs_rework=False,
+            )
+        ],
+        batch_id="batch1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_det(image_id)],
+        batch_id="batch1",
+        task_type=TaskType.DET,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_cap(image_id)],
+        batch_id="batch1",
+        task_type=TaskType.CAP,
+        data_root=tmp_path,
+    )
+    _write_processed(tmp_path, "batch1", image_ids=(image_id,))
+    path = merge_to_final("batch1", data_root=tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["items"][0]["seg"]["mask_ref"] == (
+        f"manual_masks/{image_id}_manual.png"
+    )

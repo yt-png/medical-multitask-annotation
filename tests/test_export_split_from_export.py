@@ -240,3 +240,59 @@ def test_does_not_write_current_or_round_dirs(tmp_path: Path) -> None:
     assert (task_dir / "rework" / ANNOTATIONS_JSON_NAME).is_file()
     assert not results_current_dir("batch1", TaskType.CAP, data_root=tmp_path).exists()
     assert not any(task_dir.glob("**/round_*"))
+
+
+def test_seg_split_uses_manual_mask_ref(tmp_path: Path) -> None:
+    from mma.common.paths import results_manual_masks_dir
+    from mma.converters.seg_brush import mask_to_ls_rle, manual_mask_ref
+
+    binary = [[1, 0], [0, 1]]
+    rle = mask_to_ls_rle(binary)
+    export = _write_export(
+        tmp_path / "seg.json",
+        [
+            {
+                "data": {
+                    "image_id": "img-a",
+                    "package_id": "batch1__seg",
+                    "mask_ref": "masks/old.png",
+                    "diagnosis_text": "diag",
+                },
+                "annotations": [
+                    {
+                        "id": 1,
+                        "was_cancelled": False,
+                        "updated_at": "2026-08-11T00:00:00.000000Z",
+                        "result": [
+                            {
+                                "from_name": "seg_mask",
+                                "to_name": "image",
+                                "type": "brushlabels",
+                                "original_width": 2,
+                                "original_height": 2,
+                                "value": {
+                                    "format": "rle",
+                                    "rle": rle,
+                                    "brushlabels": ["lesion"],
+                                },
+                            },
+                            _choice("human_confirmed", "yes"),
+                            _choice("needs_rework", "no"),
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    normal_path, rework_path = export_split_from_export(
+        export,
+        batch_id="batch1",
+        task="seg",
+        data_root=tmp_path,
+    )
+    assert read_json(rework_path) == []
+    normal = read_json(normal_path)
+    assert normal[0]["annotation"]["mask_ref"] == manual_mask_ref("img-a")
+    assert (
+        results_manual_masks_dir("batch1", data_root=tmp_path) / "img-a_manual.png"
+    ).is_file()

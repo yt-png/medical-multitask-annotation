@@ -176,8 +176,8 @@ mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.jso
 mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 ```
 
-- `apply-current`：写出 `data/results/<batch_id>/<task>/current/annotations.json`（含本轮仍需返工样本）
-- `export-split`：写出 `.../normal/annotations.json` 与 `.../rework/annotations.json`（空侧为 `[]`）
+- `apply-current`：写出 `data/results/<batch_id>/<task>/current/annotations.json`（含本轮仍需返工样本）；SEG 若有 brush RLE 会同时写出 `results/.../seg/manual_masks/<image_id>_manual.png`
+- `export-split`：写出 `.../normal/annotations.json` 与 `.../rework/annotations.json`（空侧为 `[]`）；SEG 与 current 同步物化 manual mask
 - `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）
 
 ---

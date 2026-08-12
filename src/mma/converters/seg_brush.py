@@ -1,13 +1,14 @@
-"""SEG mask → Label Studio brush predictions (T3.1b).
+"""SEG mask ↔ Label Studio brush RLE (T3.1b + export persist).
 
-Reads a single ``mask_ref`` file, splits 8-connected foreground components,
-and encodes each as LS-compatible brush RLE. Does not change the P2
-``SegPrelabelPayload`` contract (one mask file per image).
+Encode: mask file → LS brush predictions (import prefill).
+Decode: LS brush RLE → binary mask / PNG (export → current/final).
+Does not change the P2 ``SegPrelabelPayload`` contract (one mask file per image).
 """
 
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,10 @@ from mma.formats.intermediate import PrelabelItem, SegPrelabelPayload
 # Foreground intensity written into LS RLE channel payload (matches LS converter).
 _FOREGROUND_VALUE = 255
 
+# Relative mask_ref under ``results/<batch>/seg/`` for human-confirmed masks.
+MANUAL_MASK_REL_DIR = "manual_masks"
+MANUAL_MASK_SUFFIX = "_manual.png"
+
 
 def _bits2byte(arr_str: str, n: int = 8) -> list[int]:
     rle: list[int] = []
@@ -30,6 +35,233 @@ def _bits2byte(arr_str: str, n: int = 8) -> list[int]:
     for chunk in numbers:
         rle.append(int(chunk, 2))
     return rle
+
+
+def _access_bit(data: Sequence[int], num: int) -> int:
+    base = num // 8
+    shift = 7 - (num % 8)
+    return (data[base] & (1 << shift)) >> shift
+
+
+def _bytes2bit(data: Sequence[int]) -> str:
+    return "".join(str(_access_bit(data, i)) for i in range(len(data) * 8))
+
+
+class _BitInputStream:
+    """Bit reader for Label Studio brush RLE (pure Python)."""
+
+    def __init__(self, bit_string: str) -> None:
+        self._data = bit_string
+        self._i = 0
+
+    def read(self, size: int) -> int:
+        if size < 0:
+            raise ValueError("bit read size must be >= 0")
+        if self._i + size > len(self._data):
+            raise ValueError("RLE bitstream exhausted while decoding")
+        out = self._data[self._i : self._i + size]
+        self._i += size
+        return int(out, 2) if size else 0
+
+
+def decode_rle(rle: Sequence[int]) -> list[int]:
+    """Decode Label Studio brush RLE to a flat channel array (pure Python).
+
+    Semantics align with ``label_studio_converter.brush.decode_rle`` (no numpy).
+    """
+
+    if not isinstance(rle, Sequence) or isinstance(rle, (str, bytes)):
+        raise ValueError("rle must be a sequence of ints")
+    values = [int(v) for v in rle]
+    stream = _BitInputStream(_bytes2bit(values))
+    num = stream.read(32)
+    word_size = stream.read(5) + 1
+    rle_sizes = [stream.read(4) + 1 for _ in range(4)]
+    if num < 0:
+        raise ValueError(f"invalid RLE length header: {num}")
+
+    out = [0] * num
+    i = 0
+    while i < num:
+        is_run = stream.read(1)
+        size_idx = stream.read(2)
+        if size_idx >= len(rle_sizes):
+            raise ValueError(f"invalid RLE size index: {size_idx}")
+        j = i + 1 + stream.read(rle_sizes[size_idx])
+        if j > num:
+            raise ValueError(
+                f"RLE run overflows buffer: i={i}, j={j}, num={num}"
+            )
+        if is_run:
+            val = stream.read(word_size)
+            for k in range(i, j):
+                out[k] = val
+            i = j
+        else:
+            while i < j:
+                out[i] = stream.read(word_size)
+                i += 1
+    return out
+
+
+def ls_rle_to_binary_mask(
+    rle: Sequence[int],
+    *,
+    width: int,
+    height: int,
+) -> list[list[int]]:
+    """Decode LS brush RLE to an H×W binary mask (1 = foreground).
+
+    Flat RLE expands to ``height * width * 4`` channels (RGBA); foreground is
+    taken from the alpha channel (index 3), matching LS converter practice.
+    """
+
+    if width <= 0 or height <= 0:
+        raise ValueError(
+            f"width/height must be > 0, got width={width!r}, height={height!r}"
+        )
+    flat = decode_rle(rle)
+    expected = height * width * 4
+    if len(flat) != expected:
+        raise ValueError(
+            f"decoded RLE length {len(flat)} != height*width*4 ({expected}) "
+            f"(width={width}, height={height})"
+        )
+    binary: list[list[int]] = []
+    for y in range(height):
+        row: list[int] = []
+        for x in range(width):
+            alpha = flat[(y * width + x) * 4 + 3]
+            row.append(1 if alpha > 0 else 0)
+        binary.append(row)
+    return binary
+
+
+def union_binary_masks(
+    masks: Sequence[list[list[int]]],
+) -> list[list[int]]:
+    """OR-union multiple H×W binary masks (same size required)."""
+
+    if not masks:
+        raise ValueError("masks must be non-empty")
+    height = len(masks[0])
+    if height == 0 or not masks[0][0]:
+        raise ValueError("masks must be non-empty 2-D")
+    width = len(masks[0][0])
+    for index, mask in enumerate(masks):
+        if len(mask) != height or any(len(row) != width for row in mask):
+            raise ValueError(
+                f"mask size mismatch at index {index}: "
+                f"expected ({height}, {width})"
+            )
+    out = [[0] * width for _ in range(height)]
+    for mask in masks:
+        for y in range(height):
+            for x in range(width):
+                if mask[y][x]:
+                    out[y][x] = 1
+    return out
+
+
+def save_binary_mask_png(path: Path | str, binary_hw: list[list[int]]) -> Path:
+    """Write an H×W binary mask as an L-mode PNG (fg=255, bg=0)."""
+
+    if not binary_hw or not binary_hw[0]:
+        raise ValueError("binary mask must be non-empty")
+    height = len(binary_hw)
+    width = len(binary_hw[0])
+    if any(len(row) != width for row in binary_hw):
+        raise ValueError("binary mask rows must share the same width")
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    img = Image.new("L", (width, height))
+    img.putdata([255 if cell else 0 for row in binary_hw for cell in row])
+    img.save(target)
+    return target.resolve()
+
+
+def manual_mask_filename(image_id: str) -> str:
+    """Return ``{image_id}_manual.png`` (no directory)."""
+
+    cleaned = str(image_id).strip()
+    if not cleaned:
+        raise ValueError("image_id must be non-empty")
+    return f"{cleaned}{MANUAL_MASK_SUFFIX}"
+
+
+def manual_mask_ref(image_id: str) -> str:
+    """Return relative mask_ref ``manual_masks/{image_id}_manual.png``."""
+
+    return f"{MANUAL_MASK_REL_DIR}/{manual_mask_filename(image_id)}"
+
+
+def brush_results_to_binary_mask(
+    brush_entries: Sequence[dict[str, Any]],
+    *,
+    image_id: str,
+) -> list[list[int]]:
+    """Decode one or more SEG brush result objects and OR-union them."""
+
+    if not brush_entries:
+        raise ValueError(
+            f"no brush entries to decode (image_id={image_id!r})"
+        )
+    masks: list[list[list[int]]] = []
+    width: int | None = None
+    height: int | None = None
+    for index, entry in enumerate(brush_entries):
+        try:
+            ow = int(entry["original_width"])
+            oh = int(entry["original_height"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"brush entry missing original_width/original_height "
+                f"(image_id={image_id!r}, index={index})"
+            ) from exc
+        if ow <= 0 or oh <= 0:
+            raise ValueError(
+                f"invalid original size {ow}x{oh} "
+                f"(image_id={image_id!r}, index={index})"
+            )
+        if width is None:
+            width, height = ow, oh
+        elif (ow, oh) != (width, height):
+            raise ValueError(
+                f"brush size mismatch: expected {width}x{height}, "
+                f"got {ow}x{oh} (image_id={image_id!r}, index={index})"
+            )
+        value = entry.get("value")
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"brush value must be an object "
+                f"(image_id={image_id!r}, index={index})"
+            )
+        rle = value.get("rle")
+        if not isinstance(rle, list) or not rle:
+            raise ValueError(
+                f"brush value.rle must be a non-empty list "
+                f"(image_id={image_id!r}, index={index})"
+            )
+        assert width is not None and height is not None
+        masks.append(
+            ls_rle_to_binary_mask(rle, width=width, height=height)
+        )
+    return union_binary_masks(masks)
+
+
+def write_manual_mask_from_brush_results(
+    brush_entries: Sequence[dict[str, Any]],
+    *,
+    image_id: str,
+    manual_mask_dir: Path | str,
+) -> str:
+    """Decode brush results, write ``{image_id}_manual.png``, return mask_ref."""
+
+    binary = brush_results_to_binary_mask(brush_entries, image_id=image_id)
+    out_dir = Path(manual_mask_dir)
+    out_path = out_dir / manual_mask_filename(image_id)
+    save_binary_mask_png(out_path, binary)
+    return manual_mask_ref(image_id)
 
 
 def _base_rle_encode(values: list[int]) -> tuple[list[int], list[int], list[int]]:

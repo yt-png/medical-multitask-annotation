@@ -14,9 +14,10 @@ from mma.common.models import (
     TaskAnnotationResult,
     TaskType,
 )
-from mma.common.paths import results_current_dir, results_task_dir
+from mma.common.paths import results_current_dir, results_manual_masks_dir, results_task_dir
 from mma.exporters import apply_current_from_export, load_current, overwrite_current
 from mma.exporters.current_annotations import ANNOTATIONS_JSON_NAME
+from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref, mask_to_ls_rle
 
 
 def _choice(from_name: str, value: str) -> dict:
@@ -69,7 +70,36 @@ def _seg_task(
     human: str = "yes",
     rework: str = "no",
     package_id: str = "batch1__seg",
+    include_brush: bool = True,
+    brush_rle: list[int] | None = None,
+    original_width: int = 2,
+    original_height: int = 2,
 ) -> dict:
+    from mma.converters.seg_brush import mask_to_ls_rle
+
+    results: list[dict] = []
+    if include_brush:
+        if brush_rle is None:
+            brush_rle = mask_to_ls_rle(
+                [[1 if (x + y) % 2 == 0 else 0 for x in range(original_width)]
+                 for y in range(original_height)]
+            )
+        results.append(
+            {
+                "from_name": "seg_mask",
+                "to_name": "image",
+                "type": "brushlabels",
+                "original_width": original_width,
+                "original_height": original_height,
+                "value": {
+                    "format": "rle",
+                    "rle": brush_rle,
+                    "brushlabels": ["lesion"],
+                },
+            }
+        )
+    results.append(_choice("human_confirmed", human))
+    results.append(_choice("needs_rework", rework))
     return {
         "data": {
             "image_id": image_id,
@@ -82,20 +112,7 @@ def _seg_task(
                 "id": 1,
                 "was_cancelled": False,
                 "updated_at": "2026-08-11T00:00:00.000000Z",
-                "result": [
-                    {
-                        "from_name": "seg_mask",
-                        "to_name": "image",
-                        "type": "brushlabels",
-                        "value": {
-                            "format": "rle",
-                            "rle": [0, 1, 2],
-                            "brushlabels": ["lesion"],
-                        },
-                    },
-                    _choice("human_confirmed", human),
-                    _choice("needs_rework", rework),
-                ],
+                "result": results,
             }
         ],
     }
@@ -192,7 +209,68 @@ def test_cap_and_seg_write_current(tmp_path: Path) -> None:
     )
     seg = load_current("batch1", TaskType.SEG, data_root=tmp_path)
     assert len(seg) == 1
-    assert seg[0].annotation.mask_ref == "masks/img-a.png"
+    assert seg[0].annotation.mask_ref == manual_mask_ref("img-a")
+    mask_file = results_manual_masks_dir("batch1", data_root=tmp_path) / (
+        "img-a_manual.png"
+    )
+    assert mask_file.is_file()
+
+
+def test_seg_brush_writes_manual_mask_ref(tmp_path: Path) -> None:
+    binary = [
+        [1, 0, 1],
+        [0, 1, 0],
+        [0, 0, 1],
+    ]
+    export = _write_export(
+        tmp_path / "seg.json",
+        [
+            _seg_task(
+                image_id="img-brush",
+                mask_ref="masks/prelabel.png",
+                brush_rle=mask_to_ls_rle(binary),
+                original_width=3,
+                original_height=3,
+            )
+        ],
+    )
+    apply_current_from_export(
+        export,
+        batch_id="batch1",
+        task="seg",
+        data_root=tmp_path,
+    )
+    loaded = load_current("batch1", TaskType.SEG, data_root=tmp_path)
+    assert loaded[0].annotation.mask_ref == "manual_masks/img-brush_manual.png"
+    out = results_manual_masks_dir("batch1", data_root=tmp_path) / (
+        "img-brush_manual.png"
+    )
+    decoded, w, h = load_foreground_mask(out)
+    assert (w, h) == (3, 3)
+    assert decoded == binary
+
+
+def test_seg_without_brush_keeps_prelabel_mask_ref(tmp_path: Path) -> None:
+    export = _write_export(
+        tmp_path / "seg.json",
+        [
+            _seg_task(
+                image_id="img-nb",
+                mask_ref="masks/keep.png",
+                include_brush=False,
+            )
+        ],
+    )
+    apply_current_from_export(
+        export,
+        batch_id="batch1",
+        task="seg",
+        data_root=tmp_path,
+    )
+    loaded = load_current("batch1", TaskType.SEG, data_root=tmp_path)
+    assert loaded[0].annotation.mask_ref == "masks/keep.png"
+    mask_dir = results_manual_masks_dir("batch1", data_root=tmp_path)
+    assert not mask_dir.exists() or list(mask_dir.glob("*")) == []
 
 
 def test_det_uses_task_package_image_size(tmp_path: Path) -> None:

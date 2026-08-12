@@ -171,3 +171,19 @@ def results_rework_dir(
     """Return ``{data_root}/results/{batch_id}/{seg|det|cap}/rework``."""
 
     return results_task_dir(batch_id, task, data_root=data_root) / "rework"
+
+
+def results_manual_masks_dir(
+    batch_id: str,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/results/{batch_id}/seg/manual_masks``.
+
+    Human-confirmed SEG masks from LS brush export; does not live under
+    ``prelabels/`` (prelabel masks must not be overwritten).
+    """
+
+    return results_task_dir(batch_id, TaskType.SEG, data_root=data_root) / (
+        "manual_masks"
+    )

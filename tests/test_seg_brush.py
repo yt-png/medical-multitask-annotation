@@ -18,7 +18,9 @@ from mma.converters import (
 from mma.converters.seg_brush import (
     find_connected_components,
     load_foreground_mask,
+    ls_rle_to_binary_mask,
     mask_to_ls_rle,
+    union_binary_masks,
 )
 from mma.formats import (
     PrelabelDocument,
@@ -194,3 +196,63 @@ def test_empty_foreground_file_yields_empty_result(tmp_path: Path) -> None:
     _save_l_mask(tmp_path / "masks" / "a.png", [[0, 0], [0, 0]])
     results = build_seg_brush_results(_seg_item(), mask_root=tmp_path)
     assert results == []
+
+
+def test_encode_decode_rle_roundtrip() -> None:
+    binary = [
+        [0, 1, 0, 0],
+        [0, 1, 0, 1],
+        [0, 0, 0, 1],
+        [1, 0, 0, 0],
+    ]
+    rle = mask_to_ls_rle(binary)
+    decoded = ls_rle_to_binary_mask(rle, width=4, height=4)
+    assert decoded == binary
+
+
+def test_union_binary_masks_or() -> None:
+    mask_a = [
+        [1, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+    ]
+    mask_b = [
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 1],
+    ]
+    assert union_binary_masks([mask_a, mask_b]) == [
+        [1, 0, 0],
+        [0, 0, 0],
+        [0, 0, 1],
+    ]
+
+
+def test_multiple_brush_rle_decode_union() -> None:
+    mask_a = [
+        [1, 0],
+        [0, 0],
+    ]
+    mask_b = [
+        [0, 0],
+        [0, 1],
+    ]
+    from mma.converters.seg_brush import brush_results_to_binary_mask
+
+    entries = [
+        {
+            "original_width": 2,
+            "original_height": 2,
+            "value": {"format": "rle", "rle": mask_to_ls_rle(mask_a)},
+        },
+        {
+            "original_width": 2,
+            "original_height": 2,
+            "value": {"format": "rle", "rle": mask_to_ls_rle(mask_b)},
+        },
+    ]
+    unioned = brush_results_to_binary_mask(entries, image_id="img-x")
+    assert unioned == [
+        [1, 0],
+        [0, 1],
+    ]

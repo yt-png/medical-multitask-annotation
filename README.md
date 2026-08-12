@@ -22,7 +22,7 @@ python -m venv .venv
 pip install -e .
 ```
 
-运行时依赖见 `requirements.txt`（`openpyxl` 读诊断 Excel；`Pillow` 用于 SEG mask 叠图预填）。
+运行时依赖见 `requirements.txt`（`openpyxl` 读诊断 Excel；`Pillow` 用于 SEG mask 叠图预填与人工 brush 解码落盘）。
 
 ## CLI
 
@@ -65,6 +65,7 @@ mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_bat
 
 - 解析导出（含仍需返工样本）并覆盖写入 `data/results/<batch>/<task>/current/annotations.json`
 - DET 从 `task_packages/.../images/` 读取图像尺寸做百分比→像素换算
+- **SEG**：若导出含 brush RLE（`from_name=seg_mask`，`value.format=rle`），解码并写出 `data/results/<batch>/seg/manual_masks/<image_id>_manual.png`，`mask_ref` 记为 `manual_masks/<image_id>_manual.png`（不覆盖 `prelabels/.../masks/`）；无 brush 时仍用导出里的原始 `data.mask_ref`
 
 按返工分类写出结果包（P4）：
 
@@ -74,6 +75,7 @@ mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batc
 
 - 写出 `data/results/<batch>/<task>/normal/annotations.json` 与 `.../rework/annotations.json`（空侧为 `[]`）
 - 不写入 `current/`（请另用 `apply-current`）
+- **SEG** 与 `apply-current` 相同：同步物化 `manual_masks/`，保证 normal/rework 与 current 的 `mask_ref` 一致
 
 生成返工再导入任务（P4，可见上一轮标注、不预填双勾选）：
 
@@ -136,6 +138,7 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T5.2 按 `image_id` 合并（`merge/merge_multitask.py` → `MergedMultitaskRecord`；含缺任务防御）
 - 已完成：T5.3 缺任务阻断（`assert_no_missing_tasks`：禁止静默缺字段；合并二次校验）
 - 已完成：T5.4 输出 `final/` 与接线 `mma merge --batch [--data-root]`（`merge/merge_to_final.py` + `write_final.py`）
+- 已完成：SEG 人工 brush → `results/.../seg/manual_masks/` 持久化（`apply-current` / `export-split`；不改 `SegAnnotation` 字段）
 
 ## 文档
 

@@ -4,6 +4,9 @@
 
 ### Added
 
+- SEG 人工 brush 持久化：`seg_brush.decode_rle` / `ls_rle_to_binary_mask` / `union_binary_masks` / `write_manual_mask_from_brush_results`（纯 Python + Pillow，无 numpy）
+- `paths.results_manual_masks_dir` → `results/<batch>/seg/manual_masks/`
+- `parse_ls_export` / `parse_ls_export_data` 可选参数 `seg_manual_mask_dir`：有 brush 时写出 `{image_id}_manual.png`，`mask_ref` 为 `manual_masks/{image_id}_manual.png`
 - T5.4：新增 `src/mma/merge/write_final.py`（`write_final_manifest` 原子写出 `final/<batch>/manifest.json`）
 - T5.4：新增 `src/mma/merge/merge_to_final.py`（`merge_multitask` → processed 回填图文 → 写盘）
 - `paths.py`：新增 `final_batch_dir`
@@ -14,11 +17,18 @@
 
 ### Changed
 
+- `apply_current_from_export` / `export_split_from_export`：SEG 任务传入 `results/.../seg/manual_masks`，保证 current 与 normal/rework 的 `mask_ref` 一致
+- 未传 `seg_manual_mask_dir` 时 SEG 仍只用 `data.mask_ref`（兼容单测与旧调用）
+- 不覆盖 `prelabels/.../masks/` 原始预标注文件
 - `merge_multitask` 改为调用 `assert_no_missing_tasks`（保留 `validate_ready` 后的二次校验）
-- `docs/data_layout.md`：钉死 `final/<batch_id>/manifest.json` 对齐 `MergedMultitaskRecord`
+- `docs/data_layout.md`：钉死 `final/<batch_id>/manifest.json` 对齐 `MergedMultitaskRecord`；补充 SEG `manual_masks/`
 
 ### Tests
 
+- 扩展 `tests/test_seg_brush.py`：encode↔decode 往返、多 brush OR 并集
+- 扩展 `tests/test_parse_ls_export.py`：无目录兼容、无 brush、有 brush 写 manual
+- 扩展 `tests/test_apply_current_from_export.py` / `test_export_split_from_export.py`：SEG `mask_ref` 指向 manual
+- 扩展 `tests/test_merge_to_final.py`：final 保留人工 `mask_ref`
 - 新增 `tests/test_merge_to_final.py`：写盘形状、成功回填、覆盖、未就绪保旧、缺任务/缺 processed 不写、非法 batch
 - 扩展 `tests/test_cli.py`：`merge` 成功/失败（原 merge stub 改为 convert stub）
 - 扩展 `tests/test_merge_multitask.py`：缺 DET/CAP（旁路门禁）、直接测 `assert_no_missing_tasks`、类型不符阻断
