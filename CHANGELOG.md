@@ -23,6 +23,10 @@
 - `merge_multitask` 改为调用 `assert_no_missing_tasks`（保留 `validate_ready` 后的二次校验）
 - `docs/data_layout.md`：钉死 `final/<batch_id>/manifest.json` 对齐 `MergedMultitaskRecord`；补充 SEG `manual_masks/`
 
+### Docs
+
+- 对齐审查问题 1/2/3/6/8：任务书/需求与实现一致（`convert` 非验收、仅 `.xlsx`、Choices yes/no、processed 绝对路径例外、LS 文档范围）
+
 ### Tests
 
 - 扩展 `tests/test_seg_brush.py`：encode↔decode 往返、多 brush OR 并集

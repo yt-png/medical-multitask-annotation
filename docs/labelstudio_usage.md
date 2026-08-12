@@ -12,18 +12,17 @@
 
 ## 1. 目的与范围
 
-**包含**
+**本文重点**
 
 - 用 `mma ls-import` 生成可导入 JSON
 - 配置 Label Studio Local Files，使原图可加载
 - 为 SEG / DET / CAP 分别创建项目并加载对应 Labeling Config
 - 导入任务、人工确认与勾选、导出结果建议落盘位置
 
-**不包含（后续阶段）**
+**本文不展开（见 README / 其他文档）**
 
-- 导出后按「是否返工」自动分类、返工再导入与覆盖（P4）
-- 三任务最终合并（P5）
-- 真实预标注算法 / 大模型调用
+- P4/P5 的命令细节与合并验收（导出后可用 `apply-current` / `export-split` / `rework-import` / `merge`，见本文 §8 与仓库 README）
+- 真实预标注算法 / 大模型调用（不在本阶段范围）
 
 ---
 

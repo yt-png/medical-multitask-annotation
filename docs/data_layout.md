@@ -34,8 +34,12 @@
 
 ### 2.2 路径相对性
 
-清单与结果 JSON 内的文件路径，默认写成**相对于所属阶段包根目录**的相对路径（例如相对 `task_packages/<batch_id>/seg/`）。  
-跨阶段引用时，由后续模块按本规范解析，不在路径中写绝对盘符（便于网盘迁移）。
+自 **task_packages** 起，清单与结果 JSON 内的文件路径，默认写成**相对于所属阶段包根目录**的相对路径（例如相对 `task_packages/<batch_id>/seg/`），便于整包网盘迁移。  
+跨阶段引用时，由后续模块按本规范解析。
+
+**例外（processed）**：`processed/<batch_id>/manifest.json` 中的 `image_path` **允许写入预处理时解析得到的绝对路径**（当前 `preprocess` 实现：引用 `--images` 目录下原图，本阶段不强制改为相对路径）。任务包拆分（`package`）按该路径读源图并复制进各任务包；网盘分发以 **task_packages** 为准，不依赖 processed 中绝对路径的可迁移性。  
+换机/换盘后若原绝对路径不可读，须**重新执行 preprocess**（或保证原图绝对路径仍可读）后再 `package`。  
+`final/<batch_id>/manifest.json` 回填的 `image_path` 与 processed 清单一致，因此**也可能为绝对路径**。
 
 ---
 
@@ -66,7 +70,7 @@ data/
 | 项目 | 说明 |
 |---|---|
 | 职责 | 原始输入；流水线只读 |
-| 内容 | 原始 `.jpg`、诊断文本 Excel（如 `.xlsx`/`.xls`） |
+| 内容 | 原始 `.jpg`、诊断文本 Excel（`.xlsx`；若仅有 `.xls` 须先人工转为 `.xlsx`） |
 | 关键文件 | 可由数据处理人员约定；P1 通过 CLI 参数显式传入图像目录与 Excel 路径 |
 
 ### 4.2 `processed/<batch_id>/`
@@ -75,6 +79,7 @@ data/
 |---|---|
 | 职责 | 预处理阶段产出的**标准化索引与图文绑定结果**（稳定 `image_id` + 图像与诊断文本一一对应） |
 | 必须内容 | `manifest.json`（或同等清单：每条含 `image_id`、`image_path`、`diagnosis_text`、可选 `source_image_name` / `batch_id`） |
+| `image_path` 形态 | **允许绝对路径**（与当前 `preprocess` 实现一致）；不作为网盘迁移载体 |
 | 图像文件 | **不强制**在本目录复制或落盘图像；`image_path` 可指向 `raw` 或其他约定位置 |
 | 是否复制图像 | 由 **P1 实现阶段**根据数据规模、磁盘占用与部署方式决定（引用原图 / 复制到本目录 / 其它策略均可，但须在清单中写清可解析路径） |
 | 消费者 | 任务包拆分（P1） |
@@ -156,7 +161,7 @@ data/
 |---|---|
 | 职责 | 三任务合并后的多任务最终数据集 |
 | 前置 | 三路 `results/<batch_id>/{seg,det,cap}/current/` 均就绪，且无返工残留；`processed/<batch_id>/manifest.json` 可回填图文 |
-| 内容 | 关键清单 `manifest.json`：`{"batch_id", "items"}`；每条对齐 `MergedMultitaskRecord`（必含 SEG+DET+CAP，以及 `image_path`/`diagnosis_text`）；缺任务必须阻断，禁止静默缺字段；不在此目录复制媒体文件 |
+| 内容 | 关键清单 `manifest.json`：`{"batch_id", "items"}`；每条对齐 `MergedMultitaskRecord`（必含 SEG+DET+CAP，以及 `image_path`/`diagnosis_text`）；其中 `image_path` 从 processed 回填，**可能为绝对路径**；缺任务必须阻断，禁止静默缺字段；不在此目录复制媒体文件 |
 
 ---
 

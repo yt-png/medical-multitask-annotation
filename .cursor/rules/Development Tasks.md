@@ -65,8 +65,8 @@
 
 
 > 说明：T2\.3 只做接口与目录占位，**不实现真实算法调用**。
-> 
-> 
+>
+> T2\.2 交付为 `converters/to_labelstudio.py` 库 API + 单测/示例；**本阶段不要求接线 `mma convert`，不以该子命令为验收项**。预标注进 Label Studio 的正式 CLI 为 **P3 `mma ls-import`**（读取 `prelabels.json` 并调用同一转换层）。`convert` 可保留为 CLI 骨架 stub。
 
 
 
@@ -76,9 +76,9 @@
 
 |ID|任务|交付物|依赖|
 |---|---|---|---|
-|T3\.1|SEG 工作台 XML：原图 \+ mask \+ 原文 \+ 双复选框|`labelstudio/configs/seg.xml`|T2\.1|
-|T3\.2|DET 工作台 XML：原图 \+ bbox \+ 原文 \+ 双复选框|`labelstudio/configs/det.xml`|T2\.1|
-|T3\.3|CAP 工作台 XML：原图 \+ 预标注文本 \+ 原文 \+ 双复选框|`labelstudio/configs/cap.xml`|T2\.1|
+|T3\.1|SEG 工作台 XML：原图 \+ mask \+ 原文 \+ 双 Choices（human_confirmed / needs_rework，yes\|no）|`labelstudio/configs/seg.xml`|T2\.1|
+|T3\.2|DET 工作台 XML：原图 \+ bbox \+ 原文 \+ 双 Choices（human_confirmed / needs_rework，yes\|no）|`labelstudio/configs/det.xml`|T2\.1|
+|T3\.3|CAP 工作台 XML：原图 \+ 预标注文本 \+ 原文 \+ 双 Choices（human_confirmed / needs_rework，yes\|no）|`labelstudio/configs/cap.xml`|T2\.1|
 |T3\.4|生成可导入任务（图像路径/URL 策略按本地文件约定）|`importers/build_ls_tasks.py`|T2\.2、T3\.1–T3\.3|
 |T3\.5|编写三任务导入操作说明（Label Studio 本地使用步骤）|`docs/labelstudio_usage.md`|T3\.4|
 
@@ -228,8 +228,8 @@
 ```Plain Text
 mma preprocess   --batch <id> --images <dir> --excel <file>
 mma package      --batch <id>
-mma convert      --batch <id> --task {seg|det|cap}   # 预标注 → LS 导入
-mma ls-import    --batch <id> --task {seg|det|cap}   # 生成 LS 任务文件
+mma convert      --batch <id> --task {seg|det|cap}   # 可选骨架；本阶段可不接线（非验收）
+mma ls-import    --batch <id> --task {seg|det|cap}   # 预标注 → LS 导入任务（正式入口）
 mma export-split --batch <id> --task {seg|det|cap} --export <ls_json>
 mma rework-import--batch <id> --task {seg|det|cap}   # 返工再导入（带上轮结果）
 mma apply-current--batch <id> --task {seg|det|cap}   # 覆盖写入 current/

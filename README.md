@@ -33,7 +33,7 @@ mma -h
 python -m mma -h
 ```
 
-已注册子命令：`preprocess`、`package`、`ls-import`、`export-split`、`rework-import`、`apply-current`、`merge` 已接线；`convert` 仍为骨架 stub：
+已注册子命令：`preprocess`、`package`、`ls-import`、`export-split`、`rework-import`、`apply-current`、`merge` 已接线；`convert` 仍为骨架 stub。**正式入口为 `mma ls-import`；`convert` 非本阶段验收项。**
 
 `preprocess` · `package` · `convert` · `ls-import` · `export-split` · `rework-import` · `apply-current` · `merge`
 
