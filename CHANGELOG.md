@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-13
+
+### Docs
+
+- 新增 `docs/real_batch_local_test_runbook.md`（`real_batch` 本地 P1–P5 全链路 SOP，主流程含至少两轮返工）
+- `README.md` 文档节增加指向该手册的链接
+
 ## 2026-08-12
 
 ### Added

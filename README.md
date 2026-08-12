@@ -149,6 +149,7 @@ python examples/scripts/run_p2_demo.py
 - 数据目录与落盘约定：[docs/data_layout.md](docs/data_layout.md)
 - 预标注统一中间格式与 SEG/DET/CAP 工作台控制名对齐：[docs/formats.md](docs/formats.md)
 - Label Studio 本地导入与标注操作：[docs/labelstudio_usage.md](docs/labelstudio_usage.md)
+- real_batch 本地真实数据全链路测试手册：[docs/real_batch_local_test_runbook.md](docs/real_batch_local_test_runbook.md)
 
 ## 开发说明
 
