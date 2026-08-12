@@ -27,6 +27,7 @@
 
 - 对齐审查问题 1/2/3/6/8：任务书/需求与实现一致（`convert` 非验收、仅 `.xlsx`、Choices yes/no、processed 绝对路径例外、LS 文档范围）
 - `docs/data_layout.md`：final 前置明确三路 current `image_id` 须与 processed 全量集合一致
+- 明确 `apply-current` / `current/` 为按 `image_id` 合并写入；文档区分全量轮与返工轮导出范围（审查问题5方案A）
 
 ### Fixed
 

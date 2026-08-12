@@ -64,6 +64,8 @@ mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_bat
 ```
 
 - 解析导出（含仍需返工样本）并覆盖写入 `data/results/<batch>/<task>/current/annotations.json`
+- 按 `image_id` **合并**写入：命中则覆盖；**未出现在本轮 export 中的样本保留**（非整表清空）
+- 首轮/全量刷新：请导出该任务本批全部样本后再 apply；返工轮允许子集 export + apply（详见 `docs/data_layout.md`、`docs/labelstudio_usage.md`）
 - DET 从 `task_packages/.../images/` 读取图像尺寸做百分比→像素换算
 - **SEG**：若导出含 brush RLE（`from_name=seg_mask`，`value.format=rle`），解码并写出 `data/results/<batch>/seg/manual_masks/<image_id>_manual.png`，`mask_ref` 记为 `manual_masks/<image_id>_manual.png`（不覆盖 `prelabels/.../masks/`）；无 brush 时仍用导出里的原始 `data.mask_ref`
 

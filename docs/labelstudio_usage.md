@@ -179,6 +179,17 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.js
 - `export-split`：写出 `.../normal/annotations.json` 与 `.../rework/annotations.json`（空侧为 `[]`）；SEG 与 current 同步物化 manual mask
 - `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）
 
+### 8.1 `apply-current` 与导出范围
+
+`apply-current` 按 `image_id` **合并**写入 `current/`：导出里出现的样本覆盖；**未出现的样本保留**。
+
+| 轮次 | 导出范围 | 说明 |
+|------|----------|------|
+| **全量轮**（首轮或刷新整批权威状态） | 从对应任务 LS 项目导出本批**全部**已标注样本，再 apply | 避免旧返工标记因未出现在本轮 export 中而残留 |
+| **返工轮** | 可只导出返工子集再 apply | 未导出的 id 留在 `current/`（含已 normal 样本），符合返工闭环 |
+
+若只 apply 了子集，却希望尽快 `merge`，须保证 `current/` 中所有样本最终均被后续轮次刷新为不需返工（或本轮即为全量导出）。详见 [data_layout.md](data_layout.md) 中 `current/` 约定。
+
 ---
 
 ## 9. 常见问题
@@ -190,6 +201,7 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.js
 | SEG 无预填刷子 | 生成导入时缺 mask，或未成功跑通 `ls-import` | 检查 `prelabels/.../masks/` 与 `mask_ref`；重新执行 `mma ls-import --task seg` |
 | DET 转换失败 | 任务包缺图或图损坏 | 检查 `task_packages/.../images/{image_id}.jpg` |
 | 导入报控件不匹配 | 项目 XML 与任务类型不一致 | SEG 项目只用 `seg.xml`，勿把 DET 的 `tasks.json` 导进 SEG 项目 |
+| `merge` 仍报 needs_rework，但本轮以为已修完 | 只 apply 了部分导出，旧返工样本仍留在 `current/` | 全量导出再 `apply-current`；或继续返工轮直到 `current/` 无返工残留 |
 
 ---
 
