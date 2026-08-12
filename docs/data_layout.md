@@ -3,6 +3,8 @@
 本文档约定本地运行时数据目录的命名、层级与职责，供 P1–P5 与 CLI 统一遵循。  
 运行时根目录为项目下的 `data/`（已列入 `.gitignore`，不入库）。
 
+默认数据根、Excel 列名等**不由** `configs/default.yaml` 加载，而由 `common/paths.py`、`common/io.py` 与 CLI 参数约定（配置内嵌）。
+
 相关数据契约见 `src/mma/common/models.py`。
 
 ---

@@ -24,6 +24,8 @@ pip install -e .
 
 运行时依赖见 `requirements.txt`（`openpyxl` 读诊断 Excel；`Pillow` 用于 SEG mask 叠图预填与人工 brush 解码落盘）。
 
+**运行约定（配置内嵌）**：无根目录 `configs/default.yaml`。默认数据根为 `./data`（可用 `--data-root`）；诊断 Excel 为 `.xlsx`，首表列名 `image_name` / `diagnosis_text`（见 `mma.common.io`）。目录规范见 [docs/data_layout.md](docs/data_layout.md)。
+
 ## CLI
 
 安装后可使用：

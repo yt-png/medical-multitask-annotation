@@ -144,9 +144,6 @@
 │   ├── formats.md                 # 统一中间格式 + LS 导入格式说明
 │   └── labelstudio_usage.md       # Label Studio 操作说明
 │
-├── configs/
-│   └── default.yaml               # 路径、批次、Excel 列名等配置
-│
 ├── src/
 │   └── mma/                       # medical multitask annotation
 │       ├── __init__.py
@@ -214,6 +211,15 @@
     │   └── current/               # 覆盖后的当前有效结果
     └── final/<batch_id>/
 ```
+
+**配置约定（本阶段）**：不采用仓库根 `configs/default.yaml`。默认数据根、`batch_id` 规则、Excel 列名（`image_name` / `diagnosis_text`）等写死在代码与文档中：
+
+- `src/mma/common/paths.py`（目录约定、默认 `data/`）
+- `src/mma/common/io.py`（Excel 列名等）
+- CLI `--data-root` / `--batch` 等参数覆盖运行时路径
+- 落盘规范见 `docs/data_layout.md`
+
+后续若需外置配置，再单独立项；**本阶段不以 yaml 配置文件为交付物或验收项**。P0「配置约定」指上述代码内约定 + `docs/data_layout.md`（T0.3），而非根目录 `configs/`。
 
 
 
