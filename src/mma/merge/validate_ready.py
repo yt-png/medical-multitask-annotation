@@ -10,8 +10,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mma.common.models import TaskAnnotationResult, TaskType
-from mma.common.paths import default_data_root, validate_batch_id
+from mma.common.paths import default_data_root, processed_batch_dir, validate_batch_id
 from mma.exporters.load_current import load_current
+from mma.packaging.split_task_packages import load_processed_items
 
 _TASK_ORDER = (TaskType.SEG, TaskType.DET, TaskType.CAP)
 _MAX_IDS_IN_MESSAGE = 20
@@ -30,6 +31,8 @@ def validate_ready(
     2. No task has an empty item list
     3. No ``needs_rework=True``; all ``human_confirmed=True``
     4. ``image_id`` sets are identical across the three tasks
+    5. That common ``image_id`` set equals ``processed/<batch>/manifest.json``
+       (missing processed → ``FileNotFoundError``)
 
     Returns ``None`` on success; raises ``ValueError`` on logical failures.
     """
@@ -40,6 +43,13 @@ def validate_ready(
     _assert_non_empty(by_task)
     _assert_flag_constraints(by_task)
     _assert_image_id_sets_equal(by_task)
+    current_ids = {item.image_id for item in by_task[TaskType.SEG]}
+    processed_ids = _load_processed_image_ids(cleaned, data_root=root)
+    _assert_matches_processed(
+        current_ids,
+        processed_ids,
+        batch_id=cleaned,
+    )
 
 
 def _load_three_currents(
@@ -55,6 +65,46 @@ def _load_three_currents(
             data_root=data_root,
         )
     return loaded
+
+
+def _load_processed_image_ids(
+    batch_id: str,
+    *,
+    data_root: Path,
+) -> set[str]:
+    """Load ``image_id`` set from ``processed/<batch>/manifest.json``."""
+
+    processed_dir = processed_batch_dir(batch_id, data_root=data_root)
+    manifest_path = processed_dir / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"processed manifest not found: {manifest_path}")
+    records = load_processed_items(processed_dir)
+    return {record.image_id for record in records}
+
+
+def _assert_matches_processed(
+    current_ids: set[str],
+    processed_ids: set[str],
+    *,
+    batch_id: str,
+) -> None:
+    """Require current and processed ``image_id`` sets to be equal."""
+
+    if current_ids == processed_ids:
+        return
+    only_in_processed = sorted(processed_ids - current_ids)
+    only_in_current = sorted(current_ids - processed_ids)
+    parts: list[str] = []
+    if only_in_processed:
+        parts.append(
+            "only_in_processed=" + _format_id_list(only_in_processed)
+        )
+    if only_in_current:
+        parts.append("only_in_current=" + _format_id_list(only_in_current))
+    raise ValueError(
+        f"image_id set does not match processed (batch_id={batch_id!r}); "
+        + "; ".join(parts)
+    )
 
 
 def _assert_non_empty(

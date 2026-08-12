@@ -210,8 +210,10 @@ def test_merge_to_final_missing_processed(tmp_path: Path) -> None:
 def test_merge_to_final_missing_processed_image_id(tmp_path: Path) -> None:
     _write_ready_currents(tmp_path, "batch1", image_ids=("img-a", "img-b"))
     _write_processed(tmp_path, "batch1", image_ids=("img-a",))
-    with pytest.raises(ValueError, match="not found in processed"):
+    with pytest.raises(ValueError, match="does not match processed") as exc:
         merge_to_final("batch1", data_root=tmp_path)
+    assert "only_in_current" in str(exc.value)
+    assert "img-b" in str(exc.value)
     assert not (tmp_path / "final" / "batch1" / FINAL_MANIFEST_NAME).exists()
 
 

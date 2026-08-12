@@ -160,7 +160,7 @@ data/
 | 项目 | 说明 |
 |---|---|
 | 职责 | 三任务合并后的多任务最终数据集 |
-| 前置 | 三路 `results/<batch_id>/{seg,det,cap}/current/` 均就绪，且无返工残留；`processed/<batch_id>/manifest.json` 可回填图文 |
+| 前置 | 三路 `results/<batch_id>/{seg,det,cap}/current/` 均就绪，且无返工残留；三路 `image_id` 集合彼此一致且**等于** `processed/<batch_id>/manifest.json` 全量集合；processed 可回填图文 |
 | 内容 | 关键清单 `manifest.json`：`{"batch_id", "items"}`；每条对齐 `MergedMultitaskRecord`（必含 SEG+DET+CAP，以及 `image_path`/`diagnosis_text`）；其中 `image_path` 从 processed 回填，**可能为绝对路径**；缺任务必须阻断，禁止静默缺字段；不在此目录复制媒体文件 |
 
 ---
@@ -206,7 +206,7 @@ raw
 3. `current/` 中不并行保留历史多版本作为有效结果。
 4. `ls_export` 与 `normal`/`rework` 的轮次目录用于追溯与网盘协作，不替代 `current/` 的权威语义。
 5. 返工再导入必须能展示上一轮结果：实现时应从 `current/`（或本轮 rework 包内携带的当前标注）生成导入任务。
-6. 仅当三任务 `current/` 全部 `needs_rework == false`（且 `image_id` 集合完整）时，才允许生成 `final/<batch_id>/`。
+6. 仅当三任务 `current/` 全部 `needs_rework == false`，且三路 `image_id` 集合彼此一致并与 `processed` 全量集合相等时，才允许生成 `final/<batch_id>/`。
 
 ---
 

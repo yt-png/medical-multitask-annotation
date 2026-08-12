@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from mma.common.io import write_json
 from mma.common.models import (
     BBox,
     CapAnnotation,
@@ -52,12 +53,32 @@ def _cap(image_id: str, *, caption: str | None = None) -> TaskAnnotationResult:
     )
 
 
+def _write_processed(
+    data_root: Path,
+    batch_id: str,
+    image_ids: tuple[str, ...],
+) -> None:
+    items = [
+        {
+            "image_id": image_id,
+            "image_path": f"/img/{image_id}.jpg",
+            "diagnosis_text": f"diag-{image_id}",
+            "source_image_name": f"{image_id}.jpg",
+        }
+        for image_id in image_ids
+    ]
+    write_json(
+        data_root / "processed" / batch_id / "manifest.json",
+        {"batch_id": batch_id, "items": items},
+    )
+
+
 def _write_ready_triple(
     data_root: Path,
     batch_id: str,
     image_ids: tuple[str, ...] = ("img-b", "img-a"),
 ) -> None:
-    """Write three currents; SEG order is given by ``image_ids``."""
+    """Write three currents + matching processed; SEG order is ``image_ids``."""
 
     overwrite_current(
         [_seg(i) for i in image_ids],
@@ -77,6 +98,7 @@ def _write_ready_triple(
         task_type=TaskType.CAP,
         data_root=data_root,
     )
+    _write_processed(data_root, batch_id, image_ids)
 
 
 def test_merge_success_order_and_payloads(tmp_path: Path) -> None:

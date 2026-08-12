@@ -26,16 +26,22 @@
 ### Docs
 
 - 对齐审查问题 1/2/3/6/8：任务书/需求与实现一致（`convert` 非验收、仅 `.xlsx`、Choices yes/no、processed 绝对路径例外、LS 文档范围）
+- `docs/data_layout.md`：final 前置明确三路 current `image_id` 须与 processed 全量集合一致
+
+### Fixed
+
+- `validate_ready`：三路 current 的 `image_id` 须与 `processed/manifest.json` 全量集合相等（禁止子集静默合并）
 
 ### Tests
 
 - 扩展 `tests/test_seg_brush.py`：encode↔decode 往返、多 brush OR 并集
 - 扩展 `tests/test_parse_ls_export.py`：无目录兼容、无 brush、有 brush 写 manual
 - 扩展 `tests/test_apply_current_from_export.py` / `test_export_split_from_export.py`：SEG `mask_ref` 指向 manual
-- 扩展 `tests/test_merge_to_final.py`：final 保留人工 `mask_ref`
+- 扩展 `tests/test_merge_to_final.py`：final 保留人工 `mask_ref`；current 多 id 时改断言门禁前移
 - 新增 `tests/test_merge_to_final.py`：写盘形状、成功回填、覆盖、未就绪保旧、缺任务/缺 processed 不写、非法 batch
 - 扩展 `tests/test_cli.py`：`merge` 成功/失败（原 merge stub 改为 convert stub）
-- 扩展 `tests/test_merge_multitask.py`：缺 DET/CAP（旁路门禁）、直接测 `assert_no_missing_tasks`、类型不符阻断
+- 扩展 `tests/test_merge_multitask.py`：缺 DET/CAP（旁路门禁）、直接测 `assert_no_missing_tasks`、类型不符阻断；成功路径补 processed
+- 扩展 `tests/test_validate_ready.py`：与 processed 集合相等；子集/超集/缺 manifest 阻断
 
 ## 2026-08-11
 

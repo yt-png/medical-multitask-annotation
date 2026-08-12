@@ -68,6 +68,26 @@ def _cap(
     )
 
 
+def _write_processed(
+    data_root: Path,
+    batch_id: str,
+    image_ids: tuple[str, ...] = ("img-a", "img-b"),
+) -> None:
+    items = [
+        {
+            "image_id": image_id,
+            "image_path": f"/img/{image_id}.jpg",
+            "diagnosis_text": f"diag-{image_id}",
+            "source_image_name": f"{image_id}.jpg",
+        }
+        for image_id in image_ids
+    ]
+    write_json(
+        data_root / "processed" / batch_id / "manifest.json",
+        {"batch_id": batch_id, "items": items},
+    )
+
+
 def _write_ready_triple(
     data_root: Path,
     batch_id: str,
@@ -91,6 +111,7 @@ def _write_ready_triple(
         task_type=TaskType.CAP,
         data_root=data_root,
     )
+    _write_processed(data_root, batch_id, image_ids=image_ids)
 
 
 def test_validate_ready_success(tmp_path: Path) -> None:
@@ -203,6 +224,52 @@ def test_image_id_set_mismatch_raises(tmp_path: Path) -> None:
     assert "only_in_SEG" in message
     assert "img-b" in message
     assert "missing_in_DET" in message or "missing_in_CAP" in message
+
+
+def test_subset_vs_processed_raises(tmp_path: Path) -> None:
+    _write_ready_triple(tmp_path, "batch1", image_ids=("img-a",))
+    _write_processed(tmp_path, "batch1", image_ids=("img-a", "img-b"))
+    with pytest.raises(ValueError, match="does not match processed") as exc:
+        validate_ready("batch1", data_root=tmp_path)
+    message = str(exc.value)
+    assert "batch_id='batch1'" in message
+    assert "only_in_processed" in message
+    assert "img-b" in message
+
+
+def test_extra_current_vs_processed_raises(tmp_path: Path) -> None:
+    _write_ready_triple(tmp_path, "batch1", image_ids=("img-a", "img-b"))
+    _write_processed(tmp_path, "batch1", image_ids=("img-a",))
+    with pytest.raises(ValueError, match="does not match processed") as exc:
+        validate_ready("batch1", data_root=tmp_path)
+    message = str(exc.value)
+    assert "batch_id='batch1'" in message
+    assert "only_in_current" in message
+    assert "img-b" in message
+
+
+def test_missing_processed_manifest_raises(tmp_path: Path) -> None:
+    overwrite_current(
+        [_seg("img-a")],
+        batch_id="batch1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_det("img-a")],
+        batch_id="batch1",
+        task_type=TaskType.DET,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_cap("img-a")],
+        batch_id="batch1",
+        task_type=TaskType.CAP,
+        data_root=tmp_path,
+    )
+    with pytest.raises(FileNotFoundError, match="processed manifest") as exc:
+        validate_ready("batch1", data_root=tmp_path)
+    assert "processed" in str(exc.value)
 
 
 def test_invalid_batch_id_raises(tmp_path: Path) -> None:
