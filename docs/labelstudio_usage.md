@@ -175,8 +175,8 @@ mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.jso
 mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 ```
 
-- `apply-current`：写出 `data/results/<batch_id>/<task>/current/annotations.json`（含本轮仍需返工样本）；SEG 若有 brush RLE 会同时写出 `results/.../seg/manual_masks/<image_id>_manual.png`
-- `export-split`：写出 `.../normal/annotations.json`、`.../rework/annotations.json`、`.../pending/annotations.json`（空侧为 `[]`）；`human_confirmed=no` 仅进 pending；SEG 与 current 同步物化 manual mask
+- `apply-current`：合并写入 `current/annotations.json` 后，**全量重建**同任务 `normal/` 与 `rework/`（以 current 为唯一真实源）；SEG 若有 brush RLE 会同时写出 `results/.../seg/manual_masks/<image_id>_manual.png`
+- `export-split`：等价于先 apply-current，再返回 `normal/`、`rework/` 路径；分类规则：仅 `human_confirmed=yes` 且 `needs_rework=no` 进 normal；未确认与需返工均进 rework
 - `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）
 
 ### 8.1 `apply-current` 与导出范围
@@ -214,10 +214,10 @@ mma ls-import --batch <batch_id> --task {seg|det|cap} --data-root data
 # 可选：Local storage 根与 data 不同时
 mma ls-import --batch <batch_id> --task seg --data-root data --local-root D:\path\to\local_root
 
-# 导出后覆盖 current/
+# 导出后覆盖 current/，并自动全量刷新 normal/rework
 mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 
-# 按确认/返工分类写出 normal/rework/pending
+# 按确认/返工分类（先更新 current，再全量重建 normal/rework）
 mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 
 # 生成返工再导入 tasks（不覆盖 tasks.json）

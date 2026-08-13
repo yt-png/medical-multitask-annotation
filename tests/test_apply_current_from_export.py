@@ -394,7 +394,9 @@ def test_missing_export_file_and_bad_batch_id(tmp_path: Path) -> None:
         )
 
 
-def test_does_not_create_normal_or_rework_dirs(tmp_path: Path) -> None:
+def test_apply_refreshes_normal_rework_from_current(tmp_path: Path) -> None:
+    from mma.common.io import read_json
+
     export = _write_export(
         tmp_path / "cap.json",
         [_cap_task(image_id="img-a", caption="x", rework="yes")],
@@ -407,5 +409,54 @@ def test_does_not_create_normal_or_rework_dirs(tmp_path: Path) -> None:
     )
     task_dir = results_task_dir("batch1", TaskType.CAP, data_root=tmp_path)
     assert (task_dir / "current" / ANNOTATIONS_JSON_NAME).is_file()
-    assert not (task_dir / "normal").exists()
-    assert not (task_dir / "rework").exists()
+    normal = read_json(task_dir / "normal" / ANNOTATIONS_JSON_NAME)
+    rework = read_json(task_dir / "rework" / ANNOTATIONS_JSON_NAME)
+    assert normal == []
+    assert [x["image_id"] for x in rework] == ["img-a"]
+
+
+def test_multi_round_rework_moves_sample_into_normal(tmp_path: Path) -> None:
+    """Subset rework export must update current and full-rebuild normal."""
+
+    from mma.common.io import read_json
+
+    round1 = _write_export(
+        tmp_path / "round1.json",
+        [
+            _cap_task(image_id="img-ok", caption="ok", rework="no"),
+            _cap_task(image_id="img-fix", caption="bad", rework="yes"),
+        ],
+    )
+    apply_current_from_export(
+        round1,
+        batch_id="batch1",
+        task="cap",
+        data_root=tmp_path,
+    )
+    task_dir = results_task_dir("batch1", TaskType.CAP, data_root=tmp_path)
+    assert [x["image_id"] for x in read_json(task_dir / "normal" / ANNOTATIONS_JSON_NAME)] == [
+        "img-ok"
+    ]
+    assert [x["image_id"] for x in read_json(task_dir / "rework" / ANNOTATIONS_JSON_NAME)] == [
+        "img-fix"
+    ]
+
+    round2 = _write_export(
+        tmp_path / "round2.json",
+        [_cap_task(image_id="img-fix", caption="fixed", rework="no")],
+    )
+    apply_current_from_export(
+        round2,
+        batch_id="batch1",
+        task="cap",
+        data_root=tmp_path,
+    )
+    normal = read_json(task_dir / "normal" / ANNOTATIONS_JSON_NAME)
+    rework = read_json(task_dir / "rework" / ANNOTATIONS_JSON_NAME)
+    assert {x["image_id"] for x in normal} == {"img-ok", "img-fix"}
+    assert {x["annotation"]["caption"] for x in normal} == {"ok", "fixed"}
+    assert rework == []
+    current = load_current("batch1", TaskType.CAP, data_root=tmp_path)
+    by_id = {item.image_id: item for item in current}
+    assert by_id["img-fix"].annotation.caption == "fixed"
+    assert by_id["img-fix"].needs_rework is False

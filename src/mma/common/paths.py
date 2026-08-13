@@ -183,20 +183,6 @@ def results_rework_dir(
     return results_task_dir(batch_id, task, data_root=data_root) / "rework"
 
 
-def results_pending_dir(
-    batch_id: str,
-    task: str | TaskType,
-    *,
-    data_root: Path | str | None = None,
-) -> Path:
-    """Return ``{data_root}/results/{batch_id}/{seg|det|cap}/pending``.
-
-    Holds samples with ``human_confirmed=False`` from ``export-split``.
-    """
-
-    return results_task_dir(batch_id, task, data_root=data_root) / "pending"
-
-
 def results_manual_masks_dir(
     batch_id: str,
     *,

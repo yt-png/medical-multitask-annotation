@@ -1,4 +1,4 @@
-"""Tests for normal/rework/pending split (T4.2)."""
+"""Tests for normal/rework split (T4.2)."""
 
 from __future__ import annotations
 
@@ -60,42 +60,37 @@ def _cap(
 
 
 def test_empty_input() -> None:
-    normal, rework, pending = split_by_rework(())
+    normal, rework = split_by_rework(())
     assert normal == ()
     assert rework == ()
-    assert pending == ()
 
 
 def test_case1_confirmed_no_rework_goes_normal() -> None:
     items = (_seg("a", needs_rework=False, human_confirmed=True),)
-    normal, rework, pending = split_by_rework(items)
+    normal, rework = split_by_rework(items)
     assert [x.image_id for x in normal] == ["a"]
     assert rework == ()
-    assert pending == ()
 
 
 def test_case2_confirmed_rework_goes_rework() -> None:
     items = (_cap("a", needs_rework=True, human_confirmed=True),)
-    normal, rework, pending = split_by_rework(items)
+    normal, rework = split_by_rework(items)
     assert normal == ()
     assert [x.image_id for x in rework] == ["a"]
-    assert pending == ()
 
 
-def test_case3_unconfirmed_no_rework_not_normal() -> None:
+def test_case3_unconfirmed_no_rework_goes_rework() -> None:
     items = (_seg("a", needs_rework=False, human_confirmed=False),)
-    normal, rework, pending = split_by_rework(items)
+    normal, rework = split_by_rework(items)
     assert normal == ()
-    assert rework == ()
-    assert [x.image_id for x in pending] == ["a"]
+    assert [x.image_id for x in rework] == ["a"]
 
 
-def test_case4_unconfirmed_rework_flag_not_rework() -> None:
+def test_case4_unconfirmed_rework_flag_goes_rework() -> None:
     items = (_det("a", needs_rework=True, human_confirmed=False),)
-    normal, rework, pending = split_by_rework(items)
+    normal, rework = split_by_rework(items)
     assert normal == ()
-    assert rework == ()
-    assert [x.image_id for x in pending] == ["a"]
+    assert [x.image_id for x in rework] == ["a"]
 
 
 def test_all_normal() -> None:
@@ -103,10 +98,9 @@ def test_all_normal() -> None:
         _seg("a", needs_rework=False),
         _seg("b", needs_rework=False),
     )
-    normal, rework, pending = split_by_rework(items)
+    normal, rework = split_by_rework(items)
     assert [x.image_id for x in normal] == ["a", "b"]
     assert rework == ()
-    assert pending == ()
 
 
 def test_all_rework() -> None:
@@ -114,28 +108,26 @@ def test_all_rework() -> None:
         _cap("a", needs_rework=True),
         _cap("b", needs_rework=True),
     )
-    normal, rework, pending = split_by_rework(items)
+    normal, rework = split_by_rework(items)
     assert normal == ()
     assert [x.image_id for x in rework] == ["a", "b"]
-    assert pending == ()
 
 
 def test_mixed_classification_preserves_order() -> None:
     items = (
         _seg("n1", needs_rework=False),
         _det("r1", needs_rework=True),
-        _cap("p1", needs_rework=False, human_confirmed=False),
+        _cap("u1", needs_rework=False, human_confirmed=False),
         _seg("n2", needs_rework=False),
         _seg("r2", needs_rework=True),
-        _det("p2", needs_rework=True, human_confirmed=False),
+        _det("u2", needs_rework=True, human_confirmed=False),
     )
-    normal, rework, pending = split_by_rework(items)
+    normal, rework = split_by_rework(items)
     assert [x.image_id for x in normal] == ["n1", "n2"]
-    assert [x.image_id for x in rework] == ["r1", "r2"]
-    assert [x.image_id for x in pending] == ["p1", "p2"]
+    assert [x.image_id for x in rework] == ["r1", "u1", "r2", "u2"]
     assert normal[0] is items[0]
     assert rework[0] is items[1]
-    assert pending[0] is items[2]
+    assert rework[1] is items[2]
 
 
 def test_rejects_non_task_annotation_result() -> None:

@@ -58,7 +58,6 @@ data/
 ├── results/<batch_id>/{seg,det,cap}/
 │   ├── normal/
 │   ├── rework/
-│   ├── pending/               # human_confirmed=false
 │   ├── current/
 │   └── manual_masks/          # 仅 seg：人工确认 brush 落盘
 └── final/<batch_id>/
@@ -134,22 +133,19 @@ data/
 
 #### `normal/`
 
-- 本轮分类结果：`human_confirmed == true` **且** `needs_rework == false`
-- 建议按轮次：`normal/round_XXX/`
+- 本轮（相对最新 `current/`）分类结果：`human_confirmed == true` **且** `needs_rework == false`
+- **始终表示当前全部无需返工样本**；由 `apply-current` / `export-split` 在更新 `current/` 后**全量重建**（禁止按历史 append）
+- 建议按轮次另存快照：`normal/round_XXX/`（可选；权威仍以最新 `normal/annotations.json` 为准）
 - 用于网盘回传「正常结果包」
 
 #### `rework/`
 
-- 本轮分类结果：`human_confirmed == true` **且** `needs_rework == true`
-- 建议按轮次：`rework/round_XXX/`
-- 用于网盘回传与返工再导入输入
-
-#### `pending/`
-
-- 本轮分类结果：`human_confirmed == false`（无论 `needs_rework`）
-- **不得**进入 `normal/` 或 `rework/`
-- 清单：`pending/annotations.json`；`export-split` 在 pending 非空时向 stderr 打印警告
-- 需标注员补勾「人工确认」后重新导出再分类
+- 本轮（相对最新 `current/`）分类结果：未进入 normal 的样本，包括：
+  - `human_confirmed == false`（无论 `needs_rework`）
+  - `human_confirmed == true` **且** `needs_rework == true`
+- 与 `normal/` 同样在每次 apply / export-split 后**全量重建**
+- 建议按轮次另存快照：`rework/round_XXX/`（可选）
+- 用于网盘回传与返工再导入输入（未确认样本一并进入返工闭环）
 
 #### `current/`
 
@@ -225,9 +221,11 @@ raw
 1. 每轮导出解析后，将有效结果**覆盖写入**对应任务的 `current/`。此处「覆盖」针对**本轮 export 中出现的** `image_id`；未出现在本轮集合中的样本**不删除**，以支持返工子集再写入。
 2. 同一 `image_id` + 同一任务再次写入时，替换旧标注与「人工确认 / 是否返工」勾选。
 3. `current/` 中不并行保留历史多版本作为有效结果（同一 id 只保留最新一版）。
-4. `ls_export` 与 `normal`/`rework` 的轮次目录用于追溯与网盘协作，不替代 `current/` 的权威语义。
-5. 返工再导入必须能展示上一轮结果：实现时应从 `current/`（或本轮 rework 包内携带的当前标注）生成导入任务。
-6. 仅当三任务 `current/` 全部 `needs_rework == false`，且三路 `image_id` 集合彼此一致并与 `processed` 全量集合相等时，才允许生成 `final/<batch_id>/`。
+4. **`current/` 为唯一真实数据源**。每次 `apply-current` / `export-split` 在更新 `current/` 后，必须按完整 `current/` **全量重建** `normal/` 与 `rework/`（覆盖写盘，禁止 append 历史子集）。
+5. 因此 `normal/` 始终等于「当前全部 `human_confirmed and not needs_rework` 样本」；返工修好的 id 会从 rework 进入 normal，无需手工合并首轮 normal。
+6. `ls_export` 与可选的 `normal|rework/round_XXX/` 快照用于追溯与网盘协作，不替代 `current/` 的权威语义。
+7. 返工再导入必须能展示上一轮结果：实现上由本轮 export 的 raw result 旁路生成（见 `rework-import`）。
+8. 仅当三任务 `current/` 全部 `needs_rework == false` 且全确认，且三路 `image_id` 集合彼此一致并与 `processed` 全量集合相等时，才允许生成 `final/<batch_id>/`。
 
 ---
 

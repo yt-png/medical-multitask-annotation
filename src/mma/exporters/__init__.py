@@ -9,6 +9,7 @@ from mma.exporters.extract_ls_raw_results import (
 from mma.exporters.load_current import load_current, load_current_annotations_file
 from mma.exporters.overwrite_current import overwrite_current
 from mma.exporters.parse_ls_export import parse_ls_export, parse_ls_export_data
+from mma.exporters.refresh_normal_rework import refresh_normal_rework_from_current
 from mma.exporters.split_by_rework import split_by_rework
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "overwrite_current",
     "parse_ls_export",
     "parse_ls_export_data",
+    "refresh_normal_rework_from_current",
     "split_by_rework",
 ]

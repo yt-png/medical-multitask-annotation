@@ -118,7 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     export_split = subparsers.add_parser(
         "export-split",
-        help="Parse LS export and split normal/rework bundles (P4).",
+        help="Apply export to current/, then rebuild normal/rework from current (P4).",
     )
     export_split.add_argument("--batch", required=True, help="Batch ID")
     export_split.add_argument(
@@ -170,7 +170,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     apply_current = subparsers.add_parser(
         "apply-current",
-        help="Overwrite current/ with latest effective results (P4).",
+        help="Merge export into current/ and refresh normal/rework (P4).",
     )
     apply_current.add_argument("--batch", required=True, help="Batch ID")
     apply_current.add_argument(
@@ -277,7 +277,7 @@ def _run_export_split(args: argparse.Namespace) -> int:
     from mma.exporters.export_split_from_export import export_split_from_export
 
     try:
-        normal_path, rework_path, pending_path = export_split_from_export(
+        normal_path, rework_path = export_split_from_export(
             args.export,
             batch_id=args.batch,
             task=args.task,
@@ -289,7 +289,6 @@ def _run_export_split(args: argparse.Namespace) -> int:
 
     print(str(Path(normal_path)))
     print(str(Path(rework_path)))
-    print(str(Path(pending_path)))
     return 0
 
 

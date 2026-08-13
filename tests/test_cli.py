@@ -446,15 +446,13 @@ def test_export_split_success(
     )
     assert normal.is_file()
     assert rework.is_file()
-    assert pending.is_file()
+    assert not pending.is_file()
     lines = [line for line in captured.out.splitlines() if line.strip()]
-    assert len(lines) == 3
+    assert len(lines) == 2
     assert str(normal.resolve()) in lines[0] or str(normal) in lines[0]
     assert str(rework.resolve()) in lines[1] or str(rework) in lines[1]
-    assert str(pending.resolve()) in lines[2] or str(pending) in lines[2]
     assert json.loads(normal.read_text(encoding="utf-8"))[0]["image_id"] == "img-a"
     assert json.loads(rework.read_text(encoding="utf-8")) == []
-    assert json.loads(pending.read_text(encoding="utf-8")) == []
 
 
 def test_export_split_missing_export(

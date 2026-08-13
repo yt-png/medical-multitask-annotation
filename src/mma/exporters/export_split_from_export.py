@@ -1,35 +1,23 @@
-"""Split LS export into normal/rework/pending annotation files (P4 CLI glue).
+"""Split LS export into normal/rework via ``current/`` (P4 CLI glue).
 
-Orchestrates ``parse_ls_export`` + ``split_by_rework`` and writes three sides.
-Does not overwrite ``current/`` or build rework import tasks.
+Applies the export onto ``current/`` (merge by ``image_id``), then full-rebuilds
+``normal/`` and ``rework/`` from the complete current snapshot.
+Does not build rework import tasks.
 """
 
 from __future__ import annotations
 
-import sys
-from collections.abc import Sequence
 from pathlib import Path
 
-from PIL import Image
-
-from mma.common.io import read_json, write_json
-from mma.common.models import TaskAnnotationResult, TaskType
+from mma.common.models import TaskType
 from mma.common.paths import (
     default_data_root,
-    results_manual_masks_dir,
     results_normal_dir,
-    results_pending_dir,
     results_rework_dir,
     validate_batch_id,
 )
-from mma.converters import ImageMetadata
-from mma.exporters.current_annotations import (
-    ANNOTATIONS_JSON_NAME,
-    task_annotation_result_to_dict,
-)
-from mma.exporters.parse_ls_export import parse_ls_export
-from mma.exporters.split_by_rework import split_by_rework
-from mma.importers.build_ls_tasks import resolve_task_image_path
+from mma.exporters.apply_current_from_export import apply_current_from_export
+from mma.exporters.current_annotations import ANNOTATIONS_JSON_NAME
 
 _TASK_TYPE_MAP = {
     "seg": TaskType.SEG,
@@ -47,82 +35,35 @@ def export_split_from_export(
     batch_id: str,
     task: str | TaskType,
     data_root: Path | str | None = None,
-) -> tuple[Path, Path, Path]:
-    """Parse export, split by confirmation/rework, write three annotation files.
+) -> tuple[Path, Path]:
+    """Apply export to ``current/``, then rebuild normal/rework from current.
 
-    Returns ``(normal_path, rework_path, pending_path)``.
+    Returns ``(normal_path, rework_path)``.
     Empty sides are written as JSON arrays ``[]``.
 
-    Unconfirmed samples (``human_confirmed=False``) go to ``pending/`` only;
-    they never enter ``normal/`` or ``rework/``. A warning is printed to stderr
-    when pending is non-empty.
+    Classification (from full current after merge):
+    - ``human_confirmed and not needs_rework`` → normal
+    - otherwise → rework
     """
 
     cleaned = validate_batch_id(batch_id)
     root = default_data_root() if data_root is None else Path(data_root)
     task_type = _parse_task_arg(task)
-    path = Path(export_path)
-    if not path.is_file():
-        raise FileNotFoundError(f"LS export not found: {path}")
 
-    metadata: dict[str, ImageMetadata] | None = None
-    if task_type is TaskType.DET:
-        image_ids = _peek_export_image_ids(path)
-        metadata = _det_image_metadata_by_id(
-            cleaned,
-            image_ids,
-            data_root=root,
-        )
-
-    seg_mask_dir = None
-    if task_type is TaskType.SEG:
-        seg_mask_dir = results_manual_masks_dir(cleaned, data_root=root)
-
-    results = parse_ls_export(
-        path,
-        task_type=task_type,
-        image_metadata_by_id=metadata,
-        seg_manual_mask_dir=seg_mask_dir,
+    apply_current_from_export(
+        export_path,
+        batch_id=cleaned,
+        task=task_type,
+        data_root=root,
     )
-    normal, rework, pending = split_by_rework(results)
-
-    if pending:
-        ids = ", ".join(item.image_id for item in pending[:20])
-        extra = f" ... ({len(pending)} total)" if len(pending) > 20 else ""
-        print(
-            f"mma export-split: warning: {len(pending)} unconfirmed sample(s) "
-            f"written to pending/ (not normal/rework): {ids}{extra}",
-            file=sys.stderr,
-        )
 
     normal_path = (
-        results_normal_dir(cleaned, task_type, data_root=root)
-        / ANNOTATIONS_JSON_NAME
+        results_normal_dir(cleaned, task_type, data_root=root) / ANNOTATIONS_JSON_NAME
     )
     rework_path = (
-        results_rework_dir(cleaned, task_type, data_root=root)
-        / ANNOTATIONS_JSON_NAME
+        results_rework_dir(cleaned, task_type, data_root=root) / ANNOTATIONS_JSON_NAME
     )
-    pending_path = (
-        results_pending_dir(cleaned, task_type, data_root=root)
-        / ANNOTATIONS_JSON_NAME
-    )
-    _write_annotations_file(normal_path, normal)
-    _write_annotations_file(rework_path, rework)
-    _write_annotations_file(pending_path, pending)
-    return (
-        normal_path.resolve(),
-        rework_path.resolve(),
-        pending_path.resolve(),
-    )
-
-
-def _write_annotations_file(
-    path: Path,
-    items: Sequence[TaskAnnotationResult],
-) -> None:
-    payload = [task_annotation_result_to_dict(item) for item in items]
-    write_json(path, payload)
+    return normal_path.resolve(), rework_path.resolve()
 
 
 def _parse_task_arg(task: str | TaskType) -> TaskType:
@@ -132,51 +73,3 @@ def _parse_task_arg(task: str | TaskType) -> TaskType:
         return _TASK_TYPE_MAP[str(task)]
     except KeyError as exc:
         raise ValueError(f"unsupported task type: {task!r}") from exc
-
-
-def _peek_export_image_ids(export_path: Path) -> list[str]:
-    """Read ``data.image_id`` list before full DET parsing."""
-
-    payload = read_json(export_path)
-    if not isinstance(payload, list):
-        raise ValueError(f"export must be a JSON array: {export_path}")
-    image_ids: list[str] = []
-    for index, task in enumerate(payload):
-        if not isinstance(task, dict):
-            raise ValueError(f"export task at index {index} must be an object")
-        data = task.get("data")
-        if not isinstance(data, dict):
-            raise ValueError(f"export task at index {index} missing data object")
-        image_id = data.get("image_id")
-        if not isinstance(image_id, str) or not image_id.strip():
-            raise ValueError(
-                f"export task at index {index} missing data.image_id"
-            )
-        image_ids.append(image_id.strip())
-    return image_ids
-
-
-def _det_image_metadata_by_id(
-    batch_id: str,
-    image_ids: list[str],
-    *,
-    data_root: Path,
-) -> dict[str, ImageMetadata]:
-    meta: dict[str, ImageMetadata] = {}
-    for image_id in image_ids:
-        image_path = resolve_task_image_path(
-            batch_id,
-            "det",
-            image_id,
-            data_root=data_root,
-        )
-        try:
-            with Image.open(image_path) as img:
-                width, height = img.size
-        except OSError as exc:
-            raise ValueError(
-                f"failed to read image for metadata: {image_path} "
-                f"(image_id={image_id!r})"
-            ) from exc
-        meta[image_id] = ImageMetadata(width=width, height=height)
-    return meta

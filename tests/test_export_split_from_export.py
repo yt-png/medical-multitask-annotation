@@ -12,7 +12,6 @@ from mma.common.models import TaskType
 from mma.common.paths import (
     results_current_dir,
     results_normal_dir,
-    results_pending_dir,
     results_rework_dir,
     results_task_dir,
 )
@@ -118,7 +117,7 @@ def test_mixed_cap_writes_normal_and_rework(tmp_path: Path) -> None:
             _cap_task(image_id="img-b", caption="fix", rework="yes"),
         ],
     )
-    normal_path, rework_path, pending_path = export_split_from_export(
+    normal_path, rework_path = export_split_from_export(
         export,
         batch_id="batch1",
         task="cap",
@@ -132,10 +131,6 @@ def test_mixed_cap_writes_normal_and_rework(tmp_path: Path) -> None:
         results_rework_dir("batch1", TaskType.CAP, data_root=tmp_path)
         / ANNOTATIONS_JSON_NAME
     ).resolve()
-    assert pending_path == (
-        results_pending_dir("batch1", TaskType.CAP, data_root=tmp_path)
-        / ANNOTATIONS_JSON_NAME
-    ).resolve()
 
     normal = read_json(normal_path)
     rework = read_json(rework_path)
@@ -147,7 +142,6 @@ def test_mixed_cap_writes_normal_and_rework(tmp_path: Path) -> None:
     assert rework[0]["image_id"] == "img-b"
     assert rework[0]["needs_rework"] is True
     assert rework[0]["annotation"]["caption"] == "fix"
-    assert read_json(pending_path) == []
 
 
 def test_all_normal_writes_empty_rework_array(tmp_path: Path) -> None:
@@ -155,7 +149,7 @@ def test_all_normal_writes_empty_rework_array(tmp_path: Path) -> None:
         tmp_path / "cap.json",
         [_cap_task(image_id="img-a", caption="only", rework="no")],
     )
-    normal_path, rework_path, pending_path = export_split_from_export(
+    normal_path, rework_path = export_split_from_export(
         export,
         batch_id="batch1",
         task="cap",
@@ -163,7 +157,6 @@ def test_all_normal_writes_empty_rework_array(tmp_path: Path) -> None:
     )
     assert len(read_json(normal_path)) == 1
     assert read_json(rework_path) == []
-    assert read_json(pending_path) == []
 
 
 def test_all_rework_writes_empty_normal_array(tmp_path: Path) -> None:
@@ -171,7 +164,7 @@ def test_all_rework_writes_empty_normal_array(tmp_path: Path) -> None:
         tmp_path / "cap.json",
         [_cap_task(image_id="img-a", caption="bad", rework="yes")],
     )
-    normal_path, rework_path, pending_path = export_split_from_export(
+    normal_path, rework_path = export_split_from_export(
         export,
         batch_id="batch1",
         task="cap",
@@ -179,32 +172,28 @@ def test_all_rework_writes_empty_normal_array(tmp_path: Path) -> None:
     )
     assert read_json(normal_path) == []
     assert len(read_json(rework_path)) == 1
-    assert read_json(pending_path) == []
 
 
-def test_unconfirmed_goes_to_pending_not_normal_or_rework(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_unconfirmed_goes_to_rework_not_normal(tmp_path: Path) -> None:
     export = _write_export(
         tmp_path / "cap.json",
         [
             _cap_task(
                 image_id="img-u1",
-                caption="pending-a",
+                caption="unc-a",
                 rework="no",
                 human="no",
             ),
             _cap_task(
                 image_id="img-u2",
-                caption="pending-b",
+                caption="unc-b",
                 rework="yes",
                 human="no",
             ),
             _cap_task(image_id="img-ok", caption="ok", rework="no", human="yes"),
         ],
     )
-    normal_path, rework_path, pending_path = export_split_from_export(
+    normal_path, rework_path = export_split_from_export(
         export,
         batch_id="batch1",
         task="cap",
@@ -212,14 +201,9 @@ def test_unconfirmed_goes_to_pending_not_normal_or_rework(
     )
     normal = read_json(normal_path)
     rework = read_json(rework_path)
-    pending = read_json(pending_path)
     assert [x["image_id"] for x in normal] == ["img-ok"]
-    assert rework == []
-    assert [x["image_id"] for x in pending] == ["img-u1", "img-u2"]
-    assert all(x["human_confirmed"] is False for x in pending)
-    err = capsys.readouterr().err
-    assert "unconfirmed" in err
-    assert "pending" in err
+    assert [x["image_id"] for x in rework] == ["img-u1", "img-u2"]
+    assert all(x["human_confirmed"] is False for x in rework)
 
 
 def test_det_split_uses_task_package_size(tmp_path: Path) -> None:
@@ -236,14 +220,13 @@ def test_det_split_uses_task_package_size(tmp_path: Path) -> None:
             )
         ],
     )
-    normal_path, rework_path, pending_path = export_split_from_export(
+    normal_path, rework_path = export_split_from_export(
         export,
         batch_id="batch1",
         task="det",
         data_root=tmp_path,
     )
     assert read_json(rework_path) == []
-    assert read_json(pending_path) == []
     normal = read_json(normal_path)
     assert len(normal) == 1
     box = normal[0]["annotation"]["bboxes"][0]
@@ -274,7 +257,7 @@ def test_missing_export_and_bad_batch_id(tmp_path: Path) -> None:
         )
 
 
-def test_does_not_write_current_or_round_dirs(tmp_path: Path) -> None:
+def test_writes_current_and_full_rebuilds_bundles(tmp_path: Path) -> None:
     export = _write_export(
         tmp_path / "cap.json",
         [_cap_task(image_id="img-a", caption="x", rework="yes")],
@@ -288,9 +271,41 @@ def test_does_not_write_current_or_round_dirs(tmp_path: Path) -> None:
     task_dir = results_task_dir("batch1", TaskType.CAP, data_root=tmp_path)
     assert (task_dir / "normal" / ANNOTATIONS_JSON_NAME).is_file()
     assert (task_dir / "rework" / ANNOTATIONS_JSON_NAME).is_file()
-    assert (task_dir / "pending" / ANNOTATIONS_JSON_NAME).is_file()
-    assert not results_current_dir("batch1", TaskType.CAP, data_root=tmp_path).exists()
+    assert not (task_dir / "pending").exists()
+    assert (
+        results_current_dir("batch1", TaskType.CAP, data_root=tmp_path)
+        / ANNOTATIONS_JSON_NAME
+    ).is_file()
     assert not any(task_dir.glob("**/round_*"))
+
+
+def test_export_split_subset_rework_refreshes_full_normal(tmp_path: Path) -> None:
+    round1 = _write_export(
+        tmp_path / "round1.json",
+        [
+            _cap_task(image_id="img-ok", caption="ok", rework="no"),
+            _cap_task(image_id="img-fix", caption="bad", rework="yes"),
+        ],
+    )
+    export_split_from_export(
+        round1,
+        batch_id="batch1",
+        task="cap",
+        data_root=tmp_path,
+    )
+    round2 = _write_export(
+        tmp_path / "round2.json",
+        [_cap_task(image_id="img-fix", caption="fixed", rework="no")],
+    )
+    normal_path, rework_path = export_split_from_export(
+        round2,
+        batch_id="batch1",
+        task="cap",
+        data_root=tmp_path,
+    )
+    normal = read_json(normal_path)
+    assert {x["image_id"] for x in normal} == {"img-ok", "img-fix"}
+    assert read_json(rework_path) == []
 
 
 def test_seg_split_uses_manual_mask_ref(tmp_path: Path) -> None:
@@ -335,14 +350,13 @@ def test_seg_split_uses_manual_mask_ref(tmp_path: Path) -> None:
             }
         ],
     )
-    normal_path, rework_path, pending_path = export_split_from_export(
+    normal_path, rework_path = export_split_from_export(
         export,
         batch_id="batch1",
         task="seg",
         data_root=tmp_path,
     )
     assert read_json(rework_path) == []
-    assert read_json(pending_path) == []
     normal = read_json(normal_path)
     assert normal[0]["annotation"]["mask_ref"] == manual_mask_ref("img-a")
     assert (

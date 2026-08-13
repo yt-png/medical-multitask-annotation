@@ -1,7 +1,7 @@
 """Apply LS export results onto ``results/.../current/`` (P4 CLI glue).
 
-Orchestrates ``parse_ls_export`` + ``overwrite_current``. Does not classify
-rework packages or build rework import tasks.
+Orchestrates ``parse_ls_export`` + ``overwrite_current``, then full-rebuilds
+``normal/`` and ``rework/`` from ``current/`` (sole source of truth).
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from mma.common.paths import (
 from mma.converters import ImageMetadata
 from mma.exporters.overwrite_current import overwrite_current
 from mma.exporters.parse_ls_export import parse_ls_export
+from mma.exporters.refresh_normal_rework import refresh_normal_rework_from_current
 from mma.importers.build_ls_tasks import resolve_task_image_path
 
 _TASK_TYPE_MAP = {
@@ -39,10 +40,14 @@ def apply_current_from_export(
     task: str | TaskType,
     data_root: Path | str | None = None,
 ) -> Path:
-    """Parse ``export_path`` and overwrite ``current/annotations.json``.
+    """Parse ``export_path``, merge into ``current/``, refresh normal/rework.
 
-    Writes all parsed results for the task (including ``needs_rework=True``).
-    Empty parse results follow ``overwrite_current`` no-op semantics.
+    - Matching ``image_id`` in the export overwrite current entries; others keep
+    - After write, ``normal/`` and ``rework/`` are fully rebuilt from current
+      (not from the export subset alone)
+
+    Empty parse results follow ``overwrite_current`` no-op semantics, then still
+    refresh bundles from whatever ``current/`` contains.
     """
 
     cleaned = validate_batch_id(batch_id)
@@ -71,12 +76,18 @@ def apply_current_from_export(
         image_metadata_by_id=metadata,
         seg_manual_mask_dir=seg_mask_dir,
     )
-    return overwrite_current(
+    current_path = overwrite_current(
         results,
         batch_id=cleaned,
         task_type=task_type,
         data_root=root,
     )
+    refresh_normal_rework_from_current(
+        cleaned,
+        task_type,
+        data_root=root,
+    )
+    return current_path
 
 
 def _parse_task_arg(task: str | TaskType) -> TaskType:

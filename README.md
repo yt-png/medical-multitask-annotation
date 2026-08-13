@@ -68,6 +68,7 @@ mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_bat
 
 - 解析导出（含仍需返工样本）并覆盖写入 `data/results/<batch>/<task>/current/annotations.json`
 - 按 `image_id` **合并**写入：命中则覆盖；**未出现在本轮 export 中的样本保留**（非整表清空）
+- 写入后**自动全量重建**同任务 `normal/` 与 `rework/`（以 `current/` 为唯一真实源，禁止按本轮 export 子集追加历史）
 - 首轮/全量刷新：请导出该任务本批全部样本后再 apply；返工轮允许子集 export + apply（详见 `docs/data_layout.md`、`docs/labelstudio_usage.md`）
 - DET 从 `task_packages/.../images/` 读取图像尺寸做百分比→像素换算
 - **DET**：三态解析（与 SEG 的 `annotation.prediction` 语义对齐）。`annotation` 有 `det_bbox` → 用人框；无框但 `annotation.prediction` 非空 → 空框（接受预标注后删光）；无框且无 prediction 链接 → 回退 `task.predictions` 预标注框（未操作不丢预标注）
@@ -79,10 +80,10 @@ mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_bat
 mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
 ```
 
-- 写出 `data/results/<batch>/<task>/normal/annotations.json`、`.../rework/annotations.json`、`.../pending/annotations.json`（空侧为 `[]`）
-- **分类**：`human_confirmed and not needs_rework` → normal；`human_confirmed and needs_rework` → rework；`human_confirmed=false` → **仅** pending（不进 normal/rework；有 pending 时 stderr 警告）
-- 不写入 `current/`（请另用 `apply-current`）
-- **SEG** 与 `apply-current` 相同：同步物化 `manual_masks/`，保证 normal/rework/pending 与 current 的 `mask_ref` 一致
+- 先将本轮 export **合并写入 `current/`**，再按完整 `current/` **全量重建** `normal/annotations.json` 与 `rework/annotations.json`（空侧为 `[]`）
+- **分类**（相对最新 current）：仅 `human_confirmed and not needs_rework` → normal；`human_confirmed=false`（无论 `needs_rework`）以及 `human_confirmed and needs_rework` → rework
+- 返工子集 export 后，已修好的样本会进入 normal，其余仍保留在 current 中的状态一并反映；`normal` 始终表示当前全部无需返工样本
+- **SEG** 与 `apply-current` 相同：同步物化 `manual_masks/`，保证 normal/rework 与 current 的 `mask_ref` 一致
 
 生成返工再导入任务（P4，可见上一轮标注、不预填双勾选）：
 
@@ -149,6 +150,7 @@ python examples/scripts/run_p2_demo.py
 - 已完成：final SEG mask 统一物化到 `final/<batch>/final_assets/masks/`（`merge/materialize_final_seg.py`；contract 禁止 `masks/`/`manual_masks/`/`prelabels/`）
 - 已完成：SEG 人工 brush → `results/.../seg/manual_masks/` 持久化（含删光 brush 写空 mask；无 SEG 操作才回退 `data.mask_ref`；`apply-current` / `export-split`）
 - 已完成：DET 导出三态解析（人框 / 接受后删光为空 / 未操作回退 `predictions`；`parse_ls_export`）
+- 已完成：`apply-current` / `export-split` 以 `current/` 为源全量刷新 normal/rework（多轮返工后 normal 反映最新无需返工全集）
 
 ## 文档
 
