@@ -58,6 +58,7 @@ mma ls-import --batch demo_batch --task seg --data-root data
 - 写出 `data/ls_import/<batch>/<task>/tasks.json`
 - `data.image` 使用 `/data/local-files/?d=task_packages/...`（可用 `--local-root` 覆盖相对根）
 - SEG 默认启用 prelabels 目录为 `mask_root` 以叠图预填
+- **覆盖校验**：任务包 `manifest.json` 的 `image_id` 集合必须与 `prelabels.json` 完全一致；缺样本报 `Missing prelabels`，多余报 `Unknown prelabels`（不静默跳过）
 
 覆盖写入当前有效结果（P4，需本轮 LS 导出 JSON）：
 
@@ -69,7 +70,8 @@ mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_bat
 - 按 `image_id` **合并**写入：命中则覆盖；**未出现在本轮 export 中的样本保留**（非整表清空）
 - 首轮/全量刷新：请导出该任务本批全部样本后再 apply；返工轮允许子集 export + apply（详见 `docs/data_layout.md`、`docs/labelstudio_usage.md`）
 - DET 从 `task_packages/.../images/` 读取图像尺寸做百分比→像素换算
-- **SEG**：若导出含 brush RLE（`from_name=seg_mask`，`value.format=rle`），解码并写出 `data/results/<batch>/seg/manual_masks/<image_id>_manual.png`，`mask_ref` 记为 `manual_masks/<image_id>_manual.png`（不覆盖 `prelabels/.../masks/`）；无 brush 时仍用导出里的原始 `data.mask_ref`
+- **DET**：三态解析（与 SEG 的 `annotation.prediction` 语义对齐）。`annotation` 有 `det_bbox` → 用人框；无框但 `annotation.prediction` 非空 → 空框（接受预标注后删光）；无框且无 prediction 链接 → 回退 `task.predictions` 预标注框（未操作不丢预标注）
+- **SEG**：人工结果优先。若 annotation 有 SEG 操作记录（`from_name=seg_mask` 条目，或 `annotation.prediction` 表明从预标注接受过），则写出 `data/results/<batch>/seg/manual_masks/<image_id>_manual.png`（有 brush 解码；**删光 brush 则写全空 mask**），`mask_ref` 为 `manual_masks/<image_id>_manual.png`。若无 SEG 操作记录，才回退导出里的 `data.mask_ref`（预标注）。不覆盖 `prelabels/.../masks/`。
 
 按返工分类写出结果包（P4）：
 
@@ -77,9 +79,10 @@ mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_bat
 mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
 ```
 
-- 写出 `data/results/<batch>/<task>/normal/annotations.json` 与 `.../rework/annotations.json`（空侧为 `[]`）
+- 写出 `data/results/<batch>/<task>/normal/annotations.json`、`.../rework/annotations.json`、`.../pending/annotations.json`（空侧为 `[]`）
+- **分类**：`human_confirmed and not needs_rework` → normal；`human_confirmed and needs_rework` → rework；`human_confirmed=false` → **仅** pending（不进 normal/rework；有 pending 时 stderr 警告）
 - 不写入 `current/`（请另用 `apply-current`）
-- **SEG** 与 `apply-current` 相同：同步物化 `manual_masks/`，保证 normal/rework 与 current 的 `mask_ref` 一致
+- **SEG** 与 `apply-current` 相同：同步物化 `manual_masks/`，保证 normal/rework/pending 与 current 的 `mask_ref` 一致
 
 生成返工再导入任务（P4，可见上一轮标注、不预填双勾选）：
 
@@ -96,6 +99,7 @@ mma merge --batch demo_batch --data-root data
 ```
 
 - 写出 `data/final/<batch>/manifest.json`（`{batch_id, items}`，每条含 SEG+DET+CAP 与 `image_path`/`diagnosis_text`）
+- 写盘前将 SEG mask **复制**到 `final/<batch>/final_assets/masks/{image_id}.png`；清单中 `seg.mask_ref` 统一为 `final_assets/masks/{image_id}.png`（相对该 final 批次目录；空 mask 只复制不重生成）
 - 未就绪或缺任务时失败且不改写已有 final
 
 预标注 → Label Studio import（T2.2 / T3.1b，Python API，CLI `convert` 仍为 stub）：
@@ -142,7 +146,9 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T5.2 按 `image_id` 合并（`merge/merge_multitask.py` → `MergedMultitaskRecord`；含缺任务防御）
 - 已完成：T5.3 缺任务阻断（`assert_no_missing_tasks`：禁止静默缺字段；合并二次校验）
 - 已完成：T5.4 输出 `final/` 与接线 `mma merge --batch [--data-root]`（`merge/merge_to_final.py` + `write_final.py`）
-- 已完成：SEG 人工 brush → `results/.../seg/manual_masks/` 持久化（`apply-current` / `export-split`；不改 `SegAnnotation` 字段）
+- 已完成：final SEG mask 统一物化到 `final/<batch>/final_assets/masks/`（`merge/materialize_final_seg.py`；contract 禁止 `masks/`/`manual_masks/`/`prelabels/`）
+- 已完成：SEG 人工 brush → `results/.../seg/manual_masks/` 持久化（含删光 brush 写空 mask；无 SEG 操作才回退 `data.mask_ref`；`apply-current` / `export-split`）
+- 已完成：DET 导出三态解析（人框 / 接受后删光为空 / 未操作回退 `predictions`；`parse_ls_export`）
 
 ## 文档
 

@@ -1,11 +1,12 @@
-"""Split LS export into normal/rework annotation files (P4 CLI glue).
+"""Split LS export into normal/rework/pending annotation files (P4 CLI glue).
 
-Orchestrates ``parse_ls_export`` + ``split_by_rework`` and writes both sides.
+Orchestrates ``parse_ls_export`` + ``split_by_rework`` and writes three sides.
 Does not overwrite ``current/`` or build rework import tasks.
 """
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from mma.common.paths import (
     default_data_root,
     results_manual_masks_dir,
     results_normal_dir,
+    results_pending_dir,
     results_rework_dir,
     validate_batch_id,
 )
@@ -45,11 +47,15 @@ def export_split_from_export(
     batch_id: str,
     task: str | TaskType,
     data_root: Path | str | None = None,
-) -> tuple[Path, Path]:
-    """Parse export, split by rework, write both annotation files.
+) -> tuple[Path, Path, Path]:
+    """Parse export, split by confirmation/rework, write three annotation files.
 
-    Returns ``(normal_annotations_path, rework_annotations_path)``.
+    Returns ``(normal_path, rework_path, pending_path)``.
     Empty sides are written as JSON arrays ``[]``.
+
+    Unconfirmed samples (``human_confirmed=False``) go to ``pending/`` only;
+    they never enter ``normal/`` or ``rework/``. A warning is printed to stderr
+    when pending is non-empty.
     """
 
     cleaned = validate_batch_id(batch_id)
@@ -78,7 +84,16 @@ def export_split_from_export(
         image_metadata_by_id=metadata,
         seg_manual_mask_dir=seg_mask_dir,
     )
-    normal, rework = split_by_rework(results)
+    normal, rework, pending = split_by_rework(results)
+
+    if pending:
+        ids = ", ".join(item.image_id for item in pending[:20])
+        extra = f" ... ({len(pending)} total)" if len(pending) > 20 else ""
+        print(
+            f"mma export-split: warning: {len(pending)} unconfirmed sample(s) "
+            f"written to pending/ (not normal/rework): {ids}{extra}",
+            file=sys.stderr,
+        )
 
     normal_path = (
         results_normal_dir(cleaned, task_type, data_root=root)
@@ -88,9 +103,18 @@ def export_split_from_export(
         results_rework_dir(cleaned, task_type, data_root=root)
         / ANNOTATIONS_JSON_NAME
     )
+    pending_path = (
+        results_pending_dir(cleaned, task_type, data_root=root)
+        / ANNOTATIONS_JSON_NAME
+    )
     _write_annotations_file(normal_path, normal)
     _write_annotations_file(rework_path, rework)
-    return normal_path.resolve(), rework_path.resolve()
+    _write_annotations_file(pending_path, pending)
+    return (
+        normal_path.resolve(),
+        rework_path.resolve(),
+        pending_path.resolve(),
+    )
 
 
 def _write_annotations_file(

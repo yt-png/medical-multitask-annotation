@@ -1,7 +1,8 @@
 """Orchestrate multitask merge into ``final/<batch_id>/`` (T5.4).
 
 Calls ``merge_multitask``, enriches ``image_path`` / ``diagnosis_text`` from
-``processed/<batch_id>/manifest.json``, then ``write_final_manifest``.
+``processed/<batch_id>/manifest.json``, materializes SEG masks into
+``final_assets/masks/``, then ``write_final_manifest``.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from mma.common.models import MergedMultitaskRecord
 from mma.common.paths import default_data_root, processed_batch_dir, validate_batch_id
+from mma.merge.materialize_final_seg import materialize_final_seg_masks
 from mma.merge.merge_multitask import merge_multitask
 from mma.merge.write_final import write_final_manifest
 from mma.packaging.split_task_packages import load_processed_items
@@ -25,7 +27,8 @@ def merge_to_final(
 
     On failure before write, existing final manifest (if any) is left unchanged.
     Missing processed manifest or missing ``image_id`` in processed raises
-    without writing.
+    without writing. SEG masks are copied into ``final_assets/masks/`` before
+    the manifest is written.
     """
 
     cleaned = validate_batch_id(batch_id)
@@ -33,7 +36,12 @@ def merge_to_final(
     records = merge_multitask(cleaned, data_root=root)
     meta = _load_processed_image_meta(cleaned, data_root=root)
     enriched = _enrich_from_processed(records, meta)
-    return write_final_manifest(enriched, batch_id=cleaned, data_root=root)
+    materialized = materialize_final_seg_masks(
+        enriched,
+        batch_id=cleaned,
+        data_root=root,
+    )
+    return write_final_manifest(materialized, batch_id=cleaned, data_root=root)
 
 
 def _load_processed_image_meta(

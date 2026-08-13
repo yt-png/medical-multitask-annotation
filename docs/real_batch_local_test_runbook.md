@@ -318,8 +318,8 @@ data/ls_export/real_batch/{seg,det,cap}/round_002/export.json
 返工轮允许**子集** export。然后对有更新的任务执行：
 
 ```powershell
-mma apply-current --batch real_batch --task <task> --export data/ls_export/real_batch/<task>/round_002/export.json --data-root data
-mma export-split --batch real_batch --task <task> --export data/ls_export/real_batch/<task>/round_002/export.json --data-root data
+mma apply-current --batch real_batch --task det --export data/ls_export/real_batch/det/round_002/export.json --data-root data
+mma export-split --batch real_batch --task det --export data/ls_export/real_batch/det/round_002/export.json --data-root data
 ```
 
 将 `<task>` 替换为实际更新的 `seg` / `det` / `cap`。
@@ -358,8 +358,8 @@ data/ls_export/real_batch/{seg,det,cap}/round_003/export.json
 然后：
 
 ```powershell
-mma apply-current --batch real_batch --task <task> --export data/ls_export/real_batch/<task>/round_003/export.json --data-root data
-mma export-split --batch real_batch --task <task> --export data/ls_export/real_batch/<task>/round_003/export.json --data-root data
+mma apply-current --batch real_batch --task det --export data/ls_export/real_batch/det/round_003/export.json --data-root data
+mma export-split --batch real_batch --task det --export data/ls_export/real_batch/det/round_003/export.json --data-root data
 ```
 
 ### 12.4 merge 前自检

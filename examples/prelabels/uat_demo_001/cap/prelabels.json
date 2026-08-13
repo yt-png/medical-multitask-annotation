@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "batch_id": "uat_demo_001",
+  "package_id": "uat_demo_001__cap",
+  "task_type": "CAP",
+  "items": [
+    {
+      "schema_version": "1.0",
+      "batch_id": "uat_demo_001",
+      "package_id": "uat_demo_001__cap",
+      "task_type": "CAP",
+      "image_id": "uat_demo_001__000001",
+      "diagnosis_text": "right lung nodule, benign appearance",
+      "image_path": "optional/auxiliary/uat_demo_001__000001.jpg",
+      "payload": {
+        "caption": "A small nodule is visible in the right lung field."
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "batch_id": "uat_demo_001",
+      "package_id": "uat_demo_001__cap",
+      "task_type": "CAP",
+      "image_id": "uat_demo_001__000002",
+      "diagnosis_text": "left lower lobe opacity",
+      "payload": {
+        "caption": "Opacity noted in the left lower lobe."
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "batch_id": "uat_demo_001",
+      "package_id": "uat_demo_001__cap",
+      "task_type": "CAP",
+      "image_id": "uat_demo_001__000003",
+      "diagnosis_text": "假数据诊断 C",
+      "payload": {
+        "caption": "UAT placeholder caption for image 000003."
+      }
+    }
+  ]
+}

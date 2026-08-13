@@ -176,7 +176,7 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.js
 ```
 
 - `apply-current`：写出 `data/results/<batch_id>/<task>/current/annotations.json`（含本轮仍需返工样本）；SEG 若有 brush RLE 会同时写出 `results/.../seg/manual_masks/<image_id>_manual.png`
-- `export-split`：写出 `.../normal/annotations.json` 与 `.../rework/annotations.json`（空侧为 `[]`）；SEG 与 current 同步物化 manual mask
+- `export-split`：写出 `.../normal/annotations.json`、`.../rework/annotations.json`、`.../pending/annotations.json`（空侧为 `[]`）；`human_confirmed=no` 仅进 pending；SEG 与 current 同步物化 manual mask
 - `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）
 
 ### 8.1 `apply-current` 与导出范围
@@ -217,7 +217,7 @@ mma ls-import --batch <batch_id> --task seg --data-root data --local-root D:\pat
 # 导出后覆盖 current/
 mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 
-# 按返工分类写出 normal/rework
+# 按确认/返工分类写出 normal/rework/pending
 mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 
 # 生成返工再导入 tasks（不覆盖 tasks.json）

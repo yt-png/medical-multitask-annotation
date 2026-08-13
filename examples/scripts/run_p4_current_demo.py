@@ -131,7 +131,7 @@ def run_demo(*, data_root: Path | None = None) -> dict[TaskType, Path]:
         else:
             results = parse_ls_export(export_path, task_type=task_type)
 
-        normal, rework = split_by_rework(results)
+        normal, rework, pending = split_by_rework(results)
         out_path = overwrite_current(
             results,
             batch_id=_BATCH_ID,
@@ -142,7 +142,7 @@ def run_demo(*, data_root: Path | None = None) -> dict[TaskType, Path]:
 
         print(
             f"{task_type.value}: parsed={len(results)} "
-            f"normal={len(normal)} rework={len(rework)}"
+            f"normal={len(normal)} rework={len(rework)} pending={len(pending)}"
         )
         print(f"  export={export_path}")
         print(f"  current={out_path}")

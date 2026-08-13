@@ -264,6 +264,31 @@ def write_manual_mask_from_brush_results(
     return manual_mask_ref(image_id)
 
 
+def write_empty_manual_mask(
+    *,
+    image_id: str,
+    width: int,
+    height: int,
+    manual_mask_dir: Path | str,
+) -> str:
+    """Write an all-background manual mask PNG and return ``mask_ref``.
+
+    Used when the annotator cleared every SEG brush region (human empty mask).
+    ``width`` / ``height`` must be positive pixel sizes of the source image.
+    """
+
+    if width <= 0 or height <= 0:
+        raise ValueError(
+            f"empty manual mask requires positive width/height "
+            f"(image_id={image_id!r}, got {width}x{height})"
+        )
+    binary = [[0] * width for _ in range(height)]
+    out_dir = Path(manual_mask_dir)
+    out_path = out_dir / manual_mask_filename(image_id)
+    save_binary_mask_png(out_path, binary)
+    return manual_mask_ref(image_id)
+
+
 def _base_rle_encode(values: list[int]) -> tuple[list[int], list[int], list[int]]:
     """Return (run_lengths, start_positions, run_values) for a 1-D sequence."""
 

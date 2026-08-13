@@ -66,6 +66,16 @@ def final_batch_dir(
     return root / "final" / cleaned
 
 
+def final_assets_masks_dir(
+    batch_id: str,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/final/{batch_id}/final_assets/masks``."""
+
+    return final_batch_dir(batch_id, data_root=data_root) / "final_assets" / "masks"
+
+
 def task_packages_batch_dir(
     batch_id: str,
     *,
@@ -171,6 +181,20 @@ def results_rework_dir(
     """Return ``{data_root}/results/{batch_id}/{seg|det|cap}/rework``."""
 
     return results_task_dir(batch_id, task, data_root=data_root) / "rework"
+
+
+def results_pending_dir(
+    batch_id: str,
+    task: str | TaskType,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/results/{batch_id}/{seg|det|cap}/pending``.
+
+    Holds samples with ``human_confirmed=False`` from ``export-split``.
+    """
+
+    return results_task_dir(batch_id, task, data_root=data_root) / "pending"
 
 
 def results_manual_masks_dir(

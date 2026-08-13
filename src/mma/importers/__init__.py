@@ -15,6 +15,7 @@ from mma.importers.rework_import_from_export import (
     REWORK_TASKS_JSON_NAME,
     rework_import_from_export,
 )
+from mma.importers.validate_prelabel_coverage import validate_prelabel_coverage
 
 __all__ = [
     "LOCAL_FILES_PREFIX",
@@ -26,4 +27,5 @@ __all__ = [
     "rework_import_from_export",
     "rewrite_task_image_urls",
     "to_local_files_url",
+    "validate_prelabel_coverage",
 ]

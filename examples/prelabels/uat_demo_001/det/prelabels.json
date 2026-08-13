@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "batch_id": "uat_demo_001",
+  "package_id": "uat_demo_001__det",
+  "task_type": "DET",
+  "items": [
+    {
+      "schema_version": "1.0",
+      "batch_id": "uat_demo_001",
+      "package_id": "uat_demo_001__det",
+      "task_type": "DET",
+      "image_id": "uat_demo_001__000001",
+      "diagnosis_text": "right lung nodule, benign appearance",
+      "image_path": "optional/auxiliary/uat_demo_001__000001.jpg",
+      "payload": {
+        "bboxes": [
+          {
+            "x": 120.0,
+            "y": 80.5,
+            "width": 64.0,
+            "height": 48.0
+          },
+          {
+            "x": 300.0,
+            "y": 210.0,
+            "width": 40.0,
+            "height": 36.0
+          }
+        ]
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "batch_id": "uat_demo_001",
+      "package_id": "uat_demo_001__det",
+      "task_type": "DET",
+      "image_id": "uat_demo_001__000002",
+      "diagnosis_text": "left lower lobe opacity",
+      "payload": {
+        "bboxes": []
+      }
+    },
+    {
+      "schema_version": "1.0",
+      "batch_id": "uat_demo_001",
+      "package_id": "uat_demo_001__det",
+      "task_type": "DET",
+      "image_id": "uat_demo_001__000003",
+      "diagnosis_text": "假数据诊断 C",
+      "payload": {
+        "bboxes": []
+      }
+    }
+  ]
+}

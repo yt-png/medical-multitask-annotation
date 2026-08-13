@@ -2,6 +2,18 @@
 
 Supports SEG / DET / CAP exports aligned with package Labeling Configs.
 Does not classify rework bundles, overwrite ``current/``, or re-import.
+
+SEG human-priority rule: annotation SEG operation (``seg_mask`` entries and/or
+``annotation.prediction`` link) wins over ``data.mask_ref``; zero brushes after
+an operation yields an empty manual mask, not a prelabel fallback.
+
+DET human-priority rule (three-way, mirrors SEG ``prediction`` link semantics):
+
+1. ``annotation.result`` has ``det_bbox`` → use those boxes
+2. no ``det_bbox`` but ``annotation.prediction`` is set → empty boxes
+   (accepted prelabel then cleared all rectangles)
+3. no ``det_bbox`` and ``annotation.prediction`` is null → fallback to
+   ``task.predictions[].result`` det boxes; if none → empty boxes
 """
 
 from __future__ import annotations
@@ -144,6 +156,8 @@ def _parse_one_task(
         task_data=data,
         image_metadata_by_id=image_metadata_by_id,
         seg_manual_mask_dir=seg_manual_mask_dir,
+        task=task,
+        annotation=annotation,
     )
 
     package_id_raw = data.get(DATA_KEY_PACKAGE_ID)
@@ -333,6 +347,8 @@ def _parse_annotation_payload(
     task_data: dict[str, Any],
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
     seg_manual_mask_dir: Path | str | None,
+    task: Mapping[str, Any] | None = None,
+    annotation: Mapping[str, Any] | None = None,
 ) -> SegAnnotation | DetAnnotation | CapAnnotation:
     if task_type is TaskType.SEG:
         return _parse_seg_annotation(
@@ -340,12 +356,16 @@ def _parse_annotation_payload(
             task_data=task_data,
             image_id=image_id,
             seg_manual_mask_dir=seg_manual_mask_dir,
+            task=task,
+            annotation=annotation,
         )
     if task_type is TaskType.DET:
         return _parse_det_annotation(
             result_items,
             image_id=image_id,
             image_metadata_by_id=image_metadata_by_id,
+            task=task,
+            annotation=annotation,
         )
     if task_type is TaskType.CAP:
         return _parse_cap_annotation(result_items, image_id=image_id)
@@ -358,10 +378,44 @@ def _parse_seg_annotation(
     task_data: dict[str, Any],
     image_id: str,
     seg_manual_mask_dir: Path | str | None,
+    task: Mapping[str, Any] | None = None,
+    annotation: Mapping[str, Any] | None = None,
 ) -> SegAnnotation:
-    """Build SEG payload: prefer brush RLE when ``seg_manual_mask_dir`` is set."""
+    """Build SEG payload with human-result priority.
 
-    from mma.converters.seg_brush import write_manual_mask_from_brush_results
+    Label Studio SEG export shape (relevant fields)::
+
+        {
+          "data": {"mask_ref": "...", "image_id": "..."},
+          "annotations": [{
+            "prediction": <id|null>,   # set when annotation was created from a prediction
+            "result": [
+              {"from_name": "seg_mask", "type": "brushlabels", "value": {"format": "rle", "rle": [...]}},
+              {"from_name": "human_confirmed", ...},
+              ...
+            ]
+          }],
+          "predictions": [{"result": [ /* prelabel brushes */ ]}]  # optional; may be ids only
+        }
+
+    Decision (not ``if not brush_entries: fallback`` alone):
+
+    1. If annotation has a SEG operation record → human result.
+       Operation record means any ``from_name=seg_mask`` entry (including empty
+       ``rle``) **or** ``annotation.prediction`` is set (accepted prediction then
+       possibly cleared all brushes).
+       - Non-empty brushes → decode/write manual mask
+       - Zero brushes → write an empty (all-background) manual mask
+    2. Else → fallback to ``data.mask_ref`` (prelabel / prediction path)
+
+    When ``seg_manual_mask_dir`` is omitted, human brush/empty masks are not
+    written and the prelabel ``mask_ref`` is kept (legacy / unit-test path).
+    """
+
+    from mma.converters.seg_brush import (
+        write_empty_manual_mask,
+        write_manual_mask_from_brush_results,
+    )
 
     fallback_ref = task_data.get(DATA_KEY_MASK_REF)
     if not isinstance(fallback_ref, str) or not fallback_ref.strip():
@@ -371,27 +425,84 @@ def _parse_seg_annotation(
         )
     fallback_ref = fallback_ref.strip()
 
-    brush_entries = _collect_seg_brush_entries(result_items, image_id=image_id)
-    if not brush_entries or seg_manual_mask_dir is None:
+    control_entries = _collect_seg_control_entries(result_items, image_id=image_id)
+    brush_entries = [
+        entry
+        for entry in control_entries
+        if _seg_entry_has_nonempty_rle(entry)
+    ]
+    operated = _annotation_has_seg_operation(
+        control_entries,
+        annotation=annotation,
+    )
+
+    if not operated:
         return SegAnnotation(mask_ref=fallback_ref)
 
-    mask_ref = write_manual_mask_from_brush_results(
-        brush_entries,
+    if seg_manual_mask_dir is None:
+        # Human SEG intent detected but no output dir: keep legacy fallback.
+        return SegAnnotation(mask_ref=fallback_ref)
+
+    if brush_entries:
+        mask_ref = write_manual_mask_from_brush_results(
+            brush_entries,
+            image_id=image_id,
+            manual_mask_dir=seg_manual_mask_dir,
+        )
+        return SegAnnotation(mask_ref=mask_ref)
+
+    width, height = _resolve_empty_mask_size(
+        control_entries,
+        task=task,
         image_id=image_id,
+    )
+    mask_ref = write_empty_manual_mask(
+        image_id=image_id,
+        width=width,
+        height=height,
         manual_mask_dir=seg_manual_mask_dir,
     )
     return SegAnnotation(mask_ref=mask_ref)
 
 
-def _collect_seg_brush_entries(
+def _annotation_has_seg_operation(
+    control_entries: Sequence[dict[str, Any]],
+    *,
+    annotation: Mapping[str, Any] | None,
+) -> bool:
+    """Return True when the annotation records a SEG human operation.
+
+    Signals (either is enough):
+
+    - Any ``from_name=seg_mask`` result (including empty ``rle`` clear markers)
+    - ``annotation.prediction`` is not null (annotation created from a
+      prediction; deleting all brushes leaves no ``seg_mask`` items but the
+      prediction link remains)
+    """
+
+    if control_entries:
+        return True
+    if annotation is None:
+        return False
+    return annotation.get("prediction") is not None
+
+
+def _seg_entry_has_nonempty_rle(entry: Mapping[str, Any]) -> bool:
+    value = entry.get("value")
+    if not isinstance(value, dict):
+        return False
+    rle = value.get("rle")
+    return isinstance(rle, list) and len(rle) > 0
+
+
+def _collect_seg_control_entries(
     result_items: Sequence[Any],
     *,
     image_id: str,
 ) -> list[dict[str, Any]]:
-    """Collect SEG brush results using DEFAULT_LS_RESULT_SPECS style.
+    """Collect all SEG brush control results (``from_name=seg_mask``).
 
-    Primary match: ``from_name == seg_mask`` and ``value.format == "rle"``.
-    ``type`` may be missing or equal to the configured brush type (DET/CAP style).
+    Empty ``rle`` lists are kept as clear markers (SEG operated, zero brushes).
     """
 
     spec = DEFAULT_LS_RESULT_SPECS[TaskType.SEG]
@@ -421,8 +532,80 @@ def _collect_seg_brush_entries(
             raise ValueError(
                 f"SEG brush value missing rle (image_id={image_id!r})"
             )
+        rle = value.get("rle")
+        if not isinstance(rle, list):
+            raise ValueError(
+                f"SEG brush value.rle must be a list "
+                f"(image_id={image_id!r})"
+            )
         entries.append(entry)
     return entries
+
+
+def _collect_seg_brush_entries(
+    result_items: Sequence[Any],
+    *,
+    image_id: str,
+) -> list[dict[str, Any]]:
+    """Collect SEG brush results with non-empty RLE (DEFAULT_LS_RESULT_SPECS)."""
+
+    return [
+        entry
+        for entry in _collect_seg_control_entries(result_items, image_id=image_id)
+        if _seg_entry_has_nonempty_rle(entry)
+    ]
+
+
+def _resolve_empty_mask_size(
+    control_entries: Sequence[Mapping[str, Any]],
+    *,
+    task: Mapping[str, Any] | None,
+    image_id: str,
+) -> tuple[int, int]:
+    """Resolve width/height for an empty human mask."""
+
+    for entry in control_entries:
+        size = _try_entry_original_size(entry)
+        if size is not None:
+            return size
+
+    if task is not None:
+        predictions = task.get("predictions")
+        if isinstance(predictions, list):
+            for prediction in predictions:
+                if not isinstance(prediction, dict):
+                    continue
+                result = prediction.get("result")
+                if not isinstance(result, list):
+                    continue
+                for entry in result:
+                    if not isinstance(entry, dict):
+                        continue
+                    if entry.get("from_name") != DEFAULT_LS_RESULT_SPECS[TaskType.SEG][
+                        "from_name"
+                    ]:
+                        continue
+                    size = _try_entry_original_size(entry)
+                    if size is not None:
+                        return size
+
+    raise ValueError(
+        f"cannot determine empty SEG mask size (image_id={image_id!r}); "
+        "need original_width/original_height on a seg_mask entry or prediction"
+    )
+
+
+def _try_entry_original_size(
+    entry: Mapping[str, Any],
+) -> tuple[int, int] | None:
+    try:
+        width = int(entry["original_width"])
+        height = int(entry["original_height"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
 
 
 def _parse_det_annotation(
@@ -430,12 +613,73 @@ def _parse_det_annotation(
     *,
     image_id: str,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
+    task: Mapping[str, Any] | None = None,
+    annotation: Mapping[str, Any] | None = None,
 ) -> DetAnnotation:
+    """Build DET payload with three-way human / cleared / prediction fallback.
+
+    Label Studio DET export shape (relevant fields)::
+
+        {
+          "annotations": [{
+            "prediction": <id|null>,  # set when annotation was created from a prediction
+            "result": [
+              {"from_name": "det_bbox", "type": "rectanglelabels", "value": {...}},
+              {"from_name": "human_confirmed", ...},
+              ...
+            ]
+          }],
+          "predictions": [{"result": [ /* prelabel rectangles */ ]}]
+        }
+
+    Decision:
+
+    1. Annotation has ``det_bbox`` entries → use those (human kept / edited boxes)
+    2. No ``det_bbox`` but ``annotation.prediction`` is set → empty boxes
+       (accepted prediction then deleted all rectangles)
+    3. No ``det_bbox`` and ``annotation.prediction`` is null → fallback to
+       ``task.predictions`` det boxes; if none → empty boxes
+    """
+
+    ann_entries = _collect_det_bbox_entries(result_items, image_id=image_id)
+    if ann_entries:
+        return DetAnnotation(
+            bboxes=_det_entries_to_bboxes(
+                ann_entries,
+                image_id=image_id,
+                image_metadata_by_id=image_metadata_by_id,
+            )
+        )
+
+    if annotation is not None and annotation.get("prediction") is not None:
+        return DetAnnotation(bboxes=())
+
+    pred_entries = _collect_det_bbox_entries_from_predictions(
+        task,
+        image_id=image_id,
+    )
+    if not pred_entries:
+        return DetAnnotation(bboxes=())
+    return DetAnnotation(
+        bboxes=_det_entries_to_bboxes(
+            pred_entries,
+            image_id=image_id,
+            image_metadata_by_id=image_metadata_by_id,
+        )
+    )
+
+
+def _collect_det_bbox_entries(
+    result_items: Sequence[Any],
+    *,
+    image_id: str,
+) -> list[dict[str, Any]]:
+    """Collect ``from_name=det_bbox`` rectangle entries from a result list."""
+
     spec = DEFAULT_LS_RESULT_SPECS[TaskType.DET]
     from_name = spec["from_name"]
     expected_type = spec["type"]
-
-    boxes: list[BBox] = []
+    entries: list[dict[str, Any]] = []
     for entry in _iter_result_items(result_items, image_id=image_id):
         if entry.get("from_name") != from_name:
             continue
@@ -449,6 +693,49 @@ def _parse_det_annotation(
             raise ValueError(
                 f"DET rectangle value must be an object (image_id={image_id!r})"
             )
+        entries.append(entry)
+    return entries
+
+
+def _collect_det_bbox_entries_from_predictions(
+    task: Mapping[str, Any] | None,
+    *,
+    image_id: str,
+) -> list[dict[str, Any]]:
+    """Collect DET boxes from ``task.predictions[].result`` (prelabel fallback)."""
+
+    if task is None:
+        return []
+    predictions = task.get("predictions")
+    if not isinstance(predictions, list):
+        return []
+
+    entries: list[dict[str, Any]] = []
+    for prediction in predictions:
+        if not isinstance(prediction, dict):
+            continue
+        result = prediction.get("result")
+        if not isinstance(result, list):
+            continue
+        entries.extend(
+            _collect_det_bbox_entries(result, image_id=image_id)
+        )
+    return entries
+
+
+def _det_entries_to_bboxes(
+    entries: Sequence[Mapping[str, Any]],
+    *,
+    image_id: str,
+    image_metadata_by_id: Mapping[str, ImageMetadata] | None,
+) -> tuple[BBox, ...]:
+    boxes: list[BBox] = []
+    for entry in entries:
+        value = entry.get("value")
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"DET rectangle value must be an object (image_id={image_id!r})"
+            )
         boxes.append(
             _percent_bbox_to_pixel(
                 value,
@@ -456,7 +743,7 @@ def _parse_det_annotation(
                 image_metadata_by_id=image_metadata_by_id,
             )
         )
-    return DetAnnotation(bboxes=tuple(boxes))
+    return tuple(boxes)
 
 
 def _require_det_metadata(

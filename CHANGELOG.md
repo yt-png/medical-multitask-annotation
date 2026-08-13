@@ -2,11 +2,44 @@
 
 ## 2026-08-13
 
+### Added
+
+- `importers/validate_prelabel_coverage.py`：`ls-import` 前校验任务包 `image_id` 集合 ≡ `prelabels.json`；缺样本报 `Missing prelabels`，多余报 `Unknown prelabels`（禁止静默跳过/补齐/删除）
+- `results/.../pending/`：`export-split` 将 `human_confirmed=false` 样本写入 `pending/annotations.json`（不进 normal/rework）；非空时 stderr 警告
+- `paths.results_pending_dir`
+- `merge/materialize_final_seg.py`：merge 写盘前将 SEG mask 物化到 `final/<batch>/final_assets/masks/{image_id}.png`
+- `paths.final_assets_masks_dir`；`assert_final_seg_mask_contract` 禁止 final 中出现 `masks/` / `manual_masks/` / `prelabels/` 根
+- `seg_brush.write_empty_manual_mask`：按给定宽高写出全背景人工 mask PNG
+
+### Changed
+
+- `build_ls_import_tasks`：生成 tasks 前读取任务包 `manifest.json` 并调用 coverage 校验
+- `split_by_rework`：返回 `(normal, rework, pending)`；normal 需 `human_confirmed and not needs_rework`；rework 需 `human_confirmed and needs_rework`
+- `export_split_from_export` / `mma export-split`：写出三路 annotations；CLI 打印 normal、rework、pending 路径
+- `merge_to_final`：enrich 后、写 `manifest.json` 前执行 SEG materialize；清单中 `seg.mask_ref` 统一为 `final_assets/masks/{image_id}.png`（空 mask 只复制不重生成）
+- 不改动 `apply_current` / merge 门禁 / Label Studio XML / `prelabels` / `manual_masks` / `current` 结构
+
+### Fixed
+
+- SEG 导出解析：区分「无 annotation SEG 操作 → 回退预标注 `data.mask_ref`」与「有 SEG 操作但 brush 为空 → 写空人工 mask」，不再把人工清空病灶误恢复为 AI 预标注
+- 操作信号：`from_name=seg_mask`（含空 `rle`）或 `annotation.prediction` 非空（从 prediction 接受后删光 brush）
+- DET 导出解析三态：`annotation` 有 `det_bbox` → 用人框；无框但 `annotation.prediction` 非空 → 空框（接受预标注后删光）；无框且无 prediction 链接 → 回退 `task.predictions` 预标注框（未操作不再静默丢预标注）
+- final `mask_ref` 双根路径（`manual_masks/` vs `masks/`）导致下游无法统一读取
+- `export-split`：`human_confirmed=no` 不再进入 normal 包
+- `ls-import`：预标注未覆盖任务包全量样本时延后到 merge 才失败
+
+### Tests
+
+- `tests/test_parse_ls_export.py`：Case1 无 SEG 操作回退预标注；Case2 `prediction` 链接删光 / 空 rle 标记写空 mask；Case3 有 brush 写人工 mask
+- `tests/test_parse_ls_export.py`：DET Case1 未操作回退 predictions；Case2 annotation 框优先；Case3 `prediction` 链接删光 → 空框
+- `tests/test_merge_to_final.py`：Case1 人工 mask / Case2 预标注 / Case3 空 mask 物化；Case4 全量 `final_assets/masks/` 前缀校验
+- `tests/test_split_by_rework.py` / `test_export_split_from_export.py`：Case1–4 确认/返工/pending 分类
+- `tests/test_build_ls_tasks.py`：prelabel coverage Case1–4（相等 / 缺 / 多 / 顺序无关）
+
 ### Docs
 
 - 新增 `docs/real_batch_local_test_runbook.md`（`real_batch` 本地 P1–P5 全链路 SOP，主流程含至少两轮返工）
-- `README.md` 文档节增加指向该手册的链接
-
+- `README.md` / `docs/data_layout.md`：SEG 人工优先；final 自包含 `final_assets/masks/`；export-split pending；ls-import coverage；DET 三态解析
 ## 2026-08-12
 
 ### Added

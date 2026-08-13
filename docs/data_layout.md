@@ -58,9 +58,12 @@ data/
 ├── results/<batch_id>/{seg,det,cap}/
 │   ├── normal/
 │   ├── rework/
+│   ├── pending/               # human_confirmed=false
 │   ├── current/
 │   └── manual_masks/          # 仅 seg：人工确认 brush 落盘
 └── final/<batch_id>/
+    ├── manifest.json
+    └── final_assets/masks/     # merge 时物化的统一 SEG mask
 ```
 
 ---
@@ -131,15 +134,22 @@ data/
 
 #### `normal/`
 
-- 本轮分类结果：`needs_rework == false`
+- 本轮分类结果：`human_confirmed == true` **且** `needs_rework == false`
 - 建议按轮次：`normal/round_XXX/`
 - 用于网盘回传「正常结果包」
 
 #### `rework/`
 
-- 本轮分类结果：`needs_rework == true`
+- 本轮分类结果：`human_confirmed == true` **且** `needs_rework == true`
 - 建议按轮次：`rework/round_XXX/`
 - 用于网盘回传与返工再导入输入
+
+#### `pending/`
+
+- 本轮分类结果：`human_confirmed == false`（无论 `needs_rework`）
+- **不得**进入 `normal/` 或 `rework/`
+- 清单：`pending/annotations.json`；`export-split` 在 pending 非空时向 stderr 打印警告
+- 需标注员补勾「人工确认」后重新导出再分类
 
 #### `current/`
 
@@ -161,7 +171,7 @@ data/
 - 路径：`results/<batch_id>/seg/manual_masks/`
 - 由 `apply-current` / `export-split` 在解析到 LS brush RLE 时写出：`{image_id}_manual.png`
 - `SegAnnotation.mask_ref` 存相对 `results/<batch_id>/seg/` 的路径：`manual_masks/{image_id}_manual.png`
-- **不**覆盖 `prelabels/<batch_id>/seg/masks/` 原始预标注；无 brush 时仍使用导出 `data.mask_ref`
+- **不**覆盖 `prelabels/<batch_id>/seg/masks/` 原始预标注；仅当 annotation **无** SEG 操作记录时才回退导出 `data.mask_ref`；有 SEG 操作但 brush 为空时写空 `manual_masks/`
 
 `normal/` / `rework/` 是轮次快照；**业务上的当前有效状态以 `current/` 为准**。
 
@@ -171,7 +181,8 @@ data/
 |---|---|
 | 职责 | 三任务合并后的多任务最终数据集 |
 | 前置 | 三路 `results/<batch_id>/{seg,det,cap}/current/` 均就绪，且无返工残留；三路 `image_id` 集合彼此一致且**等于** `processed/<batch_id>/manifest.json` 全量集合；processed 可回填图文 |
-| 内容 | 关键清单 `manifest.json`：`{"batch_id", "items"}`；每条对齐 `MergedMultitaskRecord`（必含 SEG+DET+CAP，以及 `image_path`/`diagnosis_text`）；其中 `image_path` 从 processed 回填，**可能为绝对路径**；缺任务必须阻断，禁止静默缺字段；不在此目录复制媒体文件 |
+| 内容 | 关键清单 `manifest.json`：`{"batch_id", "items"}`；每条对齐 `MergedMultitaskRecord`（必含 SEG+DET+CAP，以及 `image_path`/`diagnosis_text`）；其中 `image_path` 从 processed 回填，**可能为绝对路径**；缺任务必须阻断，禁止静默缺字段 |
+| SEG mask | merge 时复制到 `final/<batch_id>/final_assets/masks/{image_id}.png`；清单内 `seg.mask_ref` **必须**为 `final_assets/masks/{image_id}.png`（相对本 final 批次目录）。禁止在 final 清单中保留 `masks/`、`manual_masks/`、`prelabels/` 根路径；空 mask 只复制、不重生成。不修改 `prelabels/` / `manual_masks/` / `current/` |
 
 ---
 
@@ -228,7 +239,8 @@ raw
 | `task_packages/<batch_id>/<task>/` | `manifest.json` | `package_id`、`task_type`、`batch_id`、样本列表 |
 | `prelabels/<batch_id>/<task>/` | `prelabels.json` | 统一中间格式（`docs/formats.md`）；关联键 `image_id` |
 | `results/<batch_id>/<task>/current/` | `annotations.json` | 当前有效 `TaskAnnotationResult` 列表 |
-| `final/<batch_id>/` | `manifest.json` | 合并后的多任务记录清单（字段对齐 `MergedMultitaskRecord`） |
+| `final/<batch_id>/` | `manifest.json` | 合并后的多任务记录清单（字段对齐 `MergedMultitaskRecord`）；`seg.mask_ref` 统一为 `final_assets/masks/{image_id}.png` |
+| `final/<batch_id>/final_assets/masks/` | `{image_id}.png` | merge 时从 manual/prelabel 复制的统一 SEG mask |
 
 轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。
 

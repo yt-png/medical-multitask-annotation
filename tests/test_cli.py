@@ -441,14 +441,20 @@ def test_export_split_success(
     rework = (
         data_root / "results" / "batch_cli" / "cap" / "rework" / "annotations.json"
     )
+    pending = (
+        data_root / "results" / "batch_cli" / "cap" / "pending" / "annotations.json"
+    )
     assert normal.is_file()
     assert rework.is_file()
+    assert pending.is_file()
     lines = [line for line in captured.out.splitlines() if line.strip()]
-    assert len(lines) == 2
+    assert len(lines) == 3
     assert str(normal.resolve()) in lines[0] or str(normal) in lines[0]
     assert str(rework.resolve()) in lines[1] or str(rework) in lines[1]
+    assert str(pending.resolve()) in lines[2] or str(pending) in lines[2]
     assert json.loads(normal.read_text(encoding="utf-8"))[0]["image_id"] == "img-a"
     assert json.loads(rework.read_text(encoding="utf-8")) == []
+    assert json.loads(pending.read_text(encoding="utf-8")) == []
 
 
 def test_export_split_missing_export(
@@ -598,6 +604,7 @@ def _write_merge_ready_fixture(data_root: Path, batch_id: str = "batch_merge") -
         TaskAnnotationResult,
         TaskType,
     )
+    from mma.converters.seg_brush import save_binary_mask_png
     from mma.exporters import overwrite_current
 
     def seg(image_id: str) -> TaskAnnotationResult:
@@ -647,6 +654,10 @@ def _write_merge_ready_fixture(data_root: Path, batch_id: str = "batch_merge") -
         batch_id=batch_id,
         task_type=TaskType.CAP,
         data_root=data_root,
+    )
+    save_binary_mask_png(
+        data_root / "prelabels" / batch_id / "seg" / "masks" / f"{image_id}.png",
+        [[0, 1], [1, 0]],
     )
     write_json(
         data_root / "processed" / batch_id / "manifest.json",

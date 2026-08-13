@@ -18,16 +18,33 @@ from mma.common.models import (
     TaskAnnotationResult,
     TaskType,
 )
+from mma.converters.seg_brush import (
+    load_foreground_mask,
+    save_binary_mask_png,
+    write_empty_manual_mask,
+)
 from mma.exporters import overwrite_current
-from mma.merge import merge_to_final, write_final_manifest
+from mma.merge import (
+    assert_final_seg_mask_contract,
+    final_seg_mask_ref,
+    materialize_final_seg_mask,
+    merge_to_final,
+    write_final_manifest,
+)
 from mma.merge.write_final import FINAL_MANIFEST_NAME
 
 
-def _seg(image_id: str) -> TaskAnnotationResult:
+def _seg(
+    image_id: str,
+    *,
+    mask_ref: str | None = None,
+) -> TaskAnnotationResult:
     return TaskAnnotationResult(
         image_id=image_id,
         task_type=TaskType.SEG,
-        annotation=SegAnnotation(mask_ref=f"masks/{image_id}.png"),
+        annotation=SegAnnotation(
+            mask_ref=mask_ref or f"masks/{image_id}.png"
+        ),
         human_confirmed=True,
         needs_rework=False,
     )
@@ -55,10 +72,49 @@ def _cap(image_id: str) -> TaskAnnotationResult:
     )
 
 
+def _write_prelabel_mask(
+    data_root: Path,
+    batch_id: str,
+    image_id: str,
+    *,
+    binary: list[list[int]] | None = None,
+) -> Path:
+    masks_dir = data_root / "prelabels" / batch_id / "seg" / "masks"
+    path = masks_dir / f"{image_id}.png"
+    pixels = binary or [[0, 1], [1, 0]]
+    save_binary_mask_png(path, pixels)
+    return path
+
+
+def _write_manual_mask(
+    data_root: Path,
+    batch_id: str,
+    image_id: str,
+    *,
+    binary: list[list[int]] | None = None,
+    empty: bool = False,
+) -> Path:
+    mask_dir = data_root / "results" / batch_id / "seg" / "manual_masks"
+    if empty:
+        write_empty_manual_mask(
+            image_id=image_id,
+            width=2,
+            height=2,
+            manual_mask_dir=mask_dir,
+        )
+        return mask_dir / f"{image_id}_manual.png"
+    pixels = binary or [[1, 0], [0, 1]]
+    path = mask_dir / f"{image_id}_manual.png"
+    save_binary_mask_png(path, pixels)
+    return path
+
+
 def _write_ready_currents(
     data_root: Path,
     batch_id: str,
     image_ids: tuple[str, ...] = ("img-b", "img-a"),
+    *,
+    write_prelabel_masks: bool = True,
 ) -> None:
     overwrite_current(
         [_seg(i) for i in image_ids],
@@ -78,6 +134,9 @@ def _write_ready_currents(
         task_type=TaskType.CAP,
         data_root=data_root,
     )
+    if write_prelabel_masks:
+        for image_id in image_ids:
+            _write_prelabel_mask(data_root, batch_id, image_id)
 
 
 def _write_processed(
@@ -135,8 +194,9 @@ def test_merge_to_final_success_order_and_enrich(tmp_path: Path) -> None:
     first = payload["items"][0]
     assert first["image_path"] == "/img/img-b.jpg"
     assert first["diagnosis_text"] == "diag-img-b"
-    assert first["seg"]["mask_ref"] == "masks/img-b.png"
+    assert first["seg"]["mask_ref"] == final_seg_mask_ref("img-b")
     assert first["cap"]["caption"] == "cap-img-b"
+    assert (tmp_path / "final" / "batch1" / "final_assets" / "masks" / "img-b.png").is_file()
 
 
 def test_merge_to_final_overwrites(tmp_path: Path) -> None:
@@ -148,6 +208,7 @@ def test_merge_to_final_overwrites(tmp_path: Path) -> None:
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert len(payload["items"]) == 1
     assert payload["items"][0]["image_id"] == "img-a"
+    assert payload["items"][0]["seg"]["mask_ref"] == final_seg_mask_ref("img-a")
 
 
 def test_merge_to_final_not_ready_preserves_old(tmp_path: Path) -> None:
@@ -222,20 +283,14 @@ def test_invalid_batch_id_raises(tmp_path: Path) -> None:
         merge_to_final("bad/id", data_root=tmp_path)
 
 
-def test_merge_to_final_keeps_manual_mask_ref(tmp_path: Path) -> None:
-    image_id = "img-a"
+def test_case1_manual_mask_materializes_to_final_assets(tmp_path: Path) -> None:
+    """Case1: manual_masks/{id}_manual.png → final_assets/masks/{id}.png."""
+
+    image_id = "a"
+    binary = [[1, 0], [0, 1]]
+    _write_manual_mask(tmp_path, "batch1", image_id, binary=binary)
     overwrite_current(
-        [
-            TaskAnnotationResult(
-                image_id=image_id,
-                task_type=TaskType.SEG,
-                annotation=SegAnnotation(
-                    mask_ref=f"manual_masks/{image_id}_manual.png"
-                ),
-                human_confirmed=True,
-                needs_rework=False,
-            )
-        ],
+        [_seg(image_id, mask_ref=f"manual_masks/{image_id}_manual.png")],
         batch_id="batch1",
         task_type=TaskType.SEG,
         data_root=tmp_path,
@@ -253,8 +308,140 @@ def test_merge_to_final_keeps_manual_mask_ref(tmp_path: Path) -> None:
         data_root=tmp_path,
     )
     _write_processed(tmp_path, "batch1", image_ids=(image_id,))
+
     path = merge_to_final("batch1", data_root=tmp_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["items"][0]["seg"]["mask_ref"] == (
-        f"manual_masks/{image_id}_manual.png"
+    assert payload["items"][0]["seg"]["mask_ref"] == final_seg_mask_ref(image_id)
+    out = tmp_path / "final" / "batch1" / "final_assets" / "masks" / f"{image_id}.png"
+    assert out.is_file()
+    loaded, width, height = load_foreground_mask(out)
+    assert (width, height) == (2, 2)
+    assert loaded == binary
+
+
+def test_case2_prelabel_mask_materializes_to_final_assets(tmp_path: Path) -> None:
+    """Case2: prelabels masks/{id}.png → final_assets/masks/{id}.png."""
+
+    image_id = "a"
+    binary = [[0, 1], [1, 1]]
+    _write_prelabel_mask(tmp_path, "batch1", image_id, binary=binary)
+    overwrite_current(
+        [_seg(image_id, mask_ref=f"masks/{image_id}.png")],
+        batch_id="batch1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
     )
+    overwrite_current(
+        [_det(image_id)],
+        batch_id="batch1",
+        task_type=TaskType.DET,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_cap(image_id)],
+        batch_id="batch1",
+        task_type=TaskType.CAP,
+        data_root=tmp_path,
+    )
+    _write_processed(tmp_path, "batch1", image_ids=(image_id,))
+
+    path = merge_to_final("batch1", data_root=tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["items"][0]["seg"]["mask_ref"] == final_seg_mask_ref(image_id)
+    out = tmp_path / "final" / "batch1" / "final_assets" / "masks" / f"{image_id}.png"
+    loaded, _, _ = load_foreground_mask(out)
+    assert loaded == binary
+
+
+def test_case3_empty_manual_mask_is_copied_not_regenerated(tmp_path: Path) -> None:
+    """Case3: empty manual mask is copied as-is into final_assets."""
+
+    image_id = "a"
+    _write_manual_mask(tmp_path, "batch1", image_id, empty=True)
+    overwrite_current(
+        [_seg(image_id, mask_ref=f"manual_masks/{image_id}_manual.png")],
+        batch_id="batch1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_det(image_id)],
+        batch_id="batch1",
+        task_type=TaskType.DET,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_cap(image_id)],
+        batch_id="batch1",
+        task_type=TaskType.CAP,
+        data_root=tmp_path,
+    )
+    _write_processed(tmp_path, "batch1", image_ids=(image_id,))
+
+    path = merge_to_final("batch1", data_root=tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["items"][0]["seg"]["mask_ref"] == final_seg_mask_ref(image_id)
+    out = tmp_path / "final" / "batch1" / "final_assets" / "masks" / f"{image_id}.png"
+    loaded, width, height = load_foreground_mask(out)
+    assert (width, height) == (2, 2)
+    assert loaded == [[0, 0], [0, 0]]
+
+
+def test_case4_all_final_mask_refs_use_unified_prefix(tmp_path: Path) -> None:
+    """Case4: after merge every seg.mask_ref starts with final_assets/masks/."""
+
+    ids = ("img-b", "img-a")
+    _write_ready_currents(tmp_path, "batch1", image_ids=ids)
+    # Mix one manual override
+    _write_manual_mask(tmp_path, "batch1", "img-a", binary=[[1, 1], [0, 0]])
+    overwrite_current(
+        [_seg("img-a", mask_ref="manual_masks/img-a_manual.png")],
+        batch_id="batch1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
+    )
+    _write_processed(tmp_path, "batch1", image_ids=ids)
+
+    path = merge_to_final("batch1", data_root=tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    refs = [item["seg"]["mask_ref"] for item in payload["items"]]
+    assert refs
+    for item in payload["items"]:
+        ref = item["seg"]["mask_ref"]
+        assert ref.startswith("final_assets/masks/")
+        assert ref == final_seg_mask_ref(item["image_id"])
+        assert not ref.startswith("masks/")
+        assert "manual_masks/" not in ref
+        assert "prelabels/" not in ref
+
+
+def test_assert_final_seg_mask_contract_rejects_legacy_roots() -> None:
+    good = MergedMultitaskRecord(
+        image_id="a",
+        seg=SegAnnotation(mask_ref=final_seg_mask_ref("a")),
+        det=DetAnnotation(bboxes=()),
+        cap=CapAnnotation(caption="c"),
+    )
+    assert_final_seg_mask_contract((good,))
+
+    bad = MergedMultitaskRecord(
+        image_id="a",
+        seg=SegAnnotation(mask_ref="masks/a.png"),
+        det=DetAnnotation(bboxes=()),
+        cap=CapAnnotation(caption="c"),
+    )
+    with pytest.raises(ValueError, match="mask_ref contract"):
+        assert_final_seg_mask_contract((bad,))
+
+
+def test_materialize_final_seg_mask_copies_file(tmp_path: Path) -> None:
+    image_id = "x"
+    _write_prelabel_mask(tmp_path, "batch1", image_id, binary=[[1, 0], [0, 0]])
+    out = materialize_final_seg_mask(
+        image_id=image_id,
+        seg=SegAnnotation(mask_ref=f"masks/{image_id}.png"),
+        batch_id="batch1",
+        data_root=tmp_path,
+    )
+    assert out.mask_ref == final_seg_mask_ref(image_id)
+    assert (tmp_path / "final" / "batch1" / "final_assets" / "masks" / "x.png").is_file()

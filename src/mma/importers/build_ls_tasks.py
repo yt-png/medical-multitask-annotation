@@ -7,7 +7,7 @@ from typing import Any
 
 from PIL import Image
 
-from mma.common.io import write_json
+from mma.common.io import read_json, write_json
 from mma.common.models import TaskType
 from mma.common.paths import (
     default_data_root,
@@ -23,6 +23,7 @@ from mma.converters import (
     document_to_ls_tasks,
 )
 from mma.formats import load_prelabel_document
+from mma.importers.validate_prelabel_coverage import validate_prelabel_coverage
 
 TASKS_JSON_NAME = "tasks.json"
 LOCAL_FILES_PREFIX = "/data/local-files/?d="
@@ -181,6 +182,14 @@ def build_ls_import_tasks(
             f"requested {task_type.value} (batch_id={cleaned!r})"
         )
 
+    package_ids = _load_task_package_image_ids(
+        cleaned,
+        task_type,
+        data_root=root,
+    )
+    prelabel_ids = [item.image_id for item in document.items]
+    validate_prelabel_coverage(package_ids, prelabel_ids)
+
     image_paths_by_id: dict[str, Path] = {}
     for item in document.items:
         image_paths_by_id[item.image_id] = resolve_task_image_path(
@@ -208,3 +217,51 @@ def build_ls_import_tasks(
     out_path = out_dir / TASKS_JSON_NAME
     write_json(out_path, tasks)
     return out_path.resolve()
+
+
+def _load_task_package_image_ids(
+    batch_id: str,
+    task_type: TaskType,
+    *,
+    data_root: Path,
+) -> list[str]:
+    """Load ordered ``image_id`` list from task-package ``manifest.json``."""
+
+    package_dir = task_package_dir(batch_id, task_type, data_root=data_root)
+    manifest_path = package_dir / "manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(
+            f"task package manifest not found: {manifest_path} "
+            f"(batch_id={batch_id!r}, task={task_dir_name(task_type)!r})"
+        )
+    payload = read_json(manifest_path)
+    if not isinstance(payload, dict):
+        raise ValueError(f"task package manifest must be an object: {manifest_path}")
+
+    samples = payload.get("samples")
+    if not isinstance(samples, list) or not samples:
+        raise ValueError(
+            f"task package manifest has no samples: {manifest_path}"
+        )
+
+    image_ids: list[str] = []
+    seen: set[str] = set()
+    for index, sample in enumerate(samples):
+        if not isinstance(sample, dict):
+            raise ValueError(
+                f"task package manifest sample at index {index} must be an object"
+            )
+        raw = sample.get("image_id")
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError(
+                f"task package manifest sample at index {index} "
+                "missing non-empty image_id"
+            )
+        image_id = raw.strip()
+        if image_id in seen:
+            raise ValueError(
+                f"duplicate image_id in task package manifest: {image_id!r}"
+            )
+        seen.add(image_id)
+        image_ids.append(image_id)
+    return image_ids

@@ -277,7 +277,7 @@ def _run_export_split(args: argparse.Namespace) -> int:
     from mma.exporters.export_split_from_export import export_split_from_export
 
     try:
-        normal_path, rework_path = export_split_from_export(
+        normal_path, rework_path, pending_path = export_split_from_export(
             args.export,
             batch_id=args.batch,
             task=args.task,
@@ -289,6 +289,7 @@ def _run_export_split(args: argparse.Namespace) -> int:
 
     print(str(Path(normal_path)))
     print(str(Path(rework_path)))
+    print(str(Path(pending_path)))
     return 0
 
 

@@ -232,6 +232,124 @@ def test_parse_det_with_boxes_requires_metadata() -> None:
         )
 
 
+def _det_prediction_box(
+    *,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+) -> dict:
+    return {
+        "from_name": "det_bbox",
+        "to_name": "image",
+        "type": "rectanglelabels",
+        "value": {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "rectanglelabels": ["object"],
+        },
+    }
+
+
+def test_parse_det_unoperated_falls_back_to_predictions() -> None:
+    """Case1: no det_bbox in annotation, prediction link absent → keep predictions."""
+
+    task = _det_task(image_id="img-det-fb", boxes_pct=[])
+    task["predictions"] = [
+        {
+            "id": 42,
+            "result": [
+                _det_prediction_box(
+                    x=10.0,
+                    y=20.0,
+                    width=5.0,
+                    height=8.0,
+                )
+            ],
+        }
+    ]
+    meta = {"img-det-fb": ImageMetadata(width=100, height=100)}
+    results = parse_ls_export_data(
+        [task],
+        task_type=TaskType.DET,
+        image_metadata_by_id=meta,
+    )
+    annotation = results[0].annotation
+    assert isinstance(annotation, DetAnnotation)
+    assert len(annotation.bboxes) == 1
+    box = annotation.bboxes[0]
+    assert box.x == pytest.approx(10.0)
+    assert box.y == pytest.approx(20.0)
+    assert box.width == pytest.approx(5.0)
+    assert box.height == pytest.approx(8.0)
+
+
+def test_parse_det_annotation_boxes_preferred_over_predictions() -> None:
+    """Case2: annotation has det_bbox → use human boxes (ignore predictions)."""
+
+    task = _det_task(
+        image_id="img-det-human",
+        boxes_pct=[(50.0, 40.0, 10.0, 12.0)],
+    )
+    task["predictions"] = [
+        {
+            "id": 7,
+            "result": [
+                _det_prediction_box(
+                    x=1.0,
+                    y=2.0,
+                    width=3.0,
+                    height=4.0,
+                )
+            ],
+        }
+    ]
+    meta = {"img-det-human": ImageMetadata(width=100, height=100)}
+    results = parse_ls_export_data(
+        [task],
+        task_type=TaskType.DET,
+        image_metadata_by_id=meta,
+    )
+    annotation = results[0].annotation
+    assert isinstance(annotation, DetAnnotation)
+    assert len(annotation.bboxes) == 1
+    box = annotation.bboxes[0]
+    assert box.x == pytest.approx(50.0)
+    assert box.y == pytest.approx(40.0)
+    assert box.width == pytest.approx(10.0)
+    assert box.height == pytest.approx(12.0)
+
+
+def test_parse_det_cleared_after_accept_yields_empty_boxes() -> None:
+    """Case3: no det_bbox but annotation.prediction set → empty (not prediction)."""
+
+    task = _det_task(image_id="img-det-cleared", boxes_pct=[])
+    task["annotations"][0]["prediction"] = 42
+    task["predictions"] = [
+        {
+            "id": 42,
+            "result": [
+                _det_prediction_box(
+                    x=10.0,
+                    y=20.0,
+                    width=5.0,
+                    height=8.0,
+                )
+            ],
+        }
+    ]
+    results = parse_ls_export_data(
+        [task],
+        task_type=TaskType.DET,
+        image_metadata_by_id={"img-det-cleared": ImageMetadata(width=100, height=100)},
+    )
+    annotation = results[0].annotation
+    assert isinstance(annotation, DetAnnotation)
+    assert annotation.bboxes == ()
+
+
 def test_parse_seg_without_manual_dir_keeps_data_mask_ref() -> None:
     data = [
         _seg_task(
@@ -248,12 +366,34 @@ def test_parse_seg_without_manual_dir_keeps_data_mask_ref() -> None:
 
 
 def test_parse_seg_no_brush_keeps_data_mask_ref(tmp_path: Path) -> None:
+    """Case 1: prediction/prelabel present, no annotation SEG operation → fallback."""
+
     data = [
         _seg_task(
             image_id="img-seg-nb",
             mask_ref="masks/prelabel.png",
             include_brush=False,
         )
+    ]
+    # Attach predictions (prelabel brushes) without linking annotation.prediction
+    data[0]["predictions"] = [
+        {
+            "id": 10,
+            "result": [
+                {
+                    "from_name": "seg_mask",
+                    "to_name": "image",
+                    "type": "brushlabels",
+                    "original_width": 2,
+                    "original_height": 2,
+                    "value": {
+                        "format": "rle",
+                        "rle": [0, 1, 2],
+                        "brushlabels": ["lesion"],
+                    },
+                }
+            ],
+        }
     ]
     results = parse_ls_export_data(
         data,
@@ -264,7 +404,97 @@ def test_parse_seg_no_brush_keeps_data_mask_ref(tmp_path: Path) -> None:
     assert not (tmp_path / "manual_masks").exists()
 
 
+def test_parse_seg_cleared_brushes_writes_empty_mask(tmp_path: Path) -> None:
+    """Case 2: accepted prediction then deleted all brushes → empty human mask."""
+
+    from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref
+
+    task = _seg_task(
+        image_id="img-cleared",
+        mask_ref="masks/prelabel.png",
+        include_brush=False,
+    )
+    task["annotations"][0]["prediction"] = 10
+    task["predictions"] = [
+        {
+            "id": 10,
+            "result": [
+                {
+                    "from_name": "seg_mask",
+                    "to_name": "image",
+                    "type": "brushlabels",
+                    "original_width": 3,
+                    "original_height": 2,
+                    "value": {
+                        "format": "rle",
+                        "rle": [0, 1, 2],
+                        "brushlabels": ["lesion"],
+                    },
+                }
+            ],
+        }
+    ]
+    mask_dir = tmp_path / "manual_masks"
+    results = parse_ls_export_data(
+        [task],
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=mask_dir,
+    )
+    annotation = results[0].annotation
+    assert isinstance(annotation, SegAnnotation)
+    assert annotation.mask_ref == manual_mask_ref("img-cleared")
+    out_file = mask_dir / "img-cleared_manual.png"
+    assert out_file.is_file()
+    loaded, width, height = load_foreground_mask(out_file)
+    assert (width, height) == (3, 2)
+    assert loaded == [[0, 0, 0], [0, 0, 0]]
+
+
+def test_parse_seg_cleared_via_empty_rle_marker_writes_empty_mask(
+    tmp_path: Path,
+) -> None:
+    """Case 2b: explicit empty ``seg_mask`` rle marker → empty human mask."""
+
+    from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref
+
+    task = _seg_task(
+        image_id="img-empty-rle",
+        mask_ref="masks/prelabel.png",
+        include_brush=False,
+    )
+    # Insert clear marker before choices
+    task["annotations"][0]["result"].insert(
+        0,
+        {
+            "from_name": "seg_mask",
+            "to_name": "image",
+            "type": "brushlabels",
+            "original_width": 2,
+            "original_height": 2,
+            "value": {
+                "format": "rle",
+                "rle": [],
+                "brushlabels": [],
+            },
+        },
+    )
+    mask_dir = tmp_path / "manual_masks"
+    results = parse_ls_export_data(
+        [task],
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=mask_dir,
+    )
+    assert results[0].annotation.mask_ref == manual_mask_ref("img-empty-rle")
+    loaded, width, height = load_foreground_mask(
+        mask_dir / "img-empty-rle_manual.png"
+    )
+    assert (width, height) == (2, 2)
+    assert loaded == [[0, 0], [0, 0]]
+
+
 def test_parse_seg_with_brush_and_manual_dir_writes_mask(tmp_path: Path) -> None:
+    """Case 3: annotation has brush → write human mask."""
+
     from mma.converters.seg_brush import (
         load_foreground_mask,
         manual_mask_ref,

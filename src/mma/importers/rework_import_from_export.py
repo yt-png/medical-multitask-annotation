@@ -72,7 +72,7 @@ def rework_import_from_export(
         task_type=task_type,
         image_metadata_by_id=metadata,
     )
-    _, rework = split_by_rework(results)
+    _, rework, _ = split_by_rework(results)
     raw = extract_ls_raw_results(path, task_type=task_type)
     tasks = build_rework_ls_tasks(
         rework,
