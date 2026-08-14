@@ -274,6 +274,38 @@ def load_foreground_mask_numpy(
     return binary, width, height
 
 
+def _component_bbox_percent_polygon(
+    component: np.ndarray,
+) -> list[list[float]] | None:
+    """Build a 4-point percent polygon from a component bounding box.
+
+    Degenerate (1×1 / thin) boxes are expanded by one pixel when possible so
+    ``fillPoly`` can rasterize tiny prelabel blobs.
+    """
+
+    ys, xs = np.where(component > 0)
+    if ys.size == 0:
+        return None
+    height, width = component.shape
+    x0 = int(xs.min())
+    x1 = int(xs.max())
+    y0 = int(ys.min())
+    y1 = int(ys.max())
+    if x1 <= x0:
+        x1 = min(width - 1, x0 + 1) if width > 1 else x0
+        if x1 == x0 and x0 > 0:
+            x0 = x0 - 1
+    if y1 <= y0:
+        y1 = min(height - 1, y0 + 1) if height > 1 else y0
+        if y1 == y0 and y0 > 0:
+            y0 = y0 - 1
+    pixels = np.asarray(
+        [[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+        dtype=np.float64,
+    )
+    return pixels_to_percent_points(pixels, width=width, height=height)
+
+
 def binary_mask_to_polygon_points(
     mask: np.ndarray,
     *,
@@ -282,8 +314,9 @@ def binary_mask_to_polygon_points(
     """Extract external contours as LS percent polygons (one list per contour).
 
     Pipeline: connected components → ``findContours`` → ``approxPolyDP`` →
-    percentage points. Components / contours with fewer than 3 vertices after
-    approximation are skipped.
+    percentage points. Tiny components whose contours have fewer than 3 vertices
+    fall back to an axis-aligned bounding-box polygon so single-pixel prelabels
+    still emit LS geometry.
     """
 
     if epsilon_ratio < 0:
@@ -306,6 +339,7 @@ def binary_mask_to_polygon_points(
             cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE,
         )
+        emitted = False
         for contour in contours:
             if contour is None or len(contour) < 3:
                 continue
@@ -313,11 +347,18 @@ def binary_mask_to_polygon_points(
             epsilon = float(epsilon_ratio) * peri
             approx = cv2.approxPolyDP(contour, epsilon, True)
             if approx is None or len(approx) < 3:
+                approx = contour
+            if len(approx) < 3:
                 continue
             pixels = approx.reshape(-1, 2)
             polygons.append(
                 pixels_to_percent_points(pixels, width=width, height=height)
             )
+            emitted = True
+        if not emitted:
+            bbox_poly = _component_bbox_percent_polygon(component)
+            if bbox_poly is not None:
+                polygons.append(bbox_poly)
 
     return polygons
 

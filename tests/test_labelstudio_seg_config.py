@@ -25,7 +25,7 @@ def test_seg_config_packaged_and_readable() -> None:
     assert path.is_file()
     text = load_seg_config_text()
     assert text.strip()
-    assert "<BrushLabels" in text
+    assert "<PolygonLabels" in text
 
 
 def test_seg_config_well_formed_xml() -> None:
@@ -33,7 +33,7 @@ def test_seg_config_well_formed_xml() -> None:
     assert root.tag == "View"
 
 
-def test_seg_image_and_brush_binding() -> None:
+def test_seg_image_and_polygon_binding() -> None:
     root = _parse_config()
     images = _find_all(root, "Image")
     assert len(images) == 1
@@ -41,13 +41,13 @@ def test_seg_image_and_brush_binding() -> None:
     assert image.get("name") == "image"
     assert image.get("value") == "$image"
 
-    brushes = _find_all(root, "BrushLabels")
-    assert len(brushes) == 1
-    brush = brushes[0]
-    assert brush.get("name") == "seg_mask"
-    assert brush.get("toName") == "image"
+    polygons = _find_all(root, "PolygonLabels")
+    assert len(polygons) == 1
+    polygon = polygons[0]
+    assert polygon.get("name") == "seg_mask"
+    assert polygon.get("toName") == "image"
 
-    labels = [el.get("value") for el in brush.findall("Label")]
+    labels = [el.get("value") for el in polygon.findall("Label")]
     assert labels == ["lesion"]
 
 

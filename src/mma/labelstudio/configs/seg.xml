@@ -3,9 +3,9 @@
     <View style="flex: 2;">
       <Header value="原图与分割标注"/>
       <Image name="image" value="$image"/>
-      <BrushLabels name="seg_mask" toName="image">
+      <PolygonLabels name="seg_mask" toName="image">
         <Label value="lesion" background="#FF0000"/>
-      </BrushLabels>
+      </PolygonLabels>
     </View>
     <View style="flex: 1;">
       <Header value="原始诊断文本"/>

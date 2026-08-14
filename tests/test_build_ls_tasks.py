@@ -210,7 +210,7 @@ def test_build_det_includes_rectangle_predictions(tmp_path: Path) -> None:
     assert tasks[0]["data"]["image"].startswith(LOCAL_FILES_PREFIX)
 
 
-def test_build_seg_with_mask_emits_brush(tmp_path: Path) -> None:
+def test_build_seg_with_mask_emits_polygon(tmp_path: Path) -> None:
     data_root = tmp_path / "data"
     batch_id = "demo_batch"
     image_id = "demo_batch__000001"
@@ -238,7 +238,10 @@ def test_build_seg_with_mask_emits_brush(tmp_path: Path) -> None:
     tasks = json.loads(out.read_text(encoding="utf-8"))
     assert tasks[0]["data"]["mask_ref"] == mask_ref
     assert len(tasks[0]["predictions"][0]["result"]) == 2
-    assert tasks[0]["predictions"][0]["result"][0]["value"]["format"] == "rle"
+    result0 = tasks[0]["predictions"][0]["result"][0]
+    assert result0["type"] == "polygonlabels"
+    assert "points" in result0["value"]
+    assert len(result0["value"]["points"]) >= 3
 
 
 def test_ls_import_coverage_missing_prelabel_raises(tmp_path: Path) -> None:

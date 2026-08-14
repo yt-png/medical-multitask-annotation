@@ -555,7 +555,7 @@ def build_seg_brush_results(
                 "image_rotation": 0,
                 "from_name": spec["from_name"],
                 "to_name": spec["to_name"],
-                "type": spec["type"],
+                "type": "brushlabels",
                 "value": {
                     "format": "rle",
                     "rle": rle,

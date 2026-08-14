@@ -123,7 +123,7 @@ def test_build_seg_brush_results_writes_spec_fields(tmp_path: Path) -> None:
     for result in results:
         assert result["from_name"] == spec["from_name"]
         assert result["to_name"] == spec["to_name"]
-        assert result["type"] == spec["type"]
+        assert result["type"] == "brushlabels"
         assert result["original_width"] == 3
         assert result["original_height"] == 3
         assert result["value"]["format"] == "rle"
@@ -172,10 +172,13 @@ def test_item_without_mask_root_keeps_empty_result() -> None:
 
 def test_item_with_mask_root_emits_brush_results(tmp_path: Path) -> None:
     _save_l_mask(tmp_path / "masks" / "a.png", [[1, 0], [0, 1]])
-    task = item_to_ls_task(_seg_item(), mask_root=tmp_path)
+    task = item_to_ls_task(
+        _seg_item(), mask_root=tmp_path, seg_prefill_mode="brush"
+    )
     # diagonal 8-connected → one component
     assert len(task["predictions"][0]["result"]) == 1
     assert task["data"]["mask_ref"] == "masks/a.png"
+    assert task["predictions"][0]["result"][0]["type"] == "brushlabels"
 
 
 def test_document_to_ls_tasks_passes_mask_root(tmp_path: Path) -> None:
@@ -188,7 +191,9 @@ def test_document_to_ls_tasks_passes_mask_root(tmp_path: Path) -> None:
         task_type=TaskType.SEG,
         items=(item,),
     )
-    tasks = document_to_ls_tasks(document, mask_root=tmp_path)
+    tasks = document_to_ls_tasks(
+        document, mask_root=tmp_path, seg_prefill_mode="brush"
+    )
     assert len(tasks[0]["predictions"][0]["result"]) == 2
 
 

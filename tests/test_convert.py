@@ -150,7 +150,7 @@ def test_seg_and_cap_ignore_metadata() -> None:
     assert task["predictions"][0]["result"] == []
 
 
-def test_seg_with_mask_root_emits_brush_results(tmp_path: Path) -> None:
+def test_seg_with_mask_root_emits_polygon_results(tmp_path: Path) -> None:
     from PIL import Image
 
     mask_dir = tmp_path / "masks"
@@ -172,6 +172,36 @@ def test_seg_with_mask_root_emits_brush_results(tmp_path: Path) -> None:
     task = item_to_ls_task(item, mask_root=tmp_path)
     results = task["predictions"][0]["result"]
     assert len(results) == 2
+    assert results[0]["type"] == "polygonlabels"
+    assert "points" in results[0]["value"]
+    assert len(results[0]["value"]["points"]) >= 3
+    assert results[0]["from_name"] == "seg_mask"
+    assert task["data"][DATA_KEY_MASK_REF] == "masks/a.png"
+
+
+def test_seg_with_mask_root_brush_mode_emits_rle(tmp_path: Path) -> None:
+    from PIL import Image
+
+    mask_dir = tmp_path / "masks"
+    mask_dir.mkdir()
+    img = Image.new("L", (4, 4), 0)
+    img.putpixel((0, 0), 255)
+    img.putpixel((3, 3), 255)
+    img.save(mask_dir / "a.png")
+
+    item = PrelabelItem(
+        schema_version=SCHEMA_VERSION,
+        batch_id="b",
+        package_id="b__seg",
+        task_type=TaskType.SEG,
+        image_id="b__000001",
+        diagnosis_text="diag",
+        payload=SegPrelabelPayload(mask_ref="masks/a.png"),
+    )
+    task = item_to_ls_task(item, mask_root=tmp_path, seg_prefill_mode="brush")
+    results = task["predictions"][0]["result"]
+    assert len(results) == 2
+    assert results[0]["type"] == "brushlabels"
     assert results[0]["value"]["format"] == "rle"
     assert results[0]["from_name"] == "seg_mask"
     assert task["data"][DATA_KEY_MASK_REF] == "masks/a.png"

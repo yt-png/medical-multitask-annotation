@@ -1,8 +1,9 @@
 """Convert unified prelabel intermediate format to Label Studio import JSON.
 
-SEG brush RLE prefill (T3.1b) is optional via ``mask_root``. Does not wire CLI
-or define Label Studio XML. ``from_name`` / ``to_name`` / ``type`` defaults live
-in ``DEFAULT_LS_RESULT_SPECS``.
+SEG geometry prefill (T3.1b) is optional via ``mask_root``. Default mode is
+polygonlabels; brush RLE mode remains available via ``SEG_PREFILL_MODE``.
+Does not wire CLI or define Label Studio XML. ``from_name`` / ``to_name`` /
+``type`` defaults live in ``DEFAULT_LS_RESULT_SPECS``.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from mma.common.models import TaskType
 from mma.formats.intermediate import (
@@ -33,13 +34,17 @@ DATA_KEY_IMAGE_ID = "image_id"
 DATA_KEY_PACKAGE_ID = "package_id"
 DATA_KEY_BATCH_ID = "batch_id"
 
+# SEG prediction prefill mode: ``polygon`` (default) or legacy ``brush`` RLE.
+SegPrefillMode = Literal["polygon", "brush"]
+SEG_PREFILL_MODE: SegPrefillMode = "polygon"
+
 # Default Label Studio control/result names for T2.2.
 # T3 XML ``name`` attributes should align with these; adjust in one place later.
 DEFAULT_LS_RESULT_SPECS: dict[TaskType, dict[str, Any]] = {
     TaskType.SEG: {
         "from_name": "seg_mask",
         "to_name": "image",
-        "type": "brushlabels",
+        "type": "polygonlabels",
         "labels": ("lesion",),
     },
     TaskType.DET: {
@@ -99,26 +104,50 @@ def _build_common_data(item: PrelabelItem) -> dict[str, Any]:
     }
 
 
+def _normalize_seg_prefill_mode(mode: str | None) -> SegPrefillMode:
+    resolved = SEG_PREFILL_MODE if mode is None else mode
+    if resolved not in ("polygon", "brush"):
+        raise ValueError(
+            f"SEG_PREFILL_MODE must be 'polygon' or 'brush', got {resolved!r}"
+        )
+    return resolved  # type: ignore[return-value]
+
+
 def _build_seg_results(
     item: PrelabelItem,
     *,
     mask_root: Path | str | None = None,
     image_metadata: ImageMetadata | None = None,
+    seg_prefill_mode: SegPrefillMode | None = None,
 ) -> list[dict[str, Any]]:
     """Build SEG prediction results.
 
     Without ``mask_root``, returns ``[]`` (T2.2-compatible). With ``mask_root``,
-    reads ``mask_ref`` and emits one brush RLE result per 8-connected component
-    (T3.1b). ``data.mask_ref`` is still set by the caller.
+    reads ``mask_ref`` and emits one result per connected component:
+
+    - ``polygon`` (default): polygonlabels percent points (T3.1b polygon)
+    - ``brush``: brushlabels RLE (legacy)
+
+    ``data.mask_ref`` is still set by the caller.
     """
 
     assert isinstance(item.payload, SegPrelabelPayload)
     if mask_root is None:
         return []
-    # Lazy import avoids circular dependency with ``seg_brush``.
-    from mma.converters.seg_brush import build_seg_brush_results
+    mode = _normalize_seg_prefill_mode(seg_prefill_mode)
+    if mode == "brush":
+        # Lazy import avoids circular dependency with ``seg_brush``.
+        from mma.converters.seg_brush import build_seg_brush_results
 
-    return build_seg_brush_results(
+        return build_seg_brush_results(
+            item,
+            mask_root=mask_root,
+            image_metadata=image_metadata,
+        )
+    # Lazy import avoids circular dependency with ``seg_polygon``.
+    from mma.converters.seg_polygon import build_seg_polygon_results
+
+    return build_seg_polygon_results(
         item,
         mask_root=mask_root,
         image_metadata=image_metadata,
@@ -180,6 +209,7 @@ def item_to_ls_task(
     *,
     image_metadata: ImageMetadata | None = None,
     mask_root: Path | str | None = None,
+    seg_prefill_mode: SegPrefillMode | None = None,
 ) -> dict[str, Any]:
     """Convert one ``PrelabelItem`` to a Label Studio import task dict.
 
@@ -187,10 +217,11 @@ def item_to_ls_task(
     The system association key remains ``data.image_id``.
 
     For DET, ``image_metadata`` is required (pixel → percent).
-    For SEG, pass ``mask_root`` to emit brush RLE prefill (T3.1b); omit it to
-    keep empty ``predictions[].result`` (T2.2-compatible). Optional SEG
-    ``image_metadata`` is only used to validate mask size when provided.
-    CAP ignores ``mask_root`` / ``image_metadata``.
+    For SEG, pass ``mask_root`` to emit geometry prefill (T3.1b); omit it to
+    keep empty ``predictions[].result`` (T2.2-compatible). Prefill mode defaults
+    to module ``SEG_PREFILL_MODE`` (``polygon``); pass ``brush`` for legacy RLE.
+    Optional SEG ``image_metadata`` is only used to validate mask size when
+    provided. CAP ignores ``mask_root`` / ``image_metadata``.
     """
 
     assert_payload_matches_task(item.task_type, item.payload)
@@ -203,6 +234,7 @@ def item_to_ls_task(
             item,
             mask_root=mask_root,
             image_metadata=image_metadata,
+            seg_prefill_mode=seg_prefill_mode,
         )
     elif item.task_type is TaskType.DET:
         meta = _require_det_metadata(item, image_metadata)
@@ -229,12 +261,14 @@ def document_to_ls_tasks(
     *,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None = None,
     mask_root: Path | str | None = None,
+    seg_prefill_mode: SegPrefillMode | None = None,
 ) -> list[dict[str, Any]]:
     """Convert a ``PrelabelDocument`` to a list of Label Studio import tasks.
 
     When ``document.task_type`` is DET, ``image_metadata_by_id`` must map every
     item ``image_id`` to an ``ImageMetadata``.
-    For SEG, optional ``mask_root`` enables brush RLE prefill for all items.
+    For SEG, optional ``mask_root`` enables geometry prefill for all items;
+    ``seg_prefill_mode`` selects polygon (default) or legacy brush RLE.
     """
 
     metadata_map = image_metadata_by_id or {}
@@ -264,6 +298,7 @@ def document_to_ls_tasks(
                 item,
                 image_metadata=meta,
                 mask_root=mask_root,
+                seg_prefill_mode=seg_prefill_mode,
             )
         )
 
