@@ -191,7 +191,7 @@ doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 
 | 任务 | 转换要点 |
 |---|---|
-| SEG | 无 `mask_root` 时：`data.mask_ref` + `predictions[].result=[]`（兼容 T2.2）。传入 `mask_root`（T3.1b）时：读取相对该根的 `mask_ref`，按 8 连通拆分前景，每块一条 `brushlabels` RLE（`format=rle`，标签 `lesion`）；缺文件严格失败。 |
+| SEG | 无 `mask_root` 时：`data.mask_ref` + `predictions[].result=[]`（兼容 T2.2）。传入 `mask_root`（T3.1b）时：读取相对该根的 `mask_ref`，按连通域拆分前景；默认每块一条 `polygonlabels`（百分比 `points`，标签 `lesion`）；`seg_prefill_mode="brush"` 时仍为 `brushlabels` RLE。缺文件严格失败。 |
 | DET | 调用方传入 `ImageMetadata(width, height)`；像素框转为 LS **百分比** `rectanglelabels`；空框 → `result: []` |
 | CAP | 原文在 `data.diagnosis_text`；预标注在 textarea `value.text` |
 
@@ -267,11 +267,12 @@ item = ExampleSegAdapter().adapt_item(
 | 工作台控件 | 对齐约定 |
 |---|---|
 | `Image name="image"` / `$image` | 与 T2.2 `data.image`、`DEFAULT_LS_RESULT_SPECS[SEG].to_name` |
-| `BrushLabels name="seg_mask"` | 与 `from_name=seg_mask`；标签 `lesion`；叠在原图上编辑 |
+| `PolygonLabels name="seg_mask"` | 与 `from_name=seg_mask`；标签 `lesion`；多边形叠在原图上编辑（新任务默认） |
+| （历史）`BrushLabels` / `brushlabels`+`rle` | 解析层仍兼容；`seg_brush.py` 保留；预填可用 `SEG_PREFILL_MODE="brush"` |
 | `$diagnosis_text` / `$image_id` 等只读 Text | 与转换 `data.*` 字段名一致；`$mask_ref` 仅路径追溯，**不是**预标注主展示 |
 | `Choices name="human_confirmed"` / `needs_rework` | value 为 `yes`/`no`；对齐契约 `human_confirmed` / `needs_rework` |
 
-预标注 brush 叠图写入 `predictions`（含连通域拆分）属 **T3.1b**：调用 `item_to_ls_task` / `document_to_ls_tasks` 时传入 `mask_root`；实现见 `mma.converters.seg_brush`。
+预标注叠图写入 `predictions`（连通域拆分）属 **T3.1b**：调用 `item_to_ls_task` / `document_to_ls_tasks` 时传入 `mask_root`；默认 `SEG_PREFILL_MODE="polygon"`（`mma.converters.seg_polygon`），可选 `"brush"`（`mma.converters.seg_brush`）。导出解析同时接受 `polygonlabels.points`（百分比）与历史 `brushlabels.rle`，统一落盘为 `manual_masks/{image_id}_manual.png`。
 
 ---
 

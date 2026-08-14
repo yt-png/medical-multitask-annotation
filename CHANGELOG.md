@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-08-14
+
+### Added
+
+- `converters/seg_polygon.py`：SEG polygonlabels 百分比点 ↔ `numpy.uint8` mask（`cv2.fillPoly` / 连通域 + `approxPolyDP`）→ PNG
+- `SEG_PREFILL_MODE`（默认 `polygon`；可选 `brush`）与 `build_seg_polygon_results`
+- 依赖：`numpy>=1.26.0`、`opencv-python-headless>=4.8.0`
+- 测试：`tests/test_seg_polygon.py`（polygon→mask、mask→polygon、round-trip IoU）；`parse_ls_export` polygon 落盘用例
+
+### Changed
+
+- SEG 工作台 `seg.xml`：`BrushLabels` → `PolygonLabels`（`name=seg_mask` 不变）
+- `DEFAULT_LS_RESULT_SPECS[SEG].type` → `polygonlabels`；预填默认发百分比 `points`
+- `parse_ls_export`：同时接受历史 `brushlabels`+`rle` 与 `polygonlabels`+`points`，统一写出 `manual_masks/{image_id}_manual.png`
+- 下游 `mask_ref` / `apply-current` / `export-split` / final 物化契约不变
+- 文档：`README.md` / `docs/formats.md` / `docs/labelstudio_usage.md`
+
+### Notes
+
+- **不删除** `seg_brush.py`；brush 编解码与 `seg_prefill_mode="brush"` 仍可用
+
 ## 2026-08-13
 
 ### Added

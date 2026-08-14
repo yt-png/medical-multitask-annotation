@@ -533,6 +533,113 @@ def test_parse_seg_with_brush_and_manual_dir_writes_mask(tmp_path: Path) -> None
     assert not (tmp_path / "masks" / "old.png").exists()
 
 
+def test_parse_seg_with_polygon_and_manual_dir_writes_mask(tmp_path: Path) -> None:
+    """Case 3b: annotation has polygonlabels → write human mask PNG."""
+
+    from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref
+
+    data = [
+        {
+            "data": {
+                "image": "/data/local-files/?d=x.png",
+                "mask_ref": "masks/pre.png",
+                "diagnosis_text": "d",
+                "image_id": "img-poly",
+                "package_id": "pkg",
+                "batch_id": "b",
+            },
+            "annotations": [
+                {
+                    "result": [
+                        {
+                            "from_name": "seg_mask",
+                            "to_name": "image",
+                            "type": "polygonlabels",
+                            "original_width": 40,
+                            "original_height": 40,
+                            "value": {
+                                "points": [
+                                    [25.0, 25.0],
+                                    [75.0, 25.0],
+                                    [75.0, 75.0],
+                                    [25.0, 75.0],
+                                ],
+                                "polygonlabels": ["lesion"],
+                            },
+                        },
+                        _choice("human_confirmed", "yes"),
+                        _choice("needs_rework", "no"),
+                    ]
+                }
+            ],
+        }
+    ]
+    mask_dir = tmp_path / "manual_masks"
+    results = parse_ls_export_data(
+        data,
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=mask_dir,
+    )
+    annotation = results[0].annotation
+    assert isinstance(annotation, SegAnnotation)
+    assert annotation.mask_ref == manual_mask_ref("img-poly")
+    out_file = mask_dir / "img-poly_manual.png"
+    assert out_file.is_file()
+    loaded, width, height = load_foreground_mask(out_file)
+    assert (width, height) == (40, 40)
+    assert sum(sum(row) for row in loaded) > 0
+
+
+def test_parse_seg_cleared_polygon_writes_empty_mask(tmp_path: Path) -> None:
+    """Empty points clear marker → empty human mask."""
+
+    from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref
+
+    data = [
+        {
+            "data": {
+                "image": "/data/local-files/?d=x.png",
+                "mask_ref": "masks/pre.png",
+                "diagnosis_text": "d",
+                "image_id": "img-empty-poly",
+                "package_id": "pkg",
+                "batch_id": "b",
+            },
+            "annotations": [
+                {
+                    "result": [
+                        {
+                            "from_name": "seg_mask",
+                            "to_name": "image",
+                            "type": "polygonlabels",
+                            "original_width": 3,
+                            "original_height": 2,
+                            "value": {
+                                "points": [],
+                                "polygonlabels": [],
+                            },
+                        },
+                        _choice("human_confirmed", "yes"),
+                        _choice("needs_rework", "no"),
+                    ]
+                }
+            ],
+        }
+    ]
+    mask_dir = tmp_path / "manual_masks"
+    results = parse_ls_export_data(
+        data,
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=mask_dir,
+    )
+    assert results[0].annotation.mask_ref == manual_mask_ref("img-empty-poly")
+    loaded, width, height = load_foreground_mask(
+        mask_dir / "img-empty-poly_manual.png"
+    )
+    assert (width, height) == (3, 2)
+    assert loaded == [[0, 0, 0], [0, 0, 0]]
+
+
 def test_needs_rework_defaults_false_when_missing() -> None:
     data = [_cap_task(image_id="img-nr", caption="ok", rework=None)]
     results = parse_ls_export_data(data, task_type=TaskType.CAP)

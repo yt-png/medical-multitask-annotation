@@ -66,7 +66,7 @@ mma ls-import --batch demo_batch --task cap --data-root data
 
 即：`d=` 后面是相对 `local_root` 的**正斜杠**路径。图像**不会**复制进 `ls_import/`。
 
-SEG 在导入生成时会默认以 `data/prelabels/<batch>/seg` 为 `mask_root`，将 mask 拆连通域后写入 brush 预填；缺 mask 文件会失败（需先补齐预标注资源）。
+SEG 在导入生成时会默认以 `data/prelabels/<batch>/seg` 为 `mask_root`，将 mask 拆连通域后写入 **polygonlabels** 预填（百分比点）；缺 mask 文件会失败（需先补齐预标注资源）。如需历史 brush RLE 预填，在转换 API 传入 `seg_prefill_mode="brush"`。
 
 ---
 
@@ -115,7 +115,7 @@ print(cap_config_path())
 
 | 任务 | 主图 | 可编辑预标注 | 原文 | 勾选 |
 |------|------|--------------|------|------|
-| SEG | `image` ← `$image` | `BrushLabels` `seg_mask` / `lesion` | 只读 `$diagnosis_text` | `human_confirmed`、`needs_rework` |
+| SEG | `image` ← `$image` | `PolygonLabels` `seg_mask` / `lesion`（解析仍兼容历史 Brush RLE） | 只读 `$diagnosis_text` | `human_confirmed`、`needs_rework` |
 | DET | 同上 | `RectangleLabels` `det_bbox` / `object` | 同上 | 同上 |
 | CAP | 同上 | `TextArea` `cap_text` | 同上 | 同上 |
 
@@ -175,7 +175,7 @@ mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.jso
 mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 ```
 
-- `apply-current`：合并写入 `current/annotations.json` 后，**全量重建**同任务 `normal/` 与 `rework/`（以 current 为唯一真实源）；SEG 若有 brush RLE 会同时写出 `results/.../seg/manual_masks/<image_id>_manual.png`
+- `apply-current`：合并写入 `current/annotations.json` 后，**全量重建**同任务 `normal/` 与 `rework/`（以 current 为唯一真实源）；SEG 若有 brush RLE 或 polygon points 会同时写出 `results/.../seg/manual_masks/<image_id>_manual.png`
 - `export-split`：等价于先 apply-current，再返回 `normal/`、`rework/` 路径；分类规则：仅 `human_confirmed=yes` 且 `needs_rework=no` 进 normal；未确认与需返工均进 rework
 - `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）
 

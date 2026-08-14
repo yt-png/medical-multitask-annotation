@@ -22,7 +22,7 @@ python -m venv .venv
 pip install -e .
 ```
 
-运行时依赖见 `requirements.txt`（`openpyxl` 读诊断 Excel；`Pillow` 用于 SEG mask 叠图预填与人工 brush 解码落盘）。
+运行时依赖见 `requirements.txt`（`openpyxl` 读诊断 Excel；`Pillow` / `numpy` / `opencv-python-headless` 用于 SEG mask 叠图预填与人工 brush/polygon 解码落盘）。
 
 **运行约定（配置内嵌）**：无根目录 `configs/default.yaml`。默认数据根为 `./data`（可用 `--data-root`）；诊断 Excel 为 `.xlsx`，首表列名 `image_name` / `diagnosis_text`（见 `mma.common.io`）。目录规范见 [docs/data_layout.md](docs/data_layout.md)。
 
@@ -57,7 +57,7 @@ mma ls-import --batch demo_batch --task seg --data-root data
 
 - 写出 `data/ls_import/<batch>/<task>/tasks.json`
 - `data.image` 使用 `/data/local-files/?d=task_packages/...`（可用 `--local-root` 覆盖相对根）
-- SEG 默认启用 prelabels 目录为 `mask_root` 以叠图预填
+- SEG 默认启用 prelabels 目录为 `mask_root` 以叠图预填（默认 **polygonlabels**；可选 brush RLE）
 - **覆盖校验**：任务包 `manifest.json` 的 `image_id` 集合必须与 `prelabels.json` 完全一致；缺样本报 `Missing prelabels`，多余报 `Unknown prelabels`（不静默跳过）
 
 覆盖写入当前有效结果（P4，需本轮 LS 导出 JSON）：
@@ -72,7 +72,7 @@ mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_bat
 - 首轮/全量刷新：请导出该任务本批全部样本后再 apply；返工轮允许子集 export + apply（详见 `docs/data_layout.md`、`docs/labelstudio_usage.md`）
 - DET 从 `task_packages/.../images/` 读取图像尺寸做百分比→像素换算
 - **DET**：三态解析（与 SEG 的 `annotation.prediction` 语义对齐）。`annotation` 有 `det_bbox` → 用人框；无框但 `annotation.prediction` 非空 → 空框（接受预标注后删光）；无框且无 prediction 链接 → 回退 `task.predictions` 预标注框（未操作不丢预标注）
-- **SEG**：人工结果优先。若 annotation 有 SEG 操作记录（`from_name=seg_mask` 条目，或 `annotation.prediction` 表明从预标注接受过），则写出 `data/results/<batch>/seg/manual_masks/<image_id>_manual.png`（有 brush 解码；**删光 brush 则写全空 mask**），`mask_ref` 为 `manual_masks/<image_id>_manual.png`。若无 SEG 操作记录，才回退导出里的 `data.mask_ref`（预标注）。不覆盖 `prelabels/.../masks/`。
+- **SEG**：人工结果优先。若 annotation 有 SEG 操作记录（`from_name=seg_mask` 条目，或 `annotation.prediction` 表明从预标注接受过），则写出 `data/results/<batch>/seg/manual_masks/<image_id>_manual.png`（支持 **polygonlabels 百分比点** 与历史 **brushlabels RLE**；**删光几何则写全空 mask**），`mask_ref` 为 `manual_masks/<image_id>_manual.png`。若无 SEG 操作记录，才回退导出里的 `data.mask_ref`（预标注）。不覆盖 `prelabels/.../masks/`。
 
 按返工分类写出结果包（P4）：
 
@@ -112,8 +112,9 @@ from mma.formats import load_prelabel_document
 
 doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 tasks = document_to_ls_tasks(doc)  # 无 mask_root：result 为空（兼容 T2.2）
-# SEG 叠图预填：传入含 masks/ 的 prelabels 任务目录
+# SEG 叠图预填（默认 polygonlabels）：传入含 masks/ 的 prelabels 任务目录
 # tasks = document_to_ls_tasks(doc, mask_root=Path("data/prelabels/demo_batch/seg"))
+# 历史 brush RLE：document_to_ls_tasks(..., mask_root=..., seg_prefill_mode="brush")
 ```
 
 P2 端到端演示（T2.4，假 raw → Example adapter → LS JSON）：
@@ -129,8 +130,8 @@ python examples/scripts/run_p2_demo.py
 - 已完成：P0 / T0.1–T0.4 工程骨架、契约、落盘规范、CLI 入口
 - 已完成：P1 / T1.1–T1.5 预处理与三类任务包（配对、`image_id`、processed 落盘、拆包图像、`package_id`+manifest、CLI）
 - 已完成：P2 / T2.1–T2.4 预标注统一中间格式、LS 转换 API、适配器接口/示例、假 raw 样例与端到端演示脚本/测试（不含真实算法与 CLI convert）
-- 已完成：T3.1 SEG Label Studio 工作台 XML（`src/mma/labelstudio/configs/seg.xml`）
-- 已完成：T3.1b SEG 叠图预填（`mask_root` → 8 连通 brush RLE；无 `mask_root` 仍空 result）
+- 已完成：T3.1 SEG Label Studio 工作台 XML（`src/mma/labelstudio/configs/seg.xml`，`PolygonLabels`）
+- 已完成：T3.1b SEG 叠图预填（`mask_root` → 默认 polygonlabels；`SEG_PREFILL_MODE=brush` 保留 RLE；无 `mask_root` 仍空 result）
 - 已完成：T3.2 DET Label Studio 工作台 XML（`src/mma/labelstudio/configs/det.xml`）
 - 已完成：T3.3 CAP Label Studio 工作台 XML（`src/mma/labelstudio/configs/cap.xml`）
 - 已完成：T3.4 生成 LS 导入任务（`importers/build_ls_tasks.py`、`mma ls-import`、local-files URL）
@@ -148,7 +149,7 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T5.3 缺任务阻断（`assert_no_missing_tasks`：禁止静默缺字段；合并二次校验）
 - 已完成：T5.4 输出 `final/` 与接线 `mma merge --batch [--data-root]`（`merge/merge_to_final.py` + `write_final.py`）
 - 已完成：final SEG mask 统一物化到 `final/<batch>/final_assets/masks/`（`merge/materialize_final_seg.py`；contract 禁止 `masks/`/`manual_masks/`/`prelabels/`）
-- 已完成：SEG 人工 brush → `results/.../seg/manual_masks/` 持久化（含删光 brush 写空 mask；无 SEG 操作才回退 `data.mask_ref`；`apply-current` / `export-split`）
+- 已完成：SEG 人工几何 → `results/.../seg/manual_masks/` 持久化（polygon + 历史 brush；删光写空 mask；无 SEG 操作才回退 `data.mask_ref`；`apply-current` / `export-split`）
 - 已完成：DET 导出三态解析（人框 / 接受后删光为空 / 未操作回退 `predictions`；`parse_ls_export`）
 - 已完成：`apply-current` / `export-split` 以 `current/` 为源全量刷新 normal/rework（多轮返工后 normal 反映最新无需返工全集）
 
