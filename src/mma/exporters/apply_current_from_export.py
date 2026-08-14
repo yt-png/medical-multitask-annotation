@@ -29,6 +29,7 @@ from mma.common.paths import (
 )
 from mma.common.task_image_paths import resolve_task_image_path
 from mma.converters import ImageMetadata
+from mma.exporters.cleanup_manual_masks import cleanup_unreferenced_manual_masks
 from mma.exporters.overwrite_current import overwrite_current
 from mma.exporters.parse_ls_export import parse_ls_export
 from mma.exporters.refresh_normal_rework import refresh_normal_rework_from_current
@@ -60,6 +61,8 @@ def apply_current_from_export(
     - Matching ``image_id`` in the export overwrite current entries; others keep
     - After write, ``normal/`` and ``rework/`` are fully rebuilt from current
       (not from the export subset alone)
+    - For SEG, unreferenced ``manual_masks/*_manual.png`` files are removed
+      after refresh so disk matches current ``mask_ref``
 
     Empty parse results follow ``overwrite_current`` no-op semantics, then still
     refresh bundles from whatever ``current/`` contains.
@@ -102,6 +105,8 @@ def apply_current_from_export(
         task_type,
         data_root=root,
     )
+    if task_type is TaskType.SEG:
+        cleanup_unreferenced_manual_masks(cleaned, data_root=root)
     return current_path
 
 

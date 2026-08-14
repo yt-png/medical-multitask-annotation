@@ -199,6 +199,7 @@ results/<batch>/<task>/rework/
   - **无** SEG 操作记录 → **不**写 `manual_masks/`，`mask_ref` 回退 `data.mask_ref` / prelabel
 - `SegAnnotation.mask_ref` 存相对 `results/<batch_id>/seg/` 的路径：`manual_masks/{image_id}_manual.png`
 - **不**覆盖 `prelabels/<batch_id>/seg/masks/` 原始预标注
+- **清理**：`apply-current` / `export-split`（SEG）在刷新 `current/` 与 normal/rework 后，按 current 中仍引用的 `manual_masks/` 路径保留文件；删除目录内未被引用的 `*_manual.png`（缺 `current/annotations.json` 时不清理）
 
 `normal/` / `rework/` 是轮次快照；**业务上的当前有效状态以 `current/` 为准**。
 

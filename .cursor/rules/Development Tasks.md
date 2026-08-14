@@ -201,7 +201,8 @@
 │       │   ├── apply_current_from_export.py   # apply-current
 │       │   ├── export_split_from_export.py    # export-split（包装 apply）
 │       │   ├── refresh_normal_rework.py
-│       │   └── previous_annotations.py       # rework 标注快照（不含原图）
+│       │   ├── previous_annotations.py       # rework 标注快照（不含原图）
+│       │   └── cleanup_manual_masks.py       # 按 current 清理未引用 SEG manual_masks
 │       └── merge/
 │           ├── validate_ready.py       # M10
 │           ├── merge_multitask.py

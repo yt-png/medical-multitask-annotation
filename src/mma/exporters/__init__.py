@@ -1,6 +1,7 @@
 """Label Studio export parsers and result post-processing (P4)."""
 
 from mma.exporters.apply_current_from_export import apply_current_from_export
+from mma.exporters.cleanup_manual_masks import cleanup_unreferenced_manual_masks
 from mma.exporters.effective_result import (
     EffectiveLsResult,
     resolve_effective_result,
@@ -25,6 +26,7 @@ from mma.exporters.split_by_rework import split_by_rework
 __all__ = [
     "EffectiveLsResult",
     "apply_current_from_export",
+    "cleanup_unreferenced_manual_masks",
     "export_split_from_export",
     "extract_ls_raw_results",
     "extract_ls_raw_results_data",

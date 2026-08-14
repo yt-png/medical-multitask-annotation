@@ -4,6 +4,7 @@
 
 ### Changed
 
+- `apply-current`（SEG）：refresh normal/rework 后按 `current/` 引用清理未使用的 `manual_masks/*_manual.png`，避免回退 prelabel 后磁盘残留
 - 将 `resolve_task_image_path` 下沉到 `common/task_image_paths.py`；`exporters/apply_current_from_export` 与 importers 改为依赖 common，解除 exporters → importers 反向依赖
 - 将 `resolve_current_seg_mask_path` 与 `MANUAL_MASK_REL_DIR` 下沉到 `common/seg_mask_paths.py`；`exporters/previous_annotations` 与 `merge/materialize_final_seg` 改为依赖 common，解除 P4 exporters → P5 merge 反向依赖
 - 文档继续对齐：`docs/real_batch_local_test_runbook.md`（SEG 多边形；previous 不含原图；`should_rework` 表述）、`docs/data_layout.md`（推荐 `export-split`、自包含边界、`export_round` 未接线）、`docs/labelstudio_usage.md` / `README.md` / `docs/formats.md` 交叉说明；Requirement 流程第 8 步与 SEG 工作台 PolygonLabels；Development Tasks T4.2 用语
@@ -12,11 +13,13 @@
 
 ### Tests
 
+- 新增 `tests/test_cleanup_manual_masks.py`：引用保留/回退删除/orphan 删除/缺目录与缺 current no-op/非 manual 文件忽略/apply 链路清理
 - 新增 `tests/test_task_image_paths.py`：jpg/jpeg 解析；缺目录/缺文件/多匹配拒绝
 - 新增 `tests/test_seg_mask_paths.py`：manual/prelabel 路径解析；空串/绝对路径/`..` 前缀/逃逸拒绝
 
 ### Added
 
+- `exporters/cleanup_manual_masks.py`：`cleanup_unreferenced_manual_masks`
 - `exporters/effective_result.py`：`resolve_effective_result` 统一 annotation / prediction fallback（保留人工清空：`annotation.prediction` 有值且无任务控件时不回退）
 - `extract_ls_raw_results` 改为返回 **effective** result，legacy `rework-import --export` 在仅勾选 `human_confirmed` 时仍能带上预标注几何/文本
 - 测试：`tests/test_effective_result.py`（人工覆盖、仅确认 fallback + warning、人工清空不回退、legacy 三任务 rework 预填）
