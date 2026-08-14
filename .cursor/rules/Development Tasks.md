@@ -164,7 +164,8 @@
 │       │   ├── models.py          # 数据模型/契约（含 should_rework）
 │       │   ├── io.py              # 读写 json/excel/路径工具
 │       │   ├── paths.py           # 目录约定
-│       │   └── seg_mask_paths.py  # current SEG mask_ref → 绝对路径（P4/P5 共用）
+│       │   ├── seg_mask_paths.py  # current SEG mask_ref → 绝对路径（P4/P5 共用）
+│       │   └── task_image_paths.py  # task_packages 图像路径解析（importers/exporters 共用）
 │       ├── preprocess/
 │       │   └── build_processed.py # M1
 │       ├── packaging/

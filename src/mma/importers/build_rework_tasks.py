@@ -23,6 +23,7 @@ from mma.common.paths import (
     task_package_dir,
     validate_batch_id,
 )
+from mma.common.task_image_paths import resolve_task_image_path
 from mma.converters.to_labelstudio import (
     DATA_KEY_BATCH_ID,
     DATA_KEY_DIAGNOSIS_TEXT,
@@ -37,10 +38,7 @@ from mma.exporters.previous_annotations import (
     load_previous_annotations,
     previous_annotations_dir,
 )
-from mma.importers.build_ls_tasks import (
-    resolve_task_image_path,
-    rewrite_task_image_urls,
-)
+from mma.importers.build_ls_tasks import rewrite_task_image_urls
 
 REWORK_MODEL_VERSION = "mma-rework-prev-1.0"
 _CHOICE_FROM_NAMES = frozenset({"human_confirmed", "needs_rework"})

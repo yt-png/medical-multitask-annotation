@@ -15,9 +15,9 @@ from PIL import Image
 
 from mma.common.models import TaskType
 from mma.common.paths import task_package_dir
+from mma.common.task_image_paths import resolve_task_image_path
 from mma.converters import ImageMetadata
 from mma.exporters import overwrite_current, parse_ls_export, split_by_rework
-from mma.importers.build_ls_tasks import resolve_task_image_path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_DATA_ROOT = _REPO_ROOT / "data"

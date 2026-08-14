@@ -18,6 +18,7 @@ from mma.common.paths import (
     results_rework_dir,
     validate_batch_id,
 )
+from mma.common.task_image_paths import resolve_task_image_path
 from mma.converters import ImageMetadata
 from mma.exporters.current_annotations import (
     ANNOTATIONS_JSON_NAME,
@@ -27,7 +28,6 @@ from mma.exporters.extract_ls_raw_results import extract_ls_raw_results
 from mma.exporters.parse_ls_export import parse_ls_export
 from mma.exporters.previous_annotations import previous_annotations_json_path
 from mma.exporters.split_by_rework import split_by_rework
-from mma.importers.build_ls_tasks import resolve_task_image_path
 from mma.importers.build_rework_tasks import build_rework_ls_tasks
 
 REWORK_TASKS_JSON_NAME = "rework_tasks.json"

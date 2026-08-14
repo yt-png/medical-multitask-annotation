@@ -27,11 +27,11 @@ from mma.common.paths import (
     results_manual_masks_dir,
     validate_batch_id,
 )
+from mma.common.task_image_paths import resolve_task_image_path
 from mma.converters import ImageMetadata
 from mma.exporters.overwrite_current import overwrite_current
 from mma.exporters.parse_ls_export import parse_ls_export
 from mma.exporters.refresh_normal_rework import refresh_normal_rework_from_current
-from mma.importers.build_ls_tasks import resolve_task_image_path
 
 _TASK_TYPE_MAP = {
     "seg": TaskType.SEG,

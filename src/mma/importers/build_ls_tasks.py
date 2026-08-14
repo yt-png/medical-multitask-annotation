@@ -17,6 +17,7 @@ from mma.common.paths import (
     task_package_dir,
     validate_batch_id,
 )
+from mma.common.task_image_paths import resolve_task_image_path
 from mma.converters import (
     DATA_KEY_IMAGE,
     ImageMetadata,
@@ -27,8 +28,6 @@ from mma.importers.validate_prelabel_coverage import validate_prelabel_coverage
 
 TASKS_JSON_NAME = "tasks.json"
 LOCAL_FILES_PREFIX = "/data/local-files/?d="
-
-_IMAGE_SUFFIXES = (".jpg", ".jpeg", ".JPG", ".JPEG")
 
 _TASK_TYPE_MAP = {
     "seg": TaskType.SEG,
@@ -51,41 +50,6 @@ def to_local_files_url(relative_posix: str) -> str:
             f"local-files relative path must use forward slashes: {relative_posix!r}"
         )
     return f"{LOCAL_FILES_PREFIX}{cleaned}"
-
-
-def resolve_task_image_path(
-    batch_id: str,
-    task: str | TaskType,
-    image_id: str,
-    *,
-    data_root: Path | str | None = None,
-) -> Path:
-    """Resolve ``task_packages/.../images/{image_id}.*`` under ``data_root``."""
-
-    package_dir = task_package_dir(batch_id, task, data_root=data_root)
-    images_dir = package_dir / "images"
-    if not images_dir.is_dir():
-        raise ValueError(
-            f"task package images directory not found: {images_dir} "
-            f"(batch_id={batch_id!r}, image_id={image_id!r})"
-        )
-
-    matches = sorted(
-        p
-        for p in images_dir.iterdir()
-        if p.is_file() and p.stem == image_id and p.suffix in _IMAGE_SUFFIXES
-    )
-    if not matches:
-        raise ValueError(
-            f"package image missing for image_id={image_id!r}: "
-            f"expected under {images_dir}"
-        )
-    if len(matches) > 1:
-        names = ", ".join(p.name for p in matches)
-        raise ValueError(
-            f"multiple package images for image_id={image_id!r}: {names}"
-        )
-    return matches[0].resolve()
 
 
 def rewrite_task_image_urls(
