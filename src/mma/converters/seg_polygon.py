@@ -183,7 +183,7 @@ def save_uint8_mask_png(path: Path | str, mask: np.ndarray) -> Path:
     binary = (arr > 0).astype(np.uint8) * 255
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    img = Image.fromarray(binary, mode="L")
+    img = Image.fromarray(binary)
     img.save(target)
     return target.resolve()
 
@@ -202,6 +202,53 @@ def write_manual_mask_from_polygon_results(
     out_dir = Path(manual_mask_dir)
     out_path = out_dir / manual_mask_filename(image_id)
     save_uint8_mask_png(out_path, binary)
+    return manual_mask_ref(image_id)
+
+
+def write_manual_mask_from_seg_geometry(
+    *,
+    image_id: str,
+    manual_mask_dir: Path | str,
+    brush_entries: Sequence[dict[str, Any]] = (),
+    polygon_entries: Sequence[dict[str, Any]] = (),
+) -> str:
+    """Decode brush and/or polygon SEG results, OR-union, write manual PNG.
+
+    Downstream contract stays ``manual_masks/{image_id}_manual.png``.
+    """
+
+    if not brush_entries and not polygon_entries:
+        raise ValueError(
+            f"no SEG geometry to decode (image_id={image_id!r})"
+        )
+
+    masks: list[np.ndarray] = []
+    if brush_entries:
+        from mma.converters.seg_brush import brush_results_to_binary_mask
+
+        list_mask = brush_results_to_binary_mask(
+            brush_entries, image_id=image_id
+        )
+        masks.append(np.asarray(list_mask, dtype=np.uint8))
+    if polygon_entries:
+        masks.append(
+            polygon_results_to_binary_mask(
+                polygon_entries, image_id=image_id
+            )
+        )
+
+    combined = masks[0]
+    for extra in masks[1:]:
+        if extra.shape != combined.shape:
+            raise ValueError(
+                f"SEG geometry size mismatch for image_id={image_id!r}: "
+                f"{combined.shape} vs {extra.shape}"
+            )
+        combined = np.maximum(combined, extra)
+
+    out_dir = Path(manual_mask_dir)
+    out_path = out_dir / manual_mask_filename(image_id)
+    save_uint8_mask_png(out_path, combined)
     return manual_mask_ref(image_id)
 
 
@@ -402,4 +449,5 @@ __all__ = [
     "polygons_to_binary_mask",
     "save_uint8_mask_png",
     "write_manual_mask_from_polygon_results",
+    "write_manual_mask_from_seg_geometry",
 ]

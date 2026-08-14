@@ -4,8 +4,10 @@ Supports SEG / DET / CAP exports aligned with package Labeling Configs.
 Does not classify rework bundles, overwrite ``current/``, or re-import.
 
 SEG human-priority rule: annotation SEG operation (``seg_mask`` entries and/or
-``annotation.prediction`` link) wins over ``data.mask_ref``; zero brushes after
-an operation yields an empty manual mask, not a prelabel fallback.
+``annotation.prediction`` link) wins over ``data.mask_ref``; zero geometry after
+an operation yields an empty manual mask, not a prelabel fallback. Geometry may
+be ``brushlabels`` (``value.rle``) and/or ``polygonlabels`` (``value.points``);
+both decode to the same ``manual_masks/{image_id}_manual.png`` contract.
 
 DET human-priority rule (three-way, mirrors SEG ``prediction`` link semantics):
 
@@ -372,6 +374,10 @@ def _parse_annotation_payload(
     raise ValueError(f"unsupported task type: {task_type!r}")  # pragma: no cover
 
 
+# SEG Label Studio control result types (brush history + polygon default).
+_SEG_RESULT_TYPES = frozenset({"brushlabels", "polygonlabels"})
+
+
 def _parse_seg_annotation(
     result_items: Sequence[Any],
     *,
@@ -391,31 +397,30 @@ def _parse_seg_annotation(
             "prediction": <id|null>,   # set when annotation was created from a prediction
             "result": [
               {"from_name": "seg_mask", "type": "brushlabels", "value": {"format": "rle", "rle": [...]}},
+              {"from_name": "seg_mask", "type": "polygonlabels", "value": {"points": [[x%, y%], ...]}},
               {"from_name": "human_confirmed", ...},
               ...
             ]
           }],
-          "predictions": [{"result": [ /* prelabel brushes */ ]}]  # optional; may be ids only
+          "predictions": [{"result": [ /* prelabel geometry */ ]}]  # optional; may be ids only
         }
 
-    Decision (not ``if not brush_entries: fallback`` alone):
+    Decision (not ``if not geometry: fallback`` alone):
 
     1. If annotation has a SEG operation record → human result.
        Operation record means any ``from_name=seg_mask`` entry (including empty
-       ``rle``) **or** ``annotation.prediction`` is set (accepted prediction then
-       possibly cleared all brushes).
-       - Non-empty brushes → decode/write manual mask
-       - Zero brushes → write an empty (all-background) manual mask
+       ``rle`` / empty ``points`` clear markers) **or** ``annotation.prediction``
+       is set (accepted prediction then possibly cleared all regions).
+       - Non-empty brush RLE and/or polygon points → decode/write manual mask
+       - Zero geometry → write an empty (all-background) manual mask
     2. Else → fallback to ``data.mask_ref`` (prelabel / prediction path)
 
-    When ``seg_manual_mask_dir`` is omitted, human brush/empty masks are not
+    When ``seg_manual_mask_dir`` is omitted, human geometry/empty masks are not
     written and the prelabel ``mask_ref`` is kept (legacy / unit-test path).
     """
 
-    from mma.converters.seg_brush import (
-        write_empty_manual_mask,
-        write_manual_mask_from_brush_results,
-    )
+    from mma.converters.seg_brush import write_empty_manual_mask
+    from mma.converters.seg_polygon import write_manual_mask_from_seg_geometry
 
     fallback_ref = task_data.get(DATA_KEY_MASK_REF)
     if not isinstance(fallback_ref, str) or not fallback_ref.strip():
@@ -431,6 +436,11 @@ def _parse_seg_annotation(
         for entry in control_entries
         if _seg_entry_has_nonempty_rle(entry)
     ]
+    polygon_entries = [
+        entry
+        for entry in control_entries
+        if _seg_entry_has_nonempty_points(entry)
+    ]
     operated = _annotation_has_seg_operation(
         control_entries,
         annotation=annotation,
@@ -443,11 +453,12 @@ def _parse_seg_annotation(
         # Human SEG intent detected but no output dir: keep legacy fallback.
         return SegAnnotation(mask_ref=fallback_ref)
 
-    if brush_entries:
-        mask_ref = write_manual_mask_from_brush_results(
-            brush_entries,
+    if brush_entries or polygon_entries:
+        mask_ref = write_manual_mask_from_seg_geometry(
             image_id=image_id,
             manual_mask_dir=seg_manual_mask_dir,
+            brush_entries=brush_entries,
+            polygon_entries=polygon_entries,
         )
         return SegAnnotation(mask_ref=mask_ref)
 
@@ -474,9 +485,9 @@ def _annotation_has_seg_operation(
 
     Signals (either is enough):
 
-    - Any ``from_name=seg_mask`` result (including empty ``rle`` clear markers)
+    - Any ``from_name=seg_mask`` result (including empty ``rle`` / ``points``)
     - ``annotation.prediction`` is not null (annotation created from a
-      prediction; deleting all brushes leaves no ``seg_mask`` items but the
+      prediction; deleting all regions may leave no ``seg_mask`` items but the
       prediction link remains)
     """
 
@@ -495,49 +506,120 @@ def _seg_entry_has_nonempty_rle(entry: Mapping[str, Any]) -> bool:
     return isinstance(rle, list) and len(rle) > 0
 
 
+def _seg_entry_has_nonempty_points(entry: Mapping[str, Any]) -> bool:
+    value = entry.get("value")
+    if not isinstance(value, dict):
+        return False
+    points = value.get("points")
+    return isinstance(points, list) and len(points) >= 3
+
+
+def _infer_seg_result_type(
+    entry: Mapping[str, Any],
+    *,
+    image_id: str,
+) -> str:
+    """Resolve brush vs polygon type from ``type`` or ``value`` keys."""
+
+    raw_type = entry.get("type")
+    if raw_type in _SEG_RESULT_TYPES:
+        return str(raw_type)
+    if raw_type not in (None,):
+        raise ValueError(
+            f"SEG result type must be one of {sorted(_SEG_RESULT_TYPES)} "
+            f"(image_id={image_id!r}, got {raw_type!r})"
+        )
+
+    value = entry.get("value")
+    if not isinstance(value, dict):
+        raise ValueError(
+            f"SEG control value must be an object (image_id={image_id!r})"
+        )
+    has_rle = "rle" in value
+    has_points = "points" in value
+    if has_rle and not has_points:
+        return "brushlabels"
+    if has_points and not has_rle:
+        return "polygonlabels"
+    raise ValueError(
+        "SEG control value must contain either rle (brushlabels) or "
+        f"points (polygonlabels) (image_id={image_id!r})"
+    )
+
+
+def _validate_seg_brush_value(
+    value: Mapping[str, Any],
+    *,
+    image_id: str,
+) -> None:
+    fmt = value.get("format")
+    if fmt != "rle":
+        raise ValueError(
+            f"SEG brush value.format must be 'rle' "
+            f"(image_id={image_id!r}, got {fmt!r})"
+        )
+    if "rle" not in value:
+        raise ValueError(
+            f"SEG brush value missing rle (image_id={image_id!r})"
+        )
+    rle = value.get("rle")
+    if not isinstance(rle, list):
+        raise ValueError(
+            f"SEG brush value.rle must be a list "
+            f"(image_id={image_id!r})"
+        )
+
+
+def _validate_seg_polygon_value(
+    value: Mapping[str, Any],
+    *,
+    image_id: str,
+) -> None:
+    if "points" not in value:
+        raise ValueError(
+            f"SEG polygon value missing points (image_id={image_id!r})"
+        )
+    points = value.get("points")
+    if not isinstance(points, list):
+        raise ValueError(
+            f"SEG polygon value.points must be a list "
+            f"(image_id={image_id!r})"
+        )
+    for index, point in enumerate(points):
+        if not isinstance(point, (list, tuple)) or len(point) < 2:
+            raise ValueError(
+                f"SEG polygon value.points[{index}] must be [x, y] "
+                f"(image_id={image_id!r})"
+            )
+
+
 def _collect_seg_control_entries(
     result_items: Sequence[Any],
     *,
     image_id: str,
 ) -> list[dict[str, Any]]:
-    """Collect all SEG brush control results (``from_name=seg_mask``).
+    """Collect SEG control results (``from_name=seg_mask``).
 
-    Empty ``rle`` lists are kept as clear markers (SEG operated, zero brushes).
+    Accepts ``brushlabels`` (``value.rle``) and ``polygonlabels``
+    (``value.points``). Empty ``rle`` / ``points`` lists are kept as clear
+    markers (SEG operated, zero geometry).
     """
 
-    spec = DEFAULT_LS_RESULT_SPECS[TaskType.SEG]
-    from_name = spec["from_name"]
-    expected_type = spec["type"]
+    from_name = DEFAULT_LS_RESULT_SPECS[TaskType.SEG]["from_name"]
     entries: list[dict[str, Any]] = []
     for entry in _iter_result_items(result_items, image_id=image_id):
         if entry.get("from_name") != from_name:
             continue
-        if entry.get("type") not in (None, expected_type):
-            raise ValueError(
-                f"SEG result type must be {expected_type!r} "
-                f"(image_id={image_id!r}, got {entry.get('type')!r})"
-            )
         value = entry.get("value")
         if not isinstance(value, dict):
             raise ValueError(
-                f"SEG brush value must be an object (image_id={image_id!r})"
+                f"SEG control value must be an object (image_id={image_id!r})"
             )
-        fmt = value.get("format")
-        if fmt != "rle":
-            raise ValueError(
-                f"SEG brush value.format must be 'rle' "
-                f"(image_id={image_id!r}, got {fmt!r})"
-            )
-        if "rle" not in value:
-            raise ValueError(
-                f"SEG brush value missing rle (image_id={image_id!r})"
-            )
-        rle = value.get("rle")
-        if not isinstance(rle, list):
-            raise ValueError(
-                f"SEG brush value.rle must be a list "
-                f"(image_id={image_id!r})"
-            )
+        result_type = _infer_seg_result_type(entry, image_id=image_id)
+        if result_type == "brushlabels":
+            _validate_seg_brush_value(value, image_id=image_id)
+        else:
+            _validate_seg_polygon_value(value, image_id=image_id)
         entries.append(entry)
     return entries
 
@@ -547,7 +629,7 @@ def _collect_seg_brush_entries(
     *,
     image_id: str,
 ) -> list[dict[str, Any]]:
-    """Collect SEG brush results with non-empty RLE (DEFAULT_LS_RESULT_SPECS)."""
+    """Collect SEG brush results with non-empty RLE (legacy helper)."""
 
     return [
         entry
