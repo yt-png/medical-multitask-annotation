@@ -23,6 +23,7 @@ from mma.exporters.current_annotations import (
     task_annotation_result_to_dict,
 )
 from mma.exporters.load_current import load_current
+from mma.exporters.previous_annotations import write_previous_annotations
 from mma.exporters.split_by_rework import split_by_rework
 
 
@@ -72,7 +73,12 @@ def write_normal_rework_bundles(
     task_type: TaskType,
     data_root: Path | str | None = None,
 ) -> tuple[Path, Path]:
-    """Overwrite ``normal/annotations.json`` and ``rework/annotations.json``."""
+    """Overwrite ``normal/`` + ``rework/`` annotations and rework snapshots.
+
+    Also writes ``rework/previous_annotations/<task>.json`` (and SEG mask
+    copies) from ``TaskAnnotationResult.annotation`` so the rework package is
+    self-contained for ``rework-import`` without an LS export.
+    """
 
     cleaned = validate_batch_id(batch_id)
     root = default_data_root() if data_root is None else Path(data_root)
@@ -84,6 +90,12 @@ def write_normal_rework_bundles(
     )
     _write_annotations_file(normal_path, normal)
     _write_annotations_file(rework_path, rework)
+    write_previous_annotations(
+        rework,
+        batch_id=cleaned,
+        task_type=task_type,
+        data_root=root,
+    )
     return normal_path.resolve(), rework_path.resolve()
 
 

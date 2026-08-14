@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from mma.common.models import TaskAnnotationResult, TaskType
+from mma.common.models import TaskAnnotationResult, TaskType, should_rework
 from mma.common.paths import default_data_root, processed_batch_dir, validate_batch_id
 from mma.exporters.load_current import load_current
 from mma.packaging.split_task_packages import load_processed_items
@@ -29,7 +29,7 @@ def validate_ready(
     1. SEG → DET → CAP ``current/annotations.json`` loadable
        (missing file → ``FileNotFoundError`` from ``load_current``)
     2. No task has an empty item list
-    3. No ``needs_rework=True``; all ``human_confirmed=True``
+    3. No sample with ``should_rework`` (i.e. all confirmed and not needing rework)
     4. ``image_id`` sets are identical across the three tasks
     5. That common ``image_id`` set equals ``processed/<batch>/manifest.json``
        (missing processed → ``FileNotFoundError``)
@@ -126,6 +126,11 @@ def _assert_flag_constraints(
     for task_type, items in by_task.items():
         for item in items:
             label = f"{task_type.value}:{item.image_id}"
+            if not should_rework(
+                human_confirmed=item.human_confirmed,
+                needs_rework=item.needs_rework,
+            ):
+                continue
             if item.needs_rework:
                 rework.append(label)
             if not item.human_confirmed:

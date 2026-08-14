@@ -100,6 +100,38 @@ def test_construct_annotations_and_results() -> None:
     assert cap.needs_rework is True
 
 
+def test_should_rework_truth_table() -> None:
+    from mma.common.models import should_rework
+
+    # human_confirmed, needs_rework → should_rework / bucket
+    assert should_rework(human_confirmed=False, needs_rework=False) is True  # rework
+    assert should_rework(human_confirmed=False, needs_rework=True) is True  # rework
+    assert should_rework(human_confirmed=True, needs_rework=False) is False  # normal
+    assert should_rework(human_confirmed=True, needs_rework=True) is True  # rework
+
+
+@pytest.mark.parametrize(
+    ("human_confirmed", "needs_rework", "bucket"),
+    [
+        (False, False, "rework"),
+        (False, True, "rework"),
+        (True, False, "normal"),
+        (True, True, "rework"),
+    ],
+)
+def test_should_rework_parametrized_buckets(
+    human_confirmed: bool,
+    needs_rework: bool,
+    bucket: str,
+) -> None:
+    from mma.common.models import should_rework
+
+    assert should_rework(
+        human_confirmed=human_confirmed,
+        needs_rework=needs_rework,
+    ) is (bucket == "rework")
+
+
 def test_construct_result_bundles() -> None:
     normal_item = TaskAnnotationResult(
         image_id="img-1",
@@ -200,6 +232,40 @@ def test_rework_bundle_rejects_normal_item() -> None:
     with pytest.raises(ValueError, match="REWORK bundle"):
         ResultBundle(
             bundle_kind=BundleKind.REWORK,
+            task_type=TaskType.DET,
+            items=(item,),
+        )
+
+
+def test_rework_bundle_accepts_unconfirmed_without_needs_rework_flag() -> None:
+    """human_confirmed=False counts as should_rework even if needs_rework=False."""
+
+    item = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.DET,
+        annotation=DetAnnotation(bboxes=()),
+        human_confirmed=False,
+        needs_rework=False,
+    )
+    bundle = ResultBundle(
+        bundle_kind=BundleKind.REWORK,
+        task_type=TaskType.DET,
+        items=(item,),
+    )
+    assert bundle.items[0].image_id == "img-1"
+
+
+def test_normal_bundle_rejects_unconfirmed_item() -> None:
+    item = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.DET,
+        annotation=DetAnnotation(bboxes=()),
+        human_confirmed=False,
+        needs_rework=False,
+    )
+    with pytest.raises(ValueError, match="NORMAL bundle"):
+        ResultBundle(
+            bundle_kind=BundleKind.NORMAL,
             task_type=TaskType.DET,
             items=(item,),
         )

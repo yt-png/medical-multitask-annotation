@@ -1,21 +1,20 @@
-"""Extract Label Studio raw annotation results by image_id (S2 side channel).
+"""Extract Label Studio effective results by image_id (legacy rework channel).
 
-Selection rules align with ``parse_ls_export`` (non-cancelled, latest
-``updated_at`` / ``id``). Does not change the T4.1 ``TaskAnnotationResult`` API.
+Uses ``resolve_effective_result`` so confirm-only annotations still carry
+prediction geometry/text for ``rework-import`` when ``previous_annotations``
+is absent. Selection rules align with ``parse_ls_export``.
 """
 
 from __future__ import annotations
 
-import copy
 from pathlib import Path
 from typing import Any
 
 from mma.common.io import read_json
 from mma.common.models import TaskType
-from mma.converters.to_labelstudio import (
-    DATA_KEY_IMAGE_ID,
-    DEFAULT_LS_RESULT_SPECS,
-)
+from mma.converters.to_labelstudio import DATA_KEY_IMAGE_ID
+from mma.exporters.effective_result import resolve_effective_result
+from mma.exporters.parse_ls_export import _select_annotation
 
 
 def extract_ls_raw_results(
@@ -23,7 +22,7 @@ def extract_ls_raw_results(
     *,
     task_type: TaskType,
 ) -> dict[str, tuple[dict[str, Any], ...]]:
-    """Load an LS export JSON file and return ``image_id -> raw result``."""
+    """Load an LS export JSON file and return ``image_id -> effective result``."""
 
     payload = read_json(path)
     return extract_ls_raw_results_data(payload, task_type=task_type)
@@ -34,7 +33,12 @@ def extract_ls_raw_results_data(
     *,
     task_type: TaskType,
 ) -> dict[str, tuple[dict[str, Any], ...]]:
-    """Extract deep-copied annotation ``result`` lists keyed by ``image_id``."""
+    """Extract deep-copied **effective** result lists keyed by ``image_id``.
+
+    Effective = annotation task payload when present; otherwise prediction
+    task payload + annotation Choices when confirm-only; intentional clears
+    (``annotation.prediction`` set, no task payload) do not fall back.
+    """
 
     if not isinstance(task_type, TaskType):
         raise ValueError(f"task_type must be TaskType, got {type(task_type)!r}")
@@ -77,52 +81,23 @@ def _extract_one_task(
     image_id = image_id.strip()
 
     annotation = _select_annotation(task.get("annotations"), image_id=image_id)
-    result_items = annotation.get("result")
-    if not isinstance(result_items, list):
-        raise ValueError(
-            f"annotation result must be a list (image_id={image_id!r})"
-        )
-    _assert_task_controls_match(result_items, task_type=task_type, image_id=image_id)
-
-    copied: list[dict[str, Any]] = []
-    for entry in result_items:
-        if not isinstance(entry, dict):
-            raise ValueError(
-                f"annotation result entry must be an object (image_id={image_id!r})"
-            )
-        copied.append(copy.deepcopy(entry))
-    return image_id, tuple(copied)
-
-
-def _select_annotation(annotations: Any, *, image_id: str) -> dict[str, Any]:
-    """Same selection policy as ``parse_ls_export._select_annotation``."""
-
-    if not isinstance(annotations, list) or not annotations:
-        raise ValueError(f"no annotations for image_id={image_id!r}")
-
-    candidates: list[dict[str, Any]] = []
-    for item in annotations:
-        if not isinstance(item, dict):
-            raise ValueError(
-                f"annotation entry must be an object (image_id={image_id!r})"
-            )
-        if item.get("was_cancelled") is True:
-            continue
-        candidates.append(item)
-
-    if not candidates:
-        raise ValueError(
-            f"no non-cancelled annotations for image_id={image_id!r}"
-        )
-
-    def sort_key(item: dict[str, Any]) -> tuple[str, int]:
-        updated = item.get("updated_at")
-        updated_s = updated if isinstance(updated, str) else ""
-        ann_id = item.get("id")
-        ann_id_i = ann_id if isinstance(ann_id, int) else -1
-        return (updated_s, ann_id_i)
-
-    return max(candidates, key=sort_key)
+    effective = resolve_effective_result(
+        task,
+        task_type=task_type,
+        image_id=image_id,
+        annotation=annotation,
+    )
+    _assert_task_controls_match(
+        list(effective.annotation_result),
+        task_type=task_type,
+        image_id=image_id,
+    )
+    _assert_task_controls_match(
+        list(effective.effective_result),
+        task_type=task_type,
+        image_id=image_id,
+    )
+    return image_id, effective.effective_result
 
 
 def _assert_task_controls_match(
@@ -131,6 +106,8 @@ def _assert_task_controls_match(
     task_type: TaskType,
     image_id: str,
 ) -> None:
+    from mma.converters.to_labelstudio import DEFAULT_LS_RESULT_SPECS
+
     expected = DEFAULT_LS_RESULT_SPECS[task_type]["from_name"]
     foreign = {
         TaskType.SEG: DEFAULT_LS_RESULT_SPECS[TaskType.SEG]["from_name"],

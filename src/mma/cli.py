@@ -118,7 +118,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     export_split = subparsers.add_parser(
         "export-split",
-        help="Apply export to current/, then rebuild normal/rework from current (P4).",
+        help=(
+            "High-level: apply-current + return normal/rework paths (P4). "
+            "Do not also run apply-current on the same export."
+        ),
     )
     export_split.add_argument("--batch", required=True, help="Batch ID")
     export_split.add_argument(
@@ -140,7 +143,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     rework_import = subparsers.add_parser(
         "rework-import",
-        help="Build rework import tasks with previous results (P4).",
+        help=(
+            "Build rework import tasks with previous results (P4). "
+            "Prefers rework/previous_annotations; --export only for legacy packs."
+        ),
     )
     rework_import.add_argument("--batch", required=True, help="Batch ID")
     rework_import.add_argument(
@@ -151,8 +157,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rework_import.add_argument(
         "--export",
-        required=True,
-        help="Path to Label Studio export JSON",
+        default=None,
+        help=(
+            "Optional Label Studio export JSON (legacy). "
+            "Not required when rework/previous_annotations/<task>.json exists."
+        ),
     )
     rework_import.add_argument(
         "--data-root",
@@ -170,7 +179,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     apply_current = subparsers.add_parser(
         "apply-current",
-        help="Merge export into current/ and refresh normal/rework (P4).",
+        help=(
+            "Low-level: export → merge current/ (also refreshes normal/rework) (P4). "
+            "Prefer export-split when you need classified bundles."
+        ),
     )
     apply_current.add_argument("--batch", required=True, help="Batch ID")
     apply_current.add_argument(

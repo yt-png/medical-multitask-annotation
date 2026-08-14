@@ -18,6 +18,7 @@ from mma.common.models import (
     TaskType,
     assert_annotation_matches_task,
     assert_result_bundle_consistent,
+    should_rework,
 )
 
 __all__ = [
@@ -38,4 +39,5 @@ __all__ = [
     "TaskType",
     "assert_annotation_matches_task",
     "assert_result_bundle_consistent",
+    "should_rework",
 ]

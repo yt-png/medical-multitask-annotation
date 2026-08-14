@@ -91,7 +91,7 @@
 |ID|任务|交付物|依赖|
 |---|---|---|---|
 |T4\.1|解析 Label Studio 导出 JSON，提取标注与双勾选|`exporters/parse_ls_export.py`|T3\.x|
-|T4\.2|按「是否返工」拆成正常包 / 返工包|`exporters/split_by_rework.py`|T4\.1|
+|T4\.2|按 `should_rework` 拆成正常包 / 返工包|`exporters/split_by_rework.py`|T4\.1|
 |T4\.3|返工包再导入：保留并展示上一轮标注结果|`importers/build_rework_tasks.py`|T4\.2|
 |T4\.4|**返工导出覆盖**：同 `image_id`\+任务只保留当前轮标注与当前勾选|`exporters/overwrite_current.py`|T4\.1|
 |T4\.5|输出各任务当前有效结果清单（供合并使用）|`data/results/<batch_id>/<task>/current/`|T4\.4|
@@ -131,84 +131,113 @@
 
 
 
+> **以仓库实际布局为准**（下列为当前对齐快照；需求正文见 `.cursor/rules/Requirement Specification.md`，非 `docs/requirements.md`）。
+
+
+
 ```Plain Text
 多任务标注平台/
 ├── README.md
+├── CHANGELOG.md
 ├── requirements.txt
-├── pyproject.toml                 # 可选
+├── pyproject.toml
 ├── .gitignore
 │
+├── .cursor/rules/                 # 需求与开发任务（权威）
+│   ├── Requirement Specification.md
+│   ├── Development Tasks.md
+│   └── ...
+│
 ├── docs/
-│   ├── requirements.md            # 已确认的需求文档
 │   ├── data_layout.md             # 批次/任务包/结果包落盘规范
 │   ├── formats.md                 # 统一中间格式 + LS 导入格式说明
-│   └── labelstudio_usage.md       # Label Studio 操作说明
+│   ├── labelstudio_usage.md       # Label Studio 操作说明
+│   └── real_batch_local_test_runbook.md
 │
 ├── src/
 │   └── mma/                       # medical multitask annotation
 │       ├── __init__.py
+│       ├── __main__.py
 │       ├── cli.py                 # 统一命令行入口
 │       ├── common/
 │       │   ├── ids.py             # image_id / package_id 生成
-│       │   ├── models.py          # 数据模型/契约
+│       │   ├── models.py          # 数据模型/契约（含 should_rework）
 │       │   ├── io.py              # 读写 json/excel/路径工具
 │       │   └── paths.py           # 目录约定
 │       ├── preprocess/
 │       │   └── build_processed.py # M1
 │       ├── packaging/
+│       │   ├── build_task_packages.py
 │       │   └── split_task_packages.py  # M2
 │       ├── formats/
 │       │   ├── intermediate.py    # 统一中间格式定义
-│       │   └── labelstudio_schema.py
+│       │   ├── seg.json / det.json / cap.json
+│       │   └── （无独立 labelstudio_schema.py；LS 契约见 converters + configs）
 │       ├── adapters/              # 仅接口/示例，暂不接真实算法
-│       │   ├── seg/
-│       │   │   └── base.py
-│       │   ├── det/
-│       │   │   └── base.py
-│       │   └── cap/
-│       │       └── base.py
+│       │   ├── seg|det|cap/base.py
+│       │   └── context.py
 │       ├── converters/
-│       │   └── to_labelstudio.py  # M5
+│       │   ├── to_labelstudio.py  # M5
+│       │   ├── seg_polygon.py     # SEG 默认 polygon 预填
+│       │   └── seg_brush.py       # 历史 brush 预填（可选）
 │       ├── labelstudio/
-│       │   ├── configs/
-│       │   │   ├── seg.xml        # M6
-│       │   │   ├── det.xml
-│       │   │   └── cap.xml
-│       │   └── build_tasks.py
+│       │   └── configs/
+│       │       ├── seg.xml        # M6（PolygonLabels）
+│       │       ├── det.xml
+│       │       └── cap.xml
+│       ├── importers/              # LS 导入 / 返工再导入（非 rework/ 包名）
+│       │   ├── build_ls_tasks.py
+│       │   ├── build_rework_tasks.py
+│       │   ├── rework_import_from_export.py
+│       │   └── validate_prelabel_coverage.py
 │       ├── exporters/
-│       │   ├── parse_ls_export.py # M7
+│       │   ├── parse_ls_export.py      # M7
+│       │   ├── effective_result.py     # export 有效 result 旁路
+│       │   ├── extract_ls_raw_results.py
 │       │   ├── split_by_rework.py
-│       │   └── overwrite_current.py  # M9 覆盖策略
-│       ├── rework/
-│       │   └── build_rework_import.py
+│       │   ├── overwrite_current.py / current_annotations.py / load_current.py
+│       │   ├── apply_current_from_export.py   # apply-current
+│       │   ├── export_split_from_export.py    # export-split（包装 apply）
+│       │   ├── refresh_normal_rework.py
+│       │   └── previous_annotations.py       # rework 标注快照（不含原图）
 │       └── merge/
-│           ├── validate_ready.py  # M10
-│           └── merge_multitask.py
+│           ├── validate_ready.py       # M10
+│           ├── merge_multitask.py
+│           ├── merge_to_final.py
+│           ├── materialize_final_seg.py
+│           └── write_final.py
 │
 ├── examples/                      # 小样例：假数据跑通链路
 │   ├── raw/
-│   ├── prelabels/                 # 模拟三类预标注输入
+│   ├── prelabels/
 │   └── README.md
 │
-├── tests/
+├── tests/                         # 按模块拆分；命名以仓库为准
 │   ├── test_preprocess.py
 │   ├── test_packaging.py
 │   ├── test_convert.py
-│   ├── test_split_rework.py
-│   ├── test_overwrite.py
-│   └── test_merge.py
+│   ├── test_split_by_rework.py
+│   ├── test_overwrite_current.py
+│   ├── test_apply_current_from_export.py
+│   ├── test_export_split_from_export.py
+│   ├── test_rework_import_from_export.py
+│   ├── test_previous_annotations.py
+│   ├── test_effective_result.py
+│   ├── test_merge_*.py
+│   └── ...
 │
 └── data/                          # 运行时数据（gitignore）
     ├── raw/<batch_id>/
     ├── processed/<batch_id>/
     ├── task_packages/<batch_id>/{seg,det,cap}/
-    ├── prelabels/<batch_id>/{seg,det,cap}/          # 人工放入算法输出
+    ├── prelabels/<batch_id>/{seg,det,cap}/
     ├── ls_import/<batch_id>/{seg,det,cap}/
     ├── ls_export/<batch_id>/{seg,det,cap}/
     ├── results/<batch_id>/{seg,det,cap}/
     │   ├── normal/
-    │   ├── rework/
-    │   └── current/               # 覆盖后的当前有效结果
+    │   ├── rework/                # 含 previous_annotations/（标注快照）
+    │   ├── current/
+    │   └── manual_masks/          # 仅 seg
     └── final/<batch_id>/
 ```
 
@@ -232,15 +261,23 @@
 
 
 ```Plain Text
-mma preprocess   --batch <id> --images <dir> --excel <file>
-mma package      --batch <id>
-mma convert      --batch <id> --task {seg|det|cap}   # 可选骨架；本阶段可不接线（非验收）
-mma ls-import    --batch <id> --task {seg|det|cap}   # 预标注 → LS 导入任务（正式入口）
-mma export-split --batch <id> --task {seg|det|cap} --export <ls_json>
-mma rework-import--batch <id> --task {seg|det|cap}   # 返工再导入（带上轮结果）
-mma apply-current--batch <id> --task {seg|det|cap}   # 覆盖写入 current/
-mma merge        --batch <id>                        # 三任务合并
+mma preprocess    --batch <id> --images <dir> --excel <file>
+mma package       --batch <id>
+mma convert       --batch <id> --task {seg|det|cap}   # 可选骨架；本阶段可不接线（非验收）
+mma ls-import     --batch <id> --task {seg|det|cap}   # 预标注 → LS 导入任务（正式入口）
+mma export-split  --batch <id> --task {seg|det|cap} --export <ls_json>
+                  # 日常推荐：内部调用 apply-current，并返回 normal/rework 路径
+mma apply-current --batch <id> --task {seg|det|cap} --export <ls_json>
+                  # 底层：export → merge current/ + 重建 normal/rework
+                  # 同一份 export 不要再串跑 export-split
+mma rework-import --batch <id> --task {seg|det|cap} [--export <ls_json>]
+                  # 优先 rework/previous_annotations/；无快照时才需要 --export（旧包）
+mma merge         --batch <id>                        # 三任务合并
 ```
+
+
+
+**分工约定**：日常导出分类用 `export-split`；只需底层落盘时用 `apply-current`。二者对同一 export **二选一**，勿链式重复执行。
 
 
 

@@ -2,23 +2,57 @@
 
 ## 2026-08-14
 
+### Changed
+
+- 文档继续对齐：`docs/real_batch_local_test_runbook.md`（SEG 多边形；previous 不含原图；`should_rework` 表述）、`docs/data_layout.md`（推荐 `export-split`、自包含边界、`export_round` 未接线）、`docs/labelstudio_usage.md` / `README.md` / `docs/formats.md` 交叉说明；Requirement 流程第 8 步与 SEG 工作台 PolygonLabels；Development Tasks T4.2 用语
+- 文档对齐代码（优先 4 份）：`docs/labelstudio_usage.md`（SEG 多边形操作/FAQ）、`docs/data_layout.md`（polygon 预填、`manual_masks` brush|polygon、legacy rework 用 effective result）、`.cursor/rules/Requirement Specification.md`（§7.8.3–§7.8.4 / §8.4 与 §7.7 `should_rework` 一致）、`.cursor/rules/Development Tasks.md`（目录/`importers`/CLI 与仓库现状对齐）
+- 文档/注释澄清 `apply-current` 与 `export-split` 职责：前者为 export→current 底层同步；后者为其高级封装并返回 normal/rework 路径。**勿对同一 export 连续执行两条命令**（README / CHANGELOG / 模块 docstring / CLI help）
+
 ### Added
 
+- `exporters/effective_result.py`：`resolve_effective_result` 统一 annotation / prediction fallback（保留人工清空：`annotation.prediction` 有值且无任务控件时不回退）
+- `extract_ls_raw_results` 改为返回 **effective** result，legacy `rework-import --export` 在仅勾选 `human_confirmed` 时仍能带上预标注几何/文本
+- 测试：`tests/test_effective_result.py`（人工覆盖、仅确认 fallback + warning、人工清空不回退、legacy 三任务 rework 预填）
+
+### Changed (effective result)
+
+- `parse_ls_export` 调用 `resolve_effective_result`（共享策略与 warning；payload 仍走原有 SEG/DET/CAP 三态，**不改** `current/annotations.json` 字段）
+- 文档：`README.md`
+
+### Notes
+
+- 未改 CLI 参数、目录结构、current JSON schema、测试行为
+
+### Added (earlier same day — rework self-contained)
+
+- `exporters/previous_annotations.py`：rework 包自包含快照 `previous_annotations/<task>.json`（SEG 另拷贝 `masks/`）
+- `rework-import` 优先读 previous_annotations 生成 LS predictions（DET rectanglelabels / SEG polygonlabels / CAP textarea）
+- 测试：`tests/test_previous_annotations.py`（无 export 导入、预测控件断言、旧 export 兼容、apply-current 覆盖不受影响）
 - `converters/seg_polygon.py`：SEG polygonlabels 百分比点 ↔ `numpy.uint8` mask（`cv2.fillPoly` / 连通域 + `approxPolyDP`）→ PNG
 - `SEG_PREFILL_MODE`（默认 `polygon`；可选 `brush`）与 `build_seg_polygon_results`
 - 依赖：`numpy>=1.26.0`、`opencv-python-headless>=4.8.0`
 - 测试：`tests/test_seg_polygon.py`（polygon→mask、mask→polygon、round-trip IoU）；`parse_ls_export` polygon 落盘用例
+- CAP human-over-prelabel：`annotation.cap_text` 优先于 `predictions[-1].cap_text`；人工空文本表示清空
+- `current_annotations`：允许 CAP `caption=""`（human clear），不再把空串当缺失
+- `models.should_rework(human_confirmed, needs_rework)`：统一返工判定 `(not human_confirmed) or needs_rework`
+- Requirement Spec 7.7 / `docs/data_layout.md`：明确 `rework = 未达最终确认状态`（非仅 `needs_rework=True`）
 
-### Changed
+### Changed (earlier same day)
 
+- `write_normal_rework_bundles`：刷新 normal/rework 时同步写出 previous_annotations（来源 `TaskAnnotationResult.annotation`，不依赖 LS raw export）
+- `build_rework_ls_tasks`：新增 `prediction_source="previous"|"raw"`
+- `mma rework-import --export` 改为可选；无 previous 快照时仍要求 `--export`
 - SEG 工作台 `seg.xml`：`BrushLabels` → `PolygonLabels`（`name=seg_mask` 不变）
 - `DEFAULT_LS_RESULT_SPECS[SEG].type` → `polygonlabels`；预填默认发百分比 `points`
 - `parse_ls_export`：同时接受历史 `brushlabels`+`rle` 与 `polygonlabels`+`points`，统一写出 `manual_masks/{image_id}_manual.png`
+- `parse_ls_export` CAP：无 annotation `cap_text` 时回退 `task.predictions[-1].result`；两边皆无仍报错
+- `split_by_rework` / `ResultBundle` / `validate_ready`：一律经 `should_rework`；无直接用 `needs_rework` 单独做 normal/rework 目录分类；REWORK bundle 允许 `human_confirmed=False` 且 `needs_rework=False`
 - 下游 `mask_ref` / `apply-current` / `export-split` / final 物化契约不变
-- 文档：`README.md` / `docs/formats.md` / `docs/labelstudio_usage.md`
+- 文档：`README.md` / `docs/formats.md` / `docs/labelstudio_usage.md` / `docs/data_layout.md`
 
-### Notes
+### Notes (earlier same day)
 
+- DET `BBox` 无 label 字段：previous 快照不伪造 label；导入时由 `DEFAULT_LS_RESULT_SPECS` 写入 `rectanglelabels=["object"]`
 - **不删除** `seg_brush.py`；brush 编解码与 `seg_prefill_mode="brush"` 仍可用
 
 ## 2026-08-13

@@ -1,7 +1,14 @@
 """Split LS export into normal/rework via ``current/`` (P4 CLI glue).
 
-Applies the export onto ``current/`` (merge by ``image_id``), then full-rebuilds
-``normal/`` and ``rework/`` from the complete current snapshot.
+Responsibility (高级封装)::
+
+    export-split:  apply-current  +  rebuild/return normal/rework paths
+
+Calls ``apply_current_from_export`` (no duplicated parse/overwrite logic),
+then returns the ``normal/`` and ``rework/`` annotation paths. Prefer this
+CLI when classifying results; do **not** also run ``mma apply-current`` on
+the same export (redundant double work).
+
 Does not build rework import tasks.
 """
 
@@ -36,10 +43,11 @@ def export_split_from_export(
     task: str | TaskType,
     data_root: Path | str | None = None,
 ) -> tuple[Path, Path]:
-    """Apply export to ``current/``, then rebuild normal/rework from current.
+    """高级封装：``apply_current_from_export`` + 返回 normal/rework 路径.
 
-    Returns ``(normal_path, rework_path)``.
-    Empty sides are written as JSON arrays ``[]``.
+    Equivalent to ``mma export-split``. Internally only delegates to
+    ``apply_current_from_export`` (export → current + refresh bundles), then
+    returns ``(normal_path, rework_path)``. Empty sides are ``[]``.
 
     Classification (from full current after merge):
     - ``human_confirmed and not needs_rework`` → normal

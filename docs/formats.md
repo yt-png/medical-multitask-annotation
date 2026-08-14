@@ -274,6 +274,8 @@ item = ExampleSegAdapter().adapt_item(
 
 预标注叠图写入 `predictions`（连通域拆分）属 **T3.1b**：调用 `item_to_ls_task` / `document_to_ls_tasks` 时传入 `mask_root`；默认 `SEG_PREFILL_MODE="polygon"`（`mma.converters.seg_polygon`），可选 `"brush"`（`mma.converters.seg_brush`）。导出解析同时接受 `polygonlabels.points`（百分比）与历史 `brushlabels.rle`，统一落盘为 `manual_masks/{image_id}_manual.png`。
 
+返工再导入、`previous_annotations`、legacy `--export` 的 **effective result** 旁路等见 `docs/data_layout.md` / `docs/labelstudio_usage.md`（本文不重复）。
+
 ---
 
 ## 12. DET Labeling Config（T3.2）

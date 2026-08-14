@@ -227,10 +227,11 @@ def _annotation_from_dict(
         return DetAnnotation(bboxes=tuple(boxes))
     if task_type is TaskType.CAP:
         caption = raw.get("caption")
-        if not isinstance(caption, str) or not caption.strip():
+        if not isinstance(caption, str):
             raise ValueError(
-                f"CAP annotation.caption must be non-empty "
+                f"CAP annotation.caption must be a string "
                 f"(image_id={image_id!r})"
             )
+        # Empty string is a valid human-clear state (not "missing").
         return CapAnnotation(caption=caption.strip())
     raise ValueError(f"unsupported task type: {task_type!r}")  # pragma: no cover

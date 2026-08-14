@@ -12,7 +12,7 @@
 |---|---|
 | 目的 | 复现 `real_batch` 本地真实数据全链路联调 |
 | 批次 | `batch_id = real_batch`，样本数 **N = 3** |
-| 主流程 | preprocess → package → 放置 prelabels → ls-import → LS 标注 → apply-current / export-split → **返工第 1 轮** → **返工第 2 轮** → merge |
+| 主流程 | preprocess → package → 放置 prelabels → ls-import → LS 标注 → **export-split** → **返工第 1 轮** → **返工第 2 轮** → merge |
 | 不包含 | 真实算法、网盘自动化、Web/DB、业务代码修改 |
 
 ---
@@ -223,7 +223,7 @@ data/ls_import/real_batch/cap/tasks.json
 | DET | `data/ls_import/real_batch/det/tasks.json` |
 | CAP | `data/ls_import/real_batch/cap/tasks.json` |
 
-打开样本应能看到原图及预标注（SEG 刷子 / DET 框 / CAP 文本）。不要混导任务类型。
+打开样本应能看到原图及预标注（SEG 多边形 / DET 框 / CAP 文本）。不要混导任务类型。
 
 ---
 
@@ -255,18 +255,13 @@ data/ls_export/real_batch/cap/round_001/export.json
 
 ---
 
-## 10. 阶段 4.1：apply-current + export-split（第 1 轮）
+## 10. 阶段 4.1：export-split（第 1 轮；含 current 同步）
 
-对每个任务执行（将路径中的 `seg` 换成 `det` / `cap` 各做一遍）：
+对每个任务执行**一条** `export-split` 即可（内部已调用 apply-current；**不要**对同一 export 再跑 `apply-current`）：
 
 ```powershell
-mma apply-current --batch real_batch --task seg --export data/ls_export/real_batch/seg/round_001/export.json --data-root data
 mma export-split --batch real_batch --task seg --export data/ls_export/real_batch/seg/round_001/export.json --data-root data
-
-mma apply-current --batch real_batch --task det --export data/ls_export/real_batch/det/round_001/export.json --data-root data
 mma export-split --batch real_batch --task det --export data/ls_export/real_batch/det/round_001/export.json --data-root data
-
-mma apply-current --batch real_batch --task cap --export data/ls_export/real_batch/cap/round_001/export.json --data-root data
 mma export-split --batch real_batch --task cap --export data/ls_export/real_batch/cap/round_001/export.json --data-root data
 ```
 
@@ -274,9 +269,10 @@ mma export-split --batch real_batch --task cap --export data/ls_export/real_batc
 
 - `data/results/real_batch/{seg,det,cap}/current/annotations.json` 已更新
 - 对应 `normal/annotations.json` 与 `rework/annotations.json` 已写出（有返工时 `rework` 非空）
-- SEG 若导出含 brush，可能出现 `data/results/real_batch/seg/manual_masks/<image_id>_manual.png`
+- SEG 若导出含 brush/polygon，可能出现 `data/results/real_batch/seg/manual_masks/<image_id>_manual.png`
+- 有返工时 `rework/previous_annotations/` 已写出（标注快照；不含原图）
 
-**此时不要执行 `mma merge`**（仍存在 `needs_rework=true` 样本）。
+**此时不要执行 `mma merge`**（仍存在 `should_rework` 为真的样本，例如未确认或 `needs_rework=true`）。
 
 ---
 
@@ -286,13 +282,17 @@ mma export-split --batch real_batch --task cap --export data/ls_export/real_batc
 
 ### 11.1 生成返工再导入任务
 
-对每个任务（建议三任务都执行；无返工时产出可为 `[]`）：
+对每个任务（建议三任务都执行；无返工时产出可为 `[]`）。  
+`apply-current` / `export-split` 已写出 `rework/previous_annotations/` 时**无需** `--export`：
 
 ```powershell
-mma rework-import --batch real_batch --task seg --export data/ls_export/real_batch/seg/round_001/export.json --data-root data
-mma rework-import --batch real_batch --task det --export data/ls_export/real_batch/det/round_001/export.json --data-root data
-mma rework-import --batch real_batch --task cap --export data/ls_export/real_batch/cap/round_001/export.json --data-root data
+mma rework-import --batch real_batch --task seg --data-root data
+mma rework-import --batch real_batch --task det --data-root data
+mma rework-import --batch real_batch --task cap --data-root data
 ```
+
+旧包无 `previous_annotations` 时仍可传 `--export`（兼容）。  
+注意：`previous_annotations` **不含原图**；本机仍须有 `data/task_packages/real_batch/{seg,det,cap}/images/`（与首轮相同 Local Files 根）。
 
 **预期**：写出（不覆盖首轮 `tasks.json`）：
 
@@ -315,10 +315,9 @@ data/ls_import/real_batch/{seg,det,cap}/rework_tasks.json
 data/ls_export/real_batch/{seg,det,cap}/round_002/export.json
 ```
 
-返工轮允许**子集** export。然后对有更新的任务执行：
+返工轮允许**子集** export。然后对有更新的任务执行**一条** `export-split`（勿再跑 apply-current）：
 
 ```powershell
-mma apply-current --batch real_batch --task det --export data/ls_export/real_batch/det/round_002/export.json --data-root data
 mma export-split --batch real_batch --task det --export data/ls_export/real_batch/det/round_002/export.json --data-root data
 ```
 
@@ -333,9 +332,9 @@ mma export-split --batch real_batch --task det --export data/ls_export/real_batc
 基于 **round_002** 的 export：
 
 ```powershell
-mma rework-import --batch real_batch --task seg --export data/ls_export/real_batch/seg/round_002/export.json --data-root data
-mma rework-import --batch real_batch --task det --export data/ls_export/real_batch/det/round_002/export.json --data-root data
-mma rework-import --batch real_batch --task cap --export data/ls_export/real_batch/cap/round_002/export.json --data-root data
+mma rework-import --batch real_batch --task seg --data-root data
+mma rework-import --batch real_batch --task det --data-root data
+mma rework-import --batch real_batch --task cap --data-root data
 ```
 
 （仅对仍有返工样本的任务有实质任务条目；其余可为 `[]`。）
@@ -355,10 +354,9 @@ Import 对应 `rework_tasks.json`，本轮要求：
 data/ls_export/real_batch/{seg,det,cap}/round_003/export.json
 ```
 
-然后：
+然后执行**一条** `export-split`（勿再跑 apply-current）：
 
 ```powershell
-mma apply-current --batch real_batch --task det --export data/ls_export/real_batch/det/round_003/export.json --data-root data
 mma export-split --batch real_batch --task det --export data/ls_export/real_batch/det/round_003/export.json --data-root data
 ```
 
@@ -371,7 +369,7 @@ mma export-split --batch real_batch --task det --export data/ls_export/real_batc
 - [ ] 全部 `needs_rework: false`
 - [ ] `image_id` 集合与 `data/processed/real_batch/manifest.json` 全量一致
 
-若某任务曾只 apply 子集，而 `current/` 仍残留旧返工标记，须对该任务再做**全量**导出并 `apply-current`，直至 `current/` 无返工残留。
+若某任务曾只 apply/export-split 子集，而 `current/` 仍残留旧返工标记，须对该任务再做**全量**导出并 `export-split`（或 `apply-current`），直至 `current/` 无返工残留。
 
 ---
 
@@ -401,8 +399,8 @@ mma merge --batch real_batch --data-root data
 | 阶段 2 | 解压 prelabels 包 | `data/prelabels/real_batch/...` |
 | 阶段 3 | `mma ls-import` ×3；LS 导入 | `ls_import/.../tasks.json` |
 | 首轮标注 | LS 标注 + Export | `ls_export/.../round_001/export.json` |
-| P4 第 1 轮 | `apply-current` + `export-split` ×3 | `results/.../current|normal|rework/` |
-| 返工第 1 轮 | `rework-import` → LS → Export → apply/split | `rework_tasks.json`；`round_002/` |
+| P4 第 1 轮 | `export-split` ×3（勿再连跑 apply-current） | `results/.../current|normal|rework/` |
+| 返工第 1 轮 | `rework-import` → LS → Export → `export-split` | `rework_tasks.json`；`round_002/` |
 | 返工第 2 轮 | 同上（基于 round_002） | `round_003/`；`current/` 无返工 |
 | 合并 | `mma merge` | `data/final/real_batch/manifest.json` |
 
@@ -411,4 +409,4 @@ mma merge --batch real_batch --data-root data
 1. **首轮**必须制造 ≥1 张 `needs_rework=yes`。  
 2. **返工第 1 轮**结束后仍须保留 ≥1 张需返工。  
 3. **返工第 2 轮**结束后三路 `current` 无返工，方可 `merge`。  
-4. 每轮 export 按任务分目录；`apply-current` / `export-split` / `rework-import` 的 `--task` 必须与 export 文件任务类型一致。
+4. 每轮 export 按任务分目录；`export-split` / `rework-import` 的 `--task` 必须与 export 文件任务类型一致（`apply-current` 为底层等价入口，勿与 `export-split` 对同一文件连跑）。

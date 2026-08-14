@@ -110,6 +110,20 @@ def test_load_current_annotations_file_helper(tmp_path: Path) -> None:
     assert loaded[0].annotation.caption == "via path"
 
 
+def test_cap_empty_caption_human_clear_roundtrip(tmp_path: Path) -> None:
+    """Empty caption is a valid human-clear state, not rejected on reload."""
+
+    path = overwrite_current(
+        [_cap("cleared", caption="")],
+        batch_id="b1",
+        task_type=TaskType.CAP,
+        data_root=tmp_path,
+    )
+    loaded = load_current_annotations_file(path, task_type=TaskType.CAP)
+    assert len(loaded) == 1
+    assert loaded[0].annotation.caption == ""
+
+
 def test_missing_file_raises(tmp_path: Path) -> None:
     missing = (
         results_current_dir("b1", TaskType.CAP, data_root=tmp_path)

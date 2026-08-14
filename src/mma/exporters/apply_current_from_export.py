@@ -1,7 +1,17 @@
 """Apply LS export results onto ``results/.../current/`` (P4 CLI glue).
 
-Orchestrates ``parse_ls_export`` + ``overwrite_current``, then full-rebuilds
-``normal/`` and ``rework/`` from ``current/`` (sole source of truth).
+Responsibility (底层 / current 同步)::
+
+    apply-current:  export JSON  →  merge into ``current/``
+
+This is the **shared underlying** sync used by ``export_split_from_export``.
+After writing ``current/``, it also full-rebuilds ``normal/`` / ``rework/``
+(and rework ``previous_annotations/``) from ``current/`` so the tree stays
+consistent — callers that only need classified paths should use
+``mma export-split`` instead of running both CLI commands.
+
+Orchestrates ``parse_ls_export`` + ``overwrite_current``, then
+``refresh_normal_rework_from_current``.
 """
 
 from __future__ import annotations
@@ -40,7 +50,12 @@ def apply_current_from_export(
     task: str | TaskType,
     data_root: Path | str | None = None,
 ) -> Path:
-    """Parse ``export_path``, merge into ``current/``, refresh normal/rework.
+    """底层：export → merge ``current/``（并刷新派生的 normal/rework）.
+
+    Role: shared current-sync primitive for P4. Prefer ``export_split_from_export``
+    / ``mma export-split`` when you need normal/rework paths; do **not** run
+    ``apply-current`` and ``export-split`` back-to-back on the same export
+    (export-split already calls this function).
 
     - Matching ``image_id`` in the export overwrite current entries; others keep
     - After write, ``normal/`` and ``rework/`` are fully rebuilt from current

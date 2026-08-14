@@ -125,7 +125,7 @@ print(cap_config_path())
 
 1. 在对应任务项目中选择 **Import**。
 2. 导入文件：`data/ls_import/<batch_id>/<task>/tasks.json`。
-3. 确认任务列表出现；打开样本应能看到原图，以及预标注（SEG 刷子 / DET 框 / CAP 文本）。
+3. 确认任务列表出现；打开样本应能看到原图，以及预标注（SEG 多边形 / DET 框 / CAP 文本）。
 
 ---
 
@@ -134,15 +134,16 @@ print(cap_config_path())
 ### 7.1 三任务共通
 
 - **原始诊断文本**：只读对照，不要当成 CAP 预标注去改。
-- **人工确认**（`human_confirmed`）：每张必选；选 `yes` 表示本样本已经过人工处理（无论是否改过预标注）。
-- **是否需要返工**（`needs_rework`）：不确定时可选 `yes`；未勾选/选 `no` 表示本轮不进入返工包（后续分类逻辑见 P4）。
+- **人工确认**（`human_confirmed`）：每张必选；选 `yes` 表示本样本已经过人工处理（无论是否改过预标注）。选 `no` 表示未确认，导出分类时进入 **rework**（即使 `needs_rework=no`）。
+- **是否需要返工**（`needs_rework`）：不确定时可选 `yes`；未勾选/选 `no` **单独不足以**进 normal。分类规则见下：`should_rework = (not human_confirmed) or needs_rework`。
 - 侧栏 `image_id` / `package_id` 仅供追溯，无需编辑。
 
 ### 7.2 SEG
 
-- 预标注 mask 应叠在**原图**上，使用画笔修改区域。
-- 同一张 mask 内多块不连通病灶会拆成多条同标签 `lesion` 区域，可分别编辑。
+- 预标注 mask 应叠在**原图**上；工作台为 **PolygonLabels**（`seg_mask` / `lesion`），用**多边形**增删改区域（不是画笔）。
+- 同一张 mask 内多块不连通病灶在预填时会拆成多条同标签 `lesion` 多边形，可分别编辑。
 - `$mask_ref` 仅为路径追溯，不是主展示图。
+- 解析仍兼容历史 Brush RLE 导出；新任务默认 polygon 预填（见 `docs/formats.md`）。
 
 ### 7.3 DET
 
@@ -167,28 +168,32 @@ data/ls_export/<batch_id>/<task>/
 
 可选按轮次分子目录，例如 `round_001/`，避免覆盖历史排障材料。
 
-导出后可用 P4 覆盖写入、按返工分类，并生成返工再导入任务：
+导出后可用 P4 覆盖写入与分类（**二选一**），再生成返工再导入任务：
 
 ```bash
-mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
+# 推荐：一条命令 = apply-current + 返回/写出 normal、rework（勿再跑 apply-current）
 mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
-mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
+
+# 或仅底层同步 current（实现上同样会刷新 normal/rework；勿再紧跟 export-split）
+mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
+
+mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.json>] --data-root data
 ```
 
-- `apply-current`：合并写入 `current/annotations.json` 后，**全量重建**同任务 `normal/` 与 `rework/`（以 current 为唯一真实源）；SEG 若有 brush RLE 或 polygon points 会同时写出 `results/.../seg/manual_masks/<image_id>_manual.png`
-- `export-split`：等价于先 apply-current，再返回 `normal/`、`rework/` 路径；分类规则：仅 `human_confirmed=yes` 且 `needs_rework=no` 进 normal；未确认与需返工均进 rework
-- `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）
+- `apply-current`：**底层** export → merge `current/`（并全量重建 normal/rework / previous_annotations）；SEG 若有 brush/polygon 会写出 `manual_masks/`
+- `export-split`：**高级封装**，内部调用 apply-current，并返回 `normal/`、`rework/` 路径；分类规则：`should_rework = (not human_confirmed) or needs_rework`
+- `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）。**优先**读 `rework/previous_annotations/<task>.json`（无需 `--export`）；仅当该快照不存在时才需要 `--export`（旧包兼容）。快照不含原图，导入仍依赖同批 `task_packages` 图像路径
 
-### 8.1 `apply-current` 与导出范围
+### 8.1 `export-split` / `apply-current` 与导出范围
 
-`apply-current` 按 `image_id` **合并**写入 `current/`：导出里出现的样本覆盖；**未出现的样本保留**。
+二者均按 `image_id` **合并**写入 `current/`：导出里出现的样本覆盖；**未出现的样本保留**。日常用 `export-split`；勿对同一 export 再跑另一条。
 
 | 轮次 | 导出范围 | 说明 |
 |------|----------|------|
-| **全量轮**（首轮或刷新整批权威状态） | 从对应任务 LS 项目导出本批**全部**已标注样本，再 apply | 避免旧返工标记因未出现在本轮 export 中而残留 |
-| **返工轮** | 可只导出返工子集再 apply | 未导出的 id 留在 `current/`（含已 normal 样本），符合返工闭环 |
+| **全量轮**（首轮或刷新整批权威状态） | 从对应任务 LS 项目导出本批**全部**已标注样本，再 `export-split` | 避免旧返工标记因未出现在本轮 export 中而残留 |
+| **返工轮** | 可只导出返工子集再 `export-split` | 未导出的 id 留在 `current/`（含已 normal 样本），符合返工闭环 |
 
-若只 apply 了子集，却希望尽快 `merge`，须保证 `current/` 中所有样本最终均被后续轮次刷新为不需返工（或本轮即为全量导出）。详见 [data_layout.md](data_layout.md) 中 `current/` 约定。
+若只同步了子集，却希望尽快 `merge`，须保证 `current/` 中所有样本最终均被后续轮次刷新为不需返工（或本轮即为全量导出）。详见 [data_layout.md](data_layout.md) 中 `current/` 约定。
 
 ---
 
@@ -198,10 +203,11 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.js
 |------|----------|------|
 | 任务有、图不显示 | Local storage 根 ≠ `local_root`；或相对路径层级不对 | 核对 `--data-root` / `--local-root` 与 LS 本地根；确认 `d=` 下路径在磁盘上真实存在 |
 | Windows 路径问题 | 混用反斜杠 | 本流水线生成的 `d=` 已用正斜杠；勿手改成 `\` |
-| SEG 无预填刷子 | 生成导入时缺 mask，或未成功跑通 `ls-import` | 检查 `prelabels/.../masks/` 与 `mask_ref`；重新执行 `mma ls-import --task seg` |
+| SEG 无预填多边形 | 生成导入时缺 mask，或未成功跑通 `ls-import` | 检查 `prelabels/.../masks/` 与 `mask_ref`；重新执行 `mma ls-import --task seg`（默认 polygon 预填） |
 | DET 转换失败 | 任务包缺图或图损坏 | 检查 `task_packages/.../images/{image_id}.jpg` |
 | 导入报控件不匹配 | 项目 XML 与任务类型不一致 | SEG 项目只用 `seg.xml`，勿把 DET 的 `tasks.json` 导进 SEG 项目 |
-| `merge` 仍报 needs_rework，但本轮以为已修完 | 只 apply 了部分导出，旧返工样本仍留在 `current/` | 全量导出再 `apply-current`；或继续返工轮直到 `current/` 无返工残留 |
+| `merge` 仍报 needs_rework，但本轮以为已修完 | 只同步了部分导出，旧返工样本仍留在 `current/` | 全量导出再 `export-split`（或 `apply-current`）；或继续返工轮直到 `current/` 无返工残留 |
+| 返工导入无图 / 路径失效 | 只拷了 `rework/`，缺少 `task_packages` 图像 | 同机保留或一并拷贝 `task_packages/<batch>/<task>/images/`；`previous_annotations` 不含原图 |
 
 ---
 
@@ -214,14 +220,14 @@ mma ls-import --batch <batch_id> --task {seg|det|cap} --data-root data
 # 可选：Local storage 根与 data 不同时
 mma ls-import --batch <batch_id> --task seg --data-root data --local-root D:\path\to\local_root
 
-# 导出后覆盖 current/，并自动全量刷新 normal/rework
+# 导出后：二选一（勿对同一 export 连跑）
+# 推荐高级封装（内部 = apply-current + 返回 normal/rework 路径）
+mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
+# 或底层同步 current
 mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 
-# 按确认/返工分类（先更新 current，再全量重建 normal/rework）
-mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
-
 # 生成返工再导入 tasks（不覆盖 tasks.json）
-mma rework-import --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
+mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.json>] --data-root data
 ```
 
 - [data_layout.md](data_layout.md) — `ls_import` / `ls_export` / `task_packages` / `prelabels`

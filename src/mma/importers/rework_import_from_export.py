@@ -1,8 +1,7 @@
-"""Build rework LS import tasks from an export JSON (P4 CLI glue).
+"""Build rework LS import tasks (P4 CLI glue).
 
-Orchestrates parse → split → extract raw → ``build_rework_ls_tasks`` and
-writes ``ls_import/.../rework_tasks.json``. Does not overwrite ``tasks.json``
-or ``current/``.
+Prefers self-contained ``rework/previous_annotations/``; falls back to legacy
+``--export`` raw side-channel when previous snapshots are absent.
 """
 
 from __future__ import annotations
@@ -16,11 +15,17 @@ from mma.common.models import TaskType
 from mma.common.paths import (
     default_data_root,
     ls_import_task_dir,
+    results_rework_dir,
     validate_batch_id,
 )
 from mma.converters import ImageMetadata
+from mma.exporters.current_annotations import (
+    ANNOTATIONS_JSON_NAME,
+    read_annotations_json,
+)
 from mma.exporters.extract_ls_raw_results import extract_ls_raw_results
 from mma.exporters.parse_ls_export import parse_ls_export
+from mma.exporters.previous_annotations import previous_annotations_json_path
 from mma.exporters.split_by_rework import split_by_rework
 from mma.importers.build_ls_tasks import resolve_task_image_path
 from mma.importers.build_rework_tasks import build_rework_ls_tasks
@@ -38,14 +43,19 @@ _TASK_TYPE_MAP = {
 
 
 def rework_import_from_export(
-    export_path: Path | str,
+    export_path: Path | str | None = None,
     *,
     batch_id: str,
     task: str | TaskType,
     data_root: Path | str | None = None,
     local_root: Path | str | None = None,
 ) -> Path:
-    """Parse export, build rework LS tasks, write ``rework_tasks.json``.
+    """Build ``rework_tasks.json`` from previous_annotations or legacy export.
+
+    Priority:
+    1. If ``rework/previous_annotations/<task>.json`` exists → use it
+       (``export_path`` ignored for prediction geometry).
+    2. Else require ``export_path`` and use the legacy raw-export path.
 
     Empty rework side writes an empty JSON array ``[]``.
     """
@@ -54,6 +64,73 @@ def rework_import_from_export(
     root = default_data_root() if data_root is None else Path(data_root)
     local = root if local_root is None else Path(local_root)
     task_type = _parse_task_arg(task)
+
+    prev_path = previous_annotations_json_path(
+        cleaned, task_type, data_root=root
+    )
+    if prev_path.is_file():
+        tasks = _build_from_previous(
+            batch_id=cleaned,
+            task_type=task_type,
+            data_root=root,
+            local_root=local,
+        )
+    else:
+        if export_path is None:
+            raise ValueError(
+                "rework/previous_annotations is missing; provide --export "
+                f"for legacy import (expected {prev_path})"
+            )
+        tasks = _build_from_export(
+            export_path,
+            batch_id=cleaned,
+            task_type=task_type,
+            data_root=root,
+            local_root=local,
+        )
+
+    out_path = (
+        ls_import_task_dir(cleaned, task_type, data_root=root)
+        / REWORK_TASKS_JSON_NAME
+    )
+    write_json(out_path, tasks)
+    return out_path.resolve()
+
+
+def _build_from_previous(
+    *,
+    batch_id: str,
+    task_type: TaskType,
+    data_root: Path,
+    local_root: Path,
+) -> list:
+    rework_ann = (
+        results_rework_dir(batch_id, task_type, data_root=data_root)
+        / ANNOTATIONS_JSON_NAME
+    )
+    if not rework_ann.is_file():
+        raise FileNotFoundError(
+            f"rework annotations not found: {rework_ann}"
+        )
+    rework = read_annotations_json(rework_ann, task_type=task_type)
+    return build_rework_ls_tasks(
+        rework,
+        batch_id=batch_id,
+        task_type=task_type,
+        prediction_source="previous",
+        data_root=data_root,
+        local_root=local_root,
+    )
+
+
+def _build_from_export(
+    export_path: Path | str,
+    *,
+    batch_id: str,
+    task_type: TaskType,
+    data_root: Path,
+    local_root: Path,
+) -> list:
     path = Path(export_path)
     if not path.is_file():
         raise FileNotFoundError(f"LS export not found: {path}")
@@ -62,9 +139,9 @@ def rework_import_from_export(
     if task_type is TaskType.DET:
         image_ids = _peek_export_image_ids(path)
         metadata = _det_image_metadata_by_id(
-            cleaned,
+            batch_id,
             image_ids,
-            data_root=root,
+            data_root=data_root,
         )
 
     results = parse_ls_export(
@@ -74,21 +151,15 @@ def rework_import_from_export(
     )
     _, rework = split_by_rework(results)
     raw = extract_ls_raw_results(path, task_type=task_type)
-    tasks = build_rework_ls_tasks(
+    return build_rework_ls_tasks(
         rework,
-        raw_results_by_image_id=raw,
-        batch_id=cleaned,
+        batch_id=batch_id,
         task_type=task_type,
-        data_root=root,
-        local_root=local,
+        prediction_source="raw",
+        raw_results_by_image_id=raw,
+        data_root=data_root,
+        local_root=local_root,
     )
-
-    out_path = (
-        ls_import_task_dir(cleaned, task_type, data_root=root)
-        / REWORK_TASKS_JSON_NAME
-    )
-    write_json(out_path, tasks)
-    return out_path.resolve()
 
 
 def _parse_task_arg(task: str | TaskType) -> TaskType:

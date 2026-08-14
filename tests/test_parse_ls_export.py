@@ -177,6 +177,64 @@ def test_parse_cap_export_choices_and_caption() -> None:
     assert results[1].needs_rework is True
 
 
+def _cap_prediction_result(caption: str) -> dict:
+    return {
+        "from_name": "cap_text",
+        "to_name": "image",
+        "type": "textarea",
+        "value": {"text": [caption]},
+    }
+
+
+def test_cap_human_overrides_prediction() -> None:
+    task = _cap_task(image_id="img-over", caption="A large nodule")
+    task["predictions"] = [
+        {"result": [_cap_prediction_result("A small nodule")]},
+    ]
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].annotation.caption == "A large nodule"
+
+
+def test_cap_human_empty_clears_prediction() -> None:
+    task = _cap_task(image_id="img-clear", caption="")
+    for entry in task["annotations"][0]["result"]:
+        if entry.get("from_name") == "cap_text":
+            entry["value"]["text"] = [""]
+            break
+    task["predictions"] = [
+        {"result": [_cap_prediction_result("A small nodule")]},
+    ]
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].annotation.caption == ""
+
+
+def test_cap_missing_textarea_falls_back_to_prediction() -> None:
+    task = _cap_task(image_id="img-fallback", caption="ignored")
+    task["annotations"][0]["result"] = [
+        entry
+        for entry in task["annotations"][0]["result"]
+        if entry.get("from_name") != "cap_text"
+    ]
+    task["predictions"] = [
+        {"result": [_cap_prediction_result("older")]},
+        {"result": [_cap_prediction_result("A small nodule")]},
+    ]
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].annotation.caption == "A small nodule"
+
+
+def test_cap_missing_textarea_and_prediction_raises() -> None:
+    task = _cap_task(image_id="img-missing", caption="x")
+    task["annotations"][0]["result"] = [
+        entry
+        for entry in task["annotations"][0]["result"]
+        if entry.get("from_name") != "cap_text"
+    ]
+    task["predictions"] = [{"result": []}]
+    with pytest.raises(ValueError, match="missing 'cap_text'"):
+        parse_ls_export_data([task], task_type=TaskType.CAP)
+
+
 def test_parse_det_percent_to_pixel_with_explicit_metadata() -> None:
     # percent on 640x480 → pixel (120, 80.5, 64, 48)
     data = [

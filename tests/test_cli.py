@@ -197,10 +197,26 @@ def test_apply_current_requires_export() -> None:
     assert exc.value.code == 2
 
 
-def test_rework_import_requires_export() -> None:
-    with pytest.raises(SystemExit) as exc:
-        main(["rework-import", "--batch", "b1", "--task", "cap"])
-    assert exc.value.code == 2
+def test_rework_import_without_previous_needs_export(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Without previous_annotations, omitting --export fails in business logic."""
+
+    code = main(
+        [
+            "rework-import",
+            "--batch",
+            "b1",
+            "--task",
+            "cap",
+            "--data-root",
+            str(tmp_path),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "mma rework-import:" in captured.err
 
 
 def _write_cap_export(path: Path, *, image_id: str = "img-a", caption: str = "hi") -> None:

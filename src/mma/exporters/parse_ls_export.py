@@ -16,6 +16,12 @@ DET human-priority rule (three-way, mirrors SEG ``prediction`` link semantics):
    (accepted prelabel then cleared all rectangles)
 3. no ``det_bbox`` and ``annotation.prediction`` is null → fallback to
    ``task.predictions[].result`` det boxes; if none → empty boxes
+
+CAP human-priority rule:
+
+1. ``annotation.result`` has ``cap_text`` → use that text (empty string = human clear)
+2. no ``cap_text`` in annotation → fallback to ``task.predictions[-1].result``
+3. neither side has ``cap_text`` → raise (same as previous missing-textarea error)
 """
 
 from __future__ import annotations
@@ -40,6 +46,8 @@ from mma.converters.to_labelstudio import (
     DEFAULT_LS_RESULT_SPECS,
     ImageMetadata,
 )
+from mma.exporters.effective_result import resolve_effective_result
+
 
 _CHOICE_YES = "yes"
 _CHOICE_NO = "no"
@@ -131,8 +139,15 @@ def _parse_one_task(
     image_id = image_id.strip()
 
     annotation = _select_annotation(task.get("annotations"), image_id=image_id)
-    result_items = annotation.get("result")
-    if not isinstance(result_items, list):
+    effective = resolve_effective_result(
+        task,
+        task_type=task_type,
+        image_id=image_id,
+        annotation=annotation,
+    )
+    # Choices always come from the original annotation.result (required yes/no).
+    result_items = list(effective.annotation_result)
+    if not isinstance(annotation.get("result"), list):
         raise ValueError(
             f"annotation result must be a list (image_id={image_id!r})"
         )
@@ -151,6 +166,9 @@ def _parse_one_task(
         default=False,
     )
 
+    # Payload uses original annotation.result + existing prediction / operated
+    # three-way rules (unchanged). resolve_effective_result is called above for
+    # shared policy + warning when confirm-only falls back for rework extract.
     payload = _parse_annotation_payload(
         result_items,
         task_type=task_type,
@@ -370,7 +388,12 @@ def _parse_annotation_payload(
             annotation=annotation,
         )
     if task_type is TaskType.CAP:
-        return _parse_cap_annotation(result_items, image_id=image_id)
+        return _parse_cap_annotation(
+            result_items,
+            image_id=image_id,
+            task=task,
+            annotation=annotation,
+        )
     raise ValueError(f"unsupported task type: {task_type!r}")  # pragma: no cover
 
 
@@ -877,46 +900,137 @@ def _percent_bbox_to_pixel(
     )
 
 
+def _extract_prediction_result(
+    task: Mapping[str, Any] | None,
+) -> list[Any]:
+    """Return ``task["predictions"][-1]["result"]`` or ``[]`` if unavailable."""
+
+    if task is None:
+        return []
+    predictions = task.get("predictions")
+    if not isinstance(predictions, list) or not predictions:
+        return []
+    last = predictions[-1]
+    if not isinstance(last, dict):
+        return []
+    result = last.get("result")
+    if not isinstance(result, list):
+        return []
+    return result
+
+
+def _collect_cap_text_entries(
+    result_items: Sequence[Any],
+    *,
+    image_id: str,
+) -> list[dict[str, Any]]:
+    """Collect ``from_name=cap_text`` textarea entries (may have empty text)."""
+
+    spec = DEFAULT_LS_RESULT_SPECS[TaskType.CAP]
+    from_name = spec["from_name"]
+    expected_type = spec["type"]
+    matches: list[dict[str, Any]] = []
+    for entry in _iter_result_items(result_items, image_id=image_id):
+        if entry.get("from_name") != from_name:
+            continue
+        if entry.get("type") not in (None, expected_type):
+            raise ValueError(
+                f"CAP result type must be {expected_type!r} "
+                f"(image_id={image_id!r}, got {entry.get('type')!r})"
+            )
+        value = entry.get("value")
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"CAP textarea value must be an object (image_id={image_id!r})"
+            )
+        if "text" not in value:
+            raise ValueError(
+                f"CAP textarea value missing text (image_id={image_id!r})"
+            )
+        matches.append(entry)
+    return matches
+
+
 def _parse_cap_annotation(
     result_items: Sequence[Any],
     *,
     image_id: str,
+    task: Mapping[str, Any] | None = None,
+    annotation: Mapping[str, Any] | None = None,
 ) -> CapAnnotation:
-    spec = DEFAULT_LS_RESULT_SPECS[TaskType.CAP]
-    from_name = spec["from_name"]
-    expected_type = spec["type"]
+    """Build CAP payload with human-over-prelabel priority.
 
-    matches = [
-        entry
-        for entry in _iter_result_items(result_items, image_id=image_id)
-        if entry.get("from_name") == from_name
-    ]
-    if not matches:
-        raise ValueError(
-            f"CAP missing {from_name!r} textarea result (image_id={image_id!r})"
-        )
-    if len(matches) > 1:
-        raise ValueError(
-            f"CAP duplicate {from_name!r} textarea result (image_id={image_id!r})"
-        )
+    Label Studio CAP export shape (relevant fields)::
 
-    entry = matches[0]
-    if entry.get("type") not in (None, expected_type):
+        {
+          "annotations": [{
+            "result": [
+              {"from_name": "cap_text", "type": "textarea", "value": {"text": [...]}},
+              {"from_name": "human_confirmed", ...},
+              ...
+            ]
+          }],
+          "predictions": [{"result": [ /* prelabel caption */ ]}]
+        }
+
+    Decision:
+
+    1. Annotation has ``cap_text`` → use it (empty text = human cleared caption)
+    2. No ``cap_text`` in annotation → fallback to ``predictions[-1].result``
+    3. Neither has ``cap_text`` → raise missing textarea error
+
+    ``annotation`` is accepted for API symmetry with SEG/DET; CAP decisions use
+    ``result_items`` (selected annotation.result) plus ``task.predictions``.
+    """
+
+    _ = annotation  # reserved for future prediction-link signals
+    human_entries = _collect_cap_text_entries(result_items, image_id=image_id)
+    if len(human_entries) > 1:
         raise ValueError(
-            f"CAP result type must be {expected_type!r} "
-            f"(image_id={image_id!r}, got {entry.get('type')!r})"
+            f"CAP duplicate {DEFAULT_LS_RESULT_SPECS[TaskType.CAP]['from_name']!r} "
+            f"textarea result (image_id={image_id!r})"
         )
-    value = entry.get("value")
-    if not isinstance(value, dict):
+    if human_entries:
+        text = human_entries[0]["value"].get("text")
+        caption = _normalize_cap_text(
+            text, image_id=image_id, allow_empty=True
+        )
+        return CapAnnotation(caption=caption)
+
+    pred_entries = _collect_cap_text_entries(
+        _extract_prediction_result(task),
+        image_id=image_id,
+    )
+    if len(pred_entries) > 1:
         raise ValueError(
-            f"CAP textarea value must be an object (image_id={image_id!r})"
+            f"CAP duplicate {DEFAULT_LS_RESULT_SPECS[TaskType.CAP]['from_name']!r} "
+            f"textarea result in predictions (image_id={image_id!r})"
         )
-    text = value.get("text")
-    caption = _normalize_cap_text(text, image_id=image_id)
-    return CapAnnotation(caption=caption)
+    if pred_entries:
+        text = pred_entries[0]["value"].get("text")
+        caption = _normalize_cap_text(
+            text, image_id=image_id, allow_empty=True
+        )
+        return CapAnnotation(caption=caption)
+
+    raise ValueError(
+        f"CAP missing {DEFAULT_LS_RESULT_SPECS[TaskType.CAP]['from_name']!r} "
+        f"textarea result (image_id={image_id!r})"
+    )
 
 
-def _normalize_cap_text(text: Any, *, image_id: str) -> str:
+def _normalize_cap_text(
+    text: Any,
+    *,
+    image_id: str,
+    allow_empty: bool = False,
+) -> str:
+    """Normalize LS textarea ``text`` to a caption string.
+
+    When ``allow_empty`` is True, empty / whitespace-only text becomes ``""``
+    (human clear). When False, empty text raises (legacy strict callers).
+    """
+
     if isinstance(text, str):
         caption = text.strip()
     elif isinstance(text, list):
@@ -926,6 +1040,6 @@ def _normalize_cap_text(text: Any, *, image_id: str) -> str:
         raise ValueError(
             f"CAP text must be a string or list of strings (image_id={image_id!r})"
         )
-    if not caption:
+    if not caption and not allow_empty:
         raise ValueError(f"CAP caption is empty (image_id={image_id!r})")
     return caption

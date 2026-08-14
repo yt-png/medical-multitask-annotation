@@ -60,38 +60,50 @@ mma ls-import --batch demo_batch --task seg --data-root data
 - SEG 默认启用 prelabels 目录为 `mask_root` 以叠图预填（默认 **polygonlabels**；可选 brush RLE）
 - **覆盖校验**：任务包 `manifest.json` 的 `image_id` 集合必须与 `prelabels.json` 完全一致；缺样本报 `Missing prelabels`，多余报 `Unknown prelabels`（不静默跳过）
 
-覆盖写入当前有效结果（P4，需本轮 LS 导出 JSON）：
+覆盖写入当前有效结果（P4）。**职责澄清（二选一，勿对同一 export 连跑两条）**：
+
+| 命令 | 角色 |
+|------|------|
+| `apply-current` | **底层**：export → merge `current/`（实现上也会刷新 normal/rework） |
+| `export-split` | **高级封装**：内部调用 apply-current，并打印/返回 `normal/`、`rework/` 路径 |
+
+日常「导出后分类落盘」用 `export-split` 即可；仅在只要同步 `current/`、不关心命令行打印的两路路径时用 `apply-current`。
 
 ```bash
+# 推荐：一条命令完成 current 同步 + normal/rework 重建
+mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
+```
+
+```bash
+# 底层等价入口（勿再紧跟 export-split）
 mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
 ```
 
 - 解析导出（含仍需返工样本）并覆盖写入 `data/results/<batch>/<task>/current/annotations.json`
 - 按 `image_id` **合并**写入：命中则覆盖；**未出现在本轮 export 中的样本保留**（非整表清空）
 - 写入后**自动全量重建**同任务 `normal/` 与 `rework/`（以 `current/` 为唯一真实源，禁止按本轮 export 子集追加历史）
-- 首轮/全量刷新：请导出该任务本批全部样本后再 apply；返工轮允许子集 export + apply（详见 `docs/data_layout.md`、`docs/labelstudio_usage.md`）
+- 首轮/全量刷新：请导出该任务本批全部样本后再 apply / export-split；返工轮允许子集 export（详见 `docs/data_layout.md`、`docs/labelstudio_usage.md`）
 - DET 从 `task_packages/.../images/` 读取图像尺寸做百分比→像素换算
 - **DET**：三态解析（与 SEG 的 `annotation.prediction` 语义对齐）。`annotation` 有 `det_bbox` → 用人框；无框但 `annotation.prediction` 非空 → 空框（接受预标注后删光）；无框且无 prediction 链接 → 回退 `task.predictions` 预标注框（未操作不丢预标注）
 - **SEG**：人工结果优先。若 annotation 有 SEG 操作记录（`from_name=seg_mask` 条目，或 `annotation.prediction` 表明从预标注接受过），则写出 `data/results/<batch>/seg/manual_masks/<image_id>_manual.png`（支持 **polygonlabels 百分比点** 与历史 **brushlabels RLE**；**删光几何则写全空 mask**），`mask_ref` 为 `manual_masks/<image_id>_manual.png`。若无 SEG 操作记录，才回退导出里的 `data.mask_ref`（预标注）。不覆盖 `prelabels/.../masks/`。
-
-按返工分类写出结果包（P4）：
-
-```bash
-mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
-```
-
-- 先将本轮 export **合并写入 `current/`**，再按完整 `current/` **全量重建** `normal/annotations.json` 与 `rework/annotations.json`（空侧为 `[]`）
-- **分类**（相对最新 current）：仅 `human_confirmed and not needs_rework` → normal；`human_confirmed=false`（无论 `needs_rework`）以及 `human_confirmed and needs_rework` → rework
-- 返工子集 export 后，已修好的样本会进入 normal，其余仍保留在 current 中的状态一并反映；`normal` 始终表示当前全部无需返工样本
-- **SEG** 与 `apply-current` 相同：同步物化 `manual_masks/`，保证 normal/rework 与 current 的 `mask_ref` 一致
+- **CAP**：人工结果优先。`annotation.result` 有 `cap_text` → 用人改文本（**空串表示人工清空**）；无 `cap_text` → 回退 `task.predictions[-1].result` 预标注；两边皆无则报错。`current/` 允许持久化空 caption。
+- **分类**（相对最新 current）：`should_rework = (not human_confirmed) or needs_rework`；仅确认且不需返工进 normal；**rework = 未达最终确认状态**
+- **SEG** normal/rework 与 current 的 `mask_ref` 一致（含 `manual_masks/`）
 
 生成返工再导入任务（P4，可见上一轮标注、不预填双勾选）：
 
 ```bash
+# 推荐：rework 包已含 previous_annotations 时无需 --export
+mma rework-import --batch demo_batch --task cap --data-root data
+
+# 旧包兼容：无 previous_annotations 时仍可用 --export
 mma rework-import --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
 ```
 
 - 写出 `data/ls_import/<batch>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`；无返工样本时为 `[]`）
+- **优先**读 `results/.../rework/previous_annotations/<task>.json`（及 SEG `masks/`）构造 LS `predictions`；该快照由 `apply-current` / `export-split` 与 rework 包一并生成
+- 「自包含」仅指标注快照可脱离原始 LS export；**原图仍取自** `task_packages/<batch>/<task>/images/`（与首轮 `ls-import` 相同）
+- 无快照时回退 `--export`：**effective result** 旁路（`resolve_effective_result`）。仅勾选 `human_confirmed`、未 Accept 预标注时，仍从 `task.predictions` 带回几何/文本；人工清空（`annotation.prediction` 有值且无任务控件）不回退
 
 三任务合并写出最终集（P5，需三路 `current/` 就绪且 `processed` 可回填图文）：
 
@@ -137,12 +149,12 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T3.4 生成 LS 导入任务（`importers/build_ls_tasks.py`、`mma ls-import`、local-files URL）
 - 已完成：T3.5 Label Studio 本地使用说明（`docs/labelstudio_usage.md`）
 - 已完成：T4.1 LS 导出解析 → `TaskAnnotationResult`（`exporters/parse_ls_export.py`）
-- 已完成：T4.2 按 `needs_rework` 拆分 normal/rework（`exporters/split_by_rework.py`）
-- 已完成：T4.3 返工再导入（S2 旁路 raw result → `importers/build_rework_tasks.py`）
-- 已完成：T4.4 覆盖写入 `results/.../current/annotations.json`（`exporters/overwrite_current.py`）
-- 已完成：接线 `mma apply-current --batch --task --export [--data-root]`（`exporters/apply_current_from_export.py`）
-- 已完成：接线 `mma export-split --batch --task --export [--data-root]`（`exporters/export_split_from_export.py` → normal/rework）
-- 已完成：接线 `mma rework-import --batch --task --export [--data-root] [--local-root]`（`importers/rework_import_from_export.py` → `rework_tasks.json`）
+- 已完成：T4.2 按 `should_rework` 拆分 normal/rework（`exporters/split_by_rework.py`；统一函数 `models.should_rework`；与 Requirement Spec 7.7 / `data_layout` 对齐：rework=未达最终确认）
+- 已完成：T4.3 返工再导入（优先 `rework/previous_annotations/` 标注快照；旧模式 `--export` 经 `resolve_effective_result` / `extract_ls_raw_results` → `importers/build_rework_tasks.py`；原图仍依赖 `task_packages`）
+- 已完成：`resolve_effective_result`（人工 payload 优先；仅 Choices 时 prediction fallback；人工清空不回退；confirm-only 打 warning）
+- 已完成：接线 `mma apply-current`（底层：export → current）与 `mma export-split`（高级封装：调用 apply-current 并返回 normal/rework；**勿对同一 export 连跑两条**）
+- 已完成：接线 `mma rework-import --batch --task [--export] [--data-root] [--local-root]`（`importers/rework_import_from_export.py` → `rework_tasks.json`）
+- 已完成：rework 包标注快照 `previous_annotations/<task>.json`（+ SEG `masks/`；`write_normal_rework_bundles`；不含原图）
 - 已完成：T4.5 读取 current 清单（`exporters/load_current.py` + `current_annotations` 序列化；供 P5 merge）
 - 已完成：T5.1 合并就绪校验（`merge/validate_ready.py`：无返工、全确认、三路 `image_id` 一致）
 - 已完成：T5.2 按 `image_id` 合并（`merge/merge_multitask.py` → `MergedMultitaskRecord`；含缺任务防御）
@@ -150,6 +162,7 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T5.4 输出 `final/` 与接线 `mma merge --batch [--data-root]`（`merge/merge_to_final.py` + `write_final.py`）
 - 已完成：final SEG mask 统一物化到 `final/<batch>/final_assets/masks/`（`merge/materialize_final_seg.py`；contract 禁止 `masks/`/`manual_masks/`/`prelabels/`）
 - 已完成：SEG 人工几何 → `results/.../seg/manual_masks/` 持久化（polygon + 历史 brush；删光写空 mask；无 SEG 操作才回退 `data.mask_ref`；`apply-current` / `export-split`）
+- 已完成：CAP 导出三态解析（人改文本 / 人工清空为空串 / 无 cap_text 回退 `predictions[-1]`；`current` 允许空 caption）
 - 已完成：DET 导出三态解析（人框 / 接受后删光为空 / 未操作回退 `predictions`；`parse_ls_export`）
 - 已完成：`apply-current` / `export-split` 以 `current/` 为源全量刷新 normal/rework（多轮返工后 normal 反映最新无需返工全集）
 

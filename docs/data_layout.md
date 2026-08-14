@@ -58,8 +58,12 @@ data/
 ├── results/<batch_id>/{seg,det,cap}/
 │   ├── normal/
 │   ├── rework/
+│   │   ├── annotations.json
+│   │   └── previous_annotations/   # 上一轮标注快照（不含原图）
+│   │       ├── <task>.json
+│   │       └── masks/              # 仅 seg
 │   ├── current/
-│   └── manual_masks/          # 仅 seg：人工确认 brush 落盘
+│   └── manual_masks/          # 仅 seg：人工确认 brush/polygon 落盘
 └── final/<batch_id>/
     ├── manifest.json
     └── final_assets/masks/     # merge 时物化的统一 SEG mask
@@ -117,7 +121,7 @@ data/
 | 图像 | **不复制**；`data.image` 使用 Local Files URL：`/data/local-files/?d=<相对 local_root 的正斜杠路径>` |
 | 默认相对路径 | 相对 `data_root`（常与 LS Local storage 根一致），例如 `task_packages/<batch_id>/seg/images/<image_id>.jpg` |
 | 图像来源 | 优先解析 `task_packages/<batch_id>/<task>/images/{image_id}.jpg\|.jpeg` |
-| 输入 | `prelabels/<batch_id>/<task>/prelabels.json`；SEG 默认以该 prelabels 目录为 `mask_root` 生成 brush 预填 |
+| 输入 | `prelabels/<batch_id>/<task>/prelabels.json`；SEG 默认以该 prelabels 目录为 `mask_root` 生成 **polygon** 预填（非 brush） |
 | CLI | `mma ls-import --batch <id> --task {seg\|det\|cap} [--data-root] [--local-root]` |
 | 消费者 | Label Studio 本地导入（P3 / P4 返工）；工作台 XML 仍用包内 `labelstudio/configs/*.xml`（不拷贝到本目录） |
 
@@ -133,41 +137,68 @@ data/
 
 #### `normal/`
 
-- 本轮（相对最新 `current/`）分类结果：`human_confirmed == true` **且** `needs_rework == false`
-- **始终表示当前全部无需返工样本**；由 `apply-current` / `export-split` 在更新 `current/` 后**全量重建**（禁止按历史 append）
+- 本轮（相对最新 `current/`）分类结果：`should_rework(...)` 为 **false**
+  - 即 `human_confirmed == true` **且** `needs_rework == false`
+  - 判定函数：`mma.common.models.should_rework`
+- **始终表示当前全部已达最终确认状态的样本**；由 `apply-current` / `export-split` 在更新 `current/` 后**全量重建**（禁止按历史 append）
 - 建议按轮次另存快照：`normal/round_XXX/`（可选；权威仍以最新 `normal/annotations.json` 为准）
 - 用于网盘回传「正常结果包」
 
 #### `rework/`
 
-- 本轮（相对最新 `current/`）分类结果：未进入 normal 的样本，包括：
-  - `human_confirmed == false`（无论 `needs_rework`）
-  - `human_confirmed == true` **且** `needs_rework == true`
+- 本轮（相对最新 `current/`）分类结果：`should_rework(...)` 为 **true**
+  - 定义：`should_rework = (not human_confirmed) OR needs_rework`
+  - **含义：未达到最终确认状态**，而不是「仅 `needs_rework=True`」
+  - 包含：
+    - `human_confirmed == false`（无论 `needs_rework`）
+    - `human_confirmed == true` **且** `needs_rework == true`
 - 与 `normal/` 同样在每次 apply / export-split 后**全量重建**
 - 建议按轮次另存快照：`rework/round_XXX/`（可选）
 - 用于网盘回传与返工再导入输入（未确认样本一并进入返工闭环）
+- **自包含上一轮标注快照**（`apply-current` / `export-split` 刷新 rework 时同步写出）：
+
+```text
+results/<batch>/<task>/rework/
+├── annotations.json
+└── previous_annotations/
+    ├── <task>.json          # det.json | seg.json | cap.json
+    └── masks/               # 仅 SEG：复制的 mask PNG
+        └── {image_id}.png
+```
+
+  - 「自包含」指**标注几何/文本快照**可脱离原始 LS export；**不**包含原图。`rework-import` 仍需同批 `task_packages/.../images/`（及 manifest）生成 `data.image` Local Files URL
+  - 数据来自 `TaskAnnotationResult.annotation`，**不依赖** LS export raw
+  - DET：`bboxes[{x,y,width,height}]`（像素；`BBox` 无 label 字段，快照不伪造 label）
+  - CAP：`{image_id, caption}`
+  - SEG：复制 mask 到 `previous_annotations/masks/`，并用 `build_seg_polygon_results` 写入 `polygons`（空 mask → `polygons: []`）
+  - `mma rework-import` **优先**读此目录生成 `rework_tasks.json`；无此目录时才回退 `--export`（旧包兼容）
 
 #### `current/`
 
 - **该任务、该批次的唯一当前有效结果权威目录**
 - 写入语义：同 `image_id` **覆盖**旧标注与旧勾选，不并行保留多版有效结果
-- **按 `image_id` 合并写入**（`apply-current` / `overwrite_current`）：
+- **按 `image_id` 合并写入**（`apply-current` / `export-split` → `overwrite_current`）：
   - 本轮解析到的每个 `image_id`：覆盖标注与「人工确认 / 是否返工」勾选
   - **未出现在本轮写入集合中的 `image_id`：保留原记录**（非整表清空）
   - 本轮结果为空时：**不改写**已有 `current/`（no-op）
-- **操作约定**：
-  - **全量轮**（首轮或意图刷新该任务整批权威状态）：应从对应 LS 项目导出本批该任务**全部已处理样本**，再执行 `apply-current`
-  - **返工轮**：允许只导出返工子集再 `apply-current`；未出现的 id **刻意保留**上一轮有效结果（含已 normal 的样本）
+- **操作约定**（日常推荐 `export-split`；与 `apply-current` 对同一 export **二选一**）：
+  - **全量轮**（首轮或意图刷新该任务整批权威状态）：应从对应 LS 项目导出本批该任务**全部已处理样本**，再执行 `export-split`（或等价的 `apply-current`）
+  - **返工轮**：允许只导出返工子集再 `export-split` / `apply-current`；未出现的 id **刻意保留**上一轮有效结果（含已 normal 的样本）
   - **禁止**：从全量项目中随意导出少量样本并 apply，却期望其余样本被自动删除或状态被清空
 - 合并（P5）只读各任务的 `current/`
-- 建议清单文件：`current/annotations.json`（或等价；字段对齐 `TaskAnnotationResult`）
+- 建议清单文件：`current/annotations.json`（字段对齐 `TaskAnnotationResult`）。其中可选字段 `export_round` **当前解析恒为 `null`**；轮次追溯靠 `ls_export/.../round_XXX/`（及可选的 `normal|rework/round_XXX/` 快照），不以该字段接线
 
 #### `manual_masks/`（仅 SEG）
 
 - 路径：`results/<batch_id>/seg/manual_masks/`
-- 由 `apply-current` / `export-split` 在解析到 LS brush RLE 时写出：`{image_id}_manual.png`
+- 由 `apply-current` / `export-split` 写出：`{image_id}_manual.png`
+- 写出时机（与解析一致）：
+  - 本轮有效结果含 **BrushLabels** RLE → 解码写 PNG
+  - 本轮有效结果含 **PolygonLabels** → 栅格化写 PNG
+  - 有 SEG 操作记录但为空 → 写空 mask PNG
+  - **无** SEG 操作记录 → **不**写 `manual_masks/`，`mask_ref` 回退 `data.mask_ref` / prelabel
 - `SegAnnotation.mask_ref` 存相对 `results/<batch_id>/seg/` 的路径：`manual_masks/{image_id}_manual.png`
-- **不**覆盖 `prelabels/<batch_id>/seg/masks/` 原始预标注；仅当 annotation **无** SEG 操作记录时才回退导出 `data.mask_ref`；有 SEG 操作但 brush 为空时写空 `manual_masks/`
+- **不**覆盖 `prelabels/<batch_id>/seg/masks/` 原始预标注
 
 `normal/` / `rework/` 是轮次快照；**业务上的当前有效状态以 `current/` 为准**。
 
@@ -222,10 +253,10 @@ raw
 2. 同一 `image_id` + 同一任务再次写入时，替换旧标注与「人工确认 / 是否返工」勾选。
 3. `current/` 中不并行保留历史多版本作为有效结果（同一 id 只保留最新一版）。
 4. **`current/` 为唯一真实数据源**。每次 `apply-current` / `export-split` 在更新 `current/` 后，必须按完整 `current/` **全量重建** `normal/` 与 `rework/`（覆盖写盘，禁止 append 历史子集）。
-5. 因此 `normal/` 始终等于「当前全部 `human_confirmed and not needs_rework` 样本」；返工修好的 id 会从 rework 进入 normal，无需手工合并首轮 normal。
+5. 因此 `normal/` 始终等于「当前全部 `not should_rework` 样本」（已确认且不需返工）；`rework/` 等于「未达最终确认状态」样本。返工修好的 id 会从 rework 进入 normal，无需手工合并首轮 normal。
 6. `ls_export` 与可选的 `normal|rework/round_XXX/` 快照用于追溯与网盘协作，不替代 `current/` 的权威语义。
-7. 返工再导入必须能展示上一轮结果：实现上由本轮 export 的 raw result 旁路生成（见 `rework-import`）。
-8. 仅当三任务 `current/` 全部 `needs_rework == false` 且全确认，且三路 `image_id` 集合彼此一致并与 `processed` 全量集合相等时，才允许生成 `final/<batch_id>/`。
+7. 返工再导入必须能展示上一轮结果：优先使用 `rework/previous_annotations/`（标注快照自包含；**原图仍依赖** `task_packages`）；旧包无该目录时回退 `--export`，并从 export 取 **effective result**（`resolve_effective_result`，非仅 `annotation.result`）旁路生成 predictions（见 `rework-import`）。
+8. 仅当三任务 `current/` 均无 `should_rework` 残留（全部确认且 `needs_rework == false`），且三路 `image_id` 集合彼此一致并与 `processed` 全量集合相等时，才允许生成 `final/<batch_id>/`。
 
 ---
 
@@ -240,7 +271,7 @@ raw
 | `final/<batch_id>/` | `manifest.json` | 合并后的多任务记录清单（字段对齐 `MergedMultitaskRecord`）；`seg.mask_ref` 统一为 `final_assets/masks/{image_id}.png` |
 | `final/<batch_id>/final_assets/masks/` | `{image_id}.png` | merge 时从 manual/prelabel 复制的统一 SEG mask |
 
-轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。
+轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。`TaskAnnotationResult.export_round` 字段预留，**当前未从导出轮次目录自动填充**。
 
 业务结果 JSON 字段以 `mma.common.models` 为准；预标注统一中间格式与 Label Studio 转换约定见 `docs/formats.md`。
 

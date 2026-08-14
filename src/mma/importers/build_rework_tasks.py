@@ -1,8 +1,9 @@
-"""Build Label Studio rework import tasks from raw LS results (T4.3 / S2).
+"""Build Label Studio rework import tasks (T4.3).
 
-Predictions are filled only from the side-channel raw ``result`` lists.
-Image paths and diagnosis text come from the task-package ``manifest.json``.
-Does not overwrite ``current/`` or wire CLI.
+Supports two prediction sources:
+
+- ``previous``: self-contained ``rework/previous_annotations/`` (preferred)
+- ``raw``: legacy side-channel from an LS export JSON
 """
 
 from __future__ import annotations
@@ -10,7 +11,9 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+from PIL import Image
 
 from mma.common.io import read_json
 from mma.common.models import SegAnnotation, TaskAnnotationResult, TaskType
@@ -28,6 +31,12 @@ from mma.converters.to_labelstudio import (
     DATA_KEY_MASK_REF,
     DATA_KEY_PACKAGE_ID,
 )
+from mma.exporters.previous_annotations import (
+    PREVIOUS_ANNOTATIONS_DIRNAME,
+    build_ls_prediction_results_from_previous,
+    load_previous_annotations,
+    previous_annotations_dir,
+)
 from mma.importers.build_ls_tasks import (
     resolve_task_image_path,
     rewrite_task_image_urls,
@@ -35,26 +44,37 @@ from mma.importers.build_ls_tasks import (
 
 REWORK_MODEL_VERSION = "mma-rework-prev-1.0"
 _CHOICE_FROM_NAMES = frozenset({"human_confirmed", "needs_rework"})
+PredictionSource = Literal["previous", "raw"]
 
 
 def build_rework_ls_tasks(
     rework_results: Sequence[TaskAnnotationResult],
     *,
-    raw_results_by_image_id: Mapping[str, Sequence[Mapping[str, Any]]],
     batch_id: str,
     task_type: TaskType,
+    prediction_source: PredictionSource = "raw",
+    raw_results_by_image_id: Mapping[str, Sequence[Mapping[str, Any]]]
+    | None = None,
     data_root: Path | str | None = None,
     local_root: Path | str | None = None,
 ) -> list[dict[str, Any]]:
     """Build LS import tasks for rework samples.
 
-    ``predictions[].result`` is taken from ``raw_results_by_image_id`` after
-    stripping choice controls. Annotation payloads on ``TaskAnnotationResult``
-    are not used to rebuild SEG/DET/CAP geometry or text.
+    ``prediction_source``:
+
+    - ``\"previous\"``: load ``rework/previous_annotations/<task>.json`` and
+      build ``predictions`` (DET/SEG/CAP converters reused).
+    - ``\"raw\"``: use ``raw_results_by_image_id`` after stripping Choices
+      (legacy export side-channel).
     """
 
     if not isinstance(task_type, TaskType):
         raise ValueError(f"task_type must be TaskType, got {type(task_type)!r}")
+    if prediction_source not in ("previous", "raw"):
+        raise ValueError(
+            f"prediction_source must be 'previous' or 'raw', "
+            f"got {prediction_source!r}"
+        )
 
     cleaned = validate_batch_id(batch_id)
     root = default_data_root() if data_root is None else Path(data_root)
@@ -68,6 +88,22 @@ def build_rework_ls_tasks(
         cleaned, task_type=task_type, data_root=root
     )
     samples_by_id = _index_manifest_samples(manifest, task_type=task_type)
+
+    previous_by_id: dict[str, dict[str, Any]] | None = None
+    previous_root: Path | None = None
+    if prediction_source == "previous":
+        previous_by_id = load_previous_annotations(
+            cleaned, task_type, data_root=root
+        )
+        previous_root = previous_annotations_dir(
+            cleaned, task_type, data_root=root
+        )
+    else:
+        if raw_results_by_image_id is None:
+            raise ValueError(
+                "raw_results_by_image_id is required when "
+                "prediction_source='raw'"
+            )
 
     tasks: list[dict[str, Any]] = []
     image_paths_by_id: dict[str, Path] = {}
@@ -85,10 +121,6 @@ def build_rework_ls_tasks(
             )
 
         image_id = item.image_id
-        if image_id not in raw_results_by_image_id:
-            raise ValueError(
-                f"missing raw LS result side channel for image_id={image_id!r}"
-            )
         if image_id not in samples_by_id:
             raise ValueError(
                 f"image_id={image_id!r} not found in task package manifest "
@@ -101,10 +133,38 @@ def build_rework_ls_tasks(
         )
         image_paths_by_id[image_id] = image_path
 
-        prediction_result = _strip_choice_controls(
-            raw_results_by_image_id[image_id],
-            image_id=image_id,
-        )
+        if prediction_source == "previous":
+            assert previous_by_id is not None and previous_root is not None
+            if image_id not in previous_by_id:
+                raise ValueError(
+                    f"missing previous_annotations entry for "
+                    f"image_id={image_id!r} under {PREVIOUS_ANNOTATIONS_DIRNAME}/"
+                )
+            width: int | None = None
+            height: int | None = None
+            if task_type is TaskType.DET:
+                width, height = _image_size(image_path, image_id=image_id)
+            prediction_result = build_ls_prediction_results_from_previous(
+                previous_by_id[image_id],
+                task_type=task_type,
+                image_id=image_id,
+                previous_root=previous_root,
+                image_width=width,
+                image_height=height,
+                package_id=sample["package_id"],
+                batch_id=cleaned,
+            )
+        else:
+            assert raw_results_by_image_id is not None
+            if image_id not in raw_results_by_image_id:
+                raise ValueError(
+                    f"missing raw LS result side channel for "
+                    f"image_id={image_id!r}"
+                )
+            prediction_result = _strip_choice_controls(
+                raw_results_by_image_id[image_id],
+                image_id=image_id,
+            )
 
         data: dict[str, Any] = {
             DATA_KEY_IMAGE: None,
@@ -114,7 +174,17 @@ def build_rework_ls_tasks(
             DATA_KEY_BATCH_ID: cleaned,
         }
         if task_type is TaskType.SEG:
-            if isinstance(item.annotation, SegAnnotation):
+            if prediction_source == "previous":
+                assert previous_by_id is not None
+                mask_file = previous_by_id[image_id].get("mask_file")
+                if isinstance(mask_file, str) and mask_file.strip():
+                    data[DATA_KEY_MASK_REF] = (
+                        f"{PREVIOUS_ANNOTATIONS_DIRNAME}/"
+                        f"{mask_file.strip().replace(chr(92), '/')}"
+                    )
+                elif isinstance(item.annotation, SegAnnotation):
+                    data[DATA_KEY_MASK_REF] = item.annotation.mask_ref
+            elif isinstance(item.annotation, SegAnnotation):
                 data[DATA_KEY_MASK_REF] = item.annotation.mask_ref
 
         tasks.append(
@@ -135,6 +205,16 @@ def build_rework_ls_tasks(
         image_paths_by_id=image_paths_by_id,
         local_root=local,
     )
+
+
+def _image_size(image_path: Path, *, image_id: str) -> tuple[int, int]:
+    try:
+        with Image.open(image_path) as img:
+            return img.size
+    except OSError as exc:
+        raise ValueError(
+            f"failed to read image size for image_id={image_id!r}: {image_path}"
+        ) from exc
 
 
 def _load_task_package_manifest(

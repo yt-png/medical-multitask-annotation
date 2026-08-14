@@ -10,6 +10,7 @@ from mma.common.models import (
     SegAnnotation,
     TaskAnnotationResult,
     TaskType,
+    should_rework,
 )
 from mma.exporters import split_by_rework
 
@@ -63,6 +64,29 @@ def test_empty_input() -> None:
     normal, rework = split_by_rework(())
     assert normal == ()
     assert rework == ()
+
+
+def test_should_rework_truth_table_via_split() -> None:
+    """False/False→rework; False/True→rework; True/False→normal; True/True→rework."""
+
+    cases = (
+        (_seg("ff", needs_rework=False, human_confirmed=False), "rework"),
+        (_cap("ft", needs_rework=True, human_confirmed=False), "rework"),
+        (_det("tf", needs_rework=False, human_confirmed=True), "normal"),
+        (_seg("tt", needs_rework=True, human_confirmed=True), "rework"),
+    )
+    for item, expected in cases:
+        assert should_rework(
+            human_confirmed=item.human_confirmed,
+            needs_rework=item.needs_rework,
+        ) is (expected == "rework")
+        normal, rework = split_by_rework((item,))
+        if expected == "normal":
+            assert [x.image_id for x in normal] == [item.image_id]
+            assert rework == ()
+        else:
+            assert normal == ()
+            assert [x.image_id for x in rework] == [item.image_id]
 
 
 def test_case1_confirmed_no_rework_goes_normal() -> None:

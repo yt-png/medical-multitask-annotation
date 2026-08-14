@@ -141,6 +141,19 @@ def assert_annotation_matches_task(
         )
 
 
+def should_rework(*, human_confirmed: bool, needs_rework: bool) -> bool:
+    """Return whether a sample belongs in the rework path.
+
+    Business rule::
+
+        should_rework = (not human_confirmed) or needs_rework
+
+    Only ``human_confirmed=True`` and ``needs_rework=False`` is normal.
+    """
+
+    return (not human_confirmed) or needs_rework
+
+
 @dataclass(frozen=True)
 class TaskAnnotationResult:
     """Current effective single-task annotation result (overwrite semantics)."""
@@ -158,7 +171,7 @@ class TaskAnnotationResult:
 
 
 def assert_result_bundle_consistent(bundle: ResultBundle) -> None:
-    """Validate result bundle kind vs needs_rework and task_type alignment."""
+    """Validate result bundle kind vs ``should_rework`` and task_type alignment."""
 
     for item in bundle.items:
         if item.task_type is not bundle.task_type:
@@ -166,13 +179,23 @@ def assert_result_bundle_consistent(bundle: ResultBundle) -> None:
                 f"item task_type {item.task_type.value} does not match "
                 f"bundle task_type {bundle.task_type.value}"
             )
-        if bundle.bundle_kind is BundleKind.NORMAL and item.needs_rework:
+        item_should_rework = should_rework(
+            human_confirmed=item.human_confirmed,
+            needs_rework=item.needs_rework,
+        )
+        if bundle.bundle_kind is BundleKind.NORMAL and item_should_rework:
             raise ValueError(
-                "NORMAL bundle cannot contain items with needs_rework=True"
+                "NORMAL bundle cannot contain items that should_rework "
+                f"(image_id={item.image_id!r}, "
+                f"human_confirmed={item.human_confirmed}, "
+                f"needs_rework={item.needs_rework})"
             )
-        if bundle.bundle_kind is BundleKind.REWORK and not item.needs_rework:
+        if bundle.bundle_kind is BundleKind.REWORK and not item_should_rework:
             raise ValueError(
-                "REWORK bundle cannot contain items with needs_rework=False"
+                "REWORK bundle cannot contain items that should not rework "
+                f"(image_id={item.image_id!r}, "
+                f"human_confirmed={item.human_confirmed}, "
+                f"needs_rework={item.needs_rework})"
             )
 
 
