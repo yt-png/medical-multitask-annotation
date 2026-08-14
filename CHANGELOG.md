@@ -4,9 +4,14 @@
 
 ### Changed
 
+- 将 `resolve_current_seg_mask_path` 与 `MANUAL_MASK_REL_DIR` 下沉到 `common/seg_mask_paths.py`；`exporters/previous_annotations` 与 `merge/materialize_final_seg` 改为依赖 common，解除 P4 exporters → P5 merge 反向依赖
 - 文档继续对齐：`docs/real_batch_local_test_runbook.md`（SEG 多边形；previous 不含原图；`should_rework` 表述）、`docs/data_layout.md`（推荐 `export-split`、自包含边界、`export_round` 未接线）、`docs/labelstudio_usage.md` / `README.md` / `docs/formats.md` 交叉说明；Requirement 流程第 8 步与 SEG 工作台 PolygonLabels；Development Tasks T4.2 用语
 - 文档对齐代码（优先 4 份）：`docs/labelstudio_usage.md`（SEG 多边形操作/FAQ）、`docs/data_layout.md`（polygon 预填、`manual_masks` brush|polygon、legacy rework 用 effective result）、`.cursor/rules/Requirement Specification.md`（§7.8.3–§7.8.4 / §8.4 与 §7.7 `should_rework` 一致）、`.cursor/rules/Development Tasks.md`（目录/`importers`/CLI 与仓库现状对齐）
 - 文档/注释澄清 `apply-current` 与 `export-split` 职责：前者为 export→current 底层同步；后者为其高级封装并返回 normal/rework 路径。**勿对同一 export 连续执行两条命令**（README / CHANGELOG / 模块 docstring / CLI help）
+
+### Tests
+
+- 新增 `tests/test_seg_mask_paths.py`：manual/prelabel 路径解析；空串/绝对路径/`..` 前缀/逃逸拒绝
 
 ### Added
 

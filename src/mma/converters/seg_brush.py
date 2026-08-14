@@ -15,6 +15,7 @@ from typing import Any
 from PIL import Image
 
 from mma.common.models import TaskType
+from mma.common.seg_mask_paths import MANUAL_MASK_REL_DIR
 from mma.converters.to_labelstudio import (
     DEFAULT_LS_RESULT_SPECS,
     ImageMetadata,
@@ -24,8 +25,8 @@ from mma.formats.intermediate import PrelabelItem, SegPrelabelPayload
 # Foreground intensity written into LS RLE channel payload (matches LS converter).
 _FOREGROUND_VALUE = 255
 
-# Relative mask_ref under ``results/<batch>/seg/`` for human-confirmed masks.
-MANUAL_MASK_REL_DIR = "manual_masks"
+# Relative mask_ref under ``results/<batch>/seg/`` for human-confirmed masks
+# (canonical value: ``mma.common.seg_mask_paths.MANUAL_MASK_REL_DIR``).
 MANUAL_MASK_SUFFIX = "_manual.png"
 
 

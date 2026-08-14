@@ -163,7 +163,8 @@
 │       │   ├── ids.py             # image_id / package_id 生成
 │       │   ├── models.py          # 数据模型/契约（含 should_rework）
 │       │   ├── io.py              # 读写 json/excel/路径工具
-│       │   └── paths.py           # 目录约定
+│       │   ├── paths.py           # 目录约定
+│       │   └── seg_mask_paths.py  # current SEG mask_ref → 绝对路径（P4/P5 共用）
 │       ├── preprocess/
 │       │   └── build_processed.py # M1
 │       ├── packaging/

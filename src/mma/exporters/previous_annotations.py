@@ -29,13 +29,13 @@ from mma.common.paths import (
     task_dir_name,
     validate_batch_id,
 )
+from mma.common.seg_mask_paths import resolve_current_seg_mask_path
 from mma.converters.to_labelstudio import DEFAULT_LS_RESULT_SPECS
 from mma.formats.intermediate import (
     SCHEMA_VERSION,
     PrelabelItem,
     SegPrelabelPayload,
 )
-from mma.merge.materialize_final_seg import resolve_current_seg_mask_path
 
 PREVIOUS_ANNOTATIONS_DIRNAME = "previous_annotations"
 PREVIOUS_MASKS_DIRNAME = "masks"
