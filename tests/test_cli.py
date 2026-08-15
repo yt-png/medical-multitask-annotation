@@ -673,6 +673,10 @@ def _write_merge_ready_fixture(data_root: Path, batch_id: str = "batch_merge") -
         data_root / "prelabels" / batch_id / "seg" / "masks" / f"{image_id}.png",
         [[0, 1], [1, 0]],
     )
+    images_dir = data_root / "raw" / batch_id / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    image_file = images_dir / f"{image_id}.jpg"
+    image_file.write_bytes(_MIN_JPEG)
     write_json(
         data_root / "processed" / batch_id / "manifest.json",
         {
@@ -680,9 +684,9 @@ def _write_merge_ready_fixture(data_root: Path, batch_id: str = "batch_merge") -
             "items": [
                 {
                     "image_id": image_id,
-                    "image_path": f"/img/{image_id}.jpg",
+                    "image_path": str(image_file.resolve()),
                     "diagnosis_text": f"diag-{image_id}",
-                    "source_image_name": f"{image_id}.jpg",
+                    "source_image_name": image_file.name,
                 }
             ],
         },
@@ -712,6 +716,10 @@ def test_merge_success(
     payload = json.loads(out_file.read_text(encoding="utf-8"))
     assert payload["items"][0]["image_id"] == "img-a"
     assert payload["items"][0]["cap"]["caption"] == "cap-img-a"
+    assert payload["items"][0]["image_path"] == "images/img-a.jpg"
+    assert payload["items"][0]["seg"]["mask_ref"] == "masks/img-a.png"
+    assert (data_root / "final" / "batch_merge" / "images" / "img-a.jpg").is_file()
+    assert (data_root / "final" / "batch_merge" / "masks" / "img-a.png").is_file()
 
 
 def test_merge_failure_not_ready(
