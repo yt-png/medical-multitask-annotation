@@ -159,23 +159,35 @@ def test_human_cleared_blocks_prediction_fallback() -> None:
     assert all(e.get("from_name") != "det_bbox" for e in effective.effective_result)
 
 
-def test_extract_confirm_only_includes_prediction_geometry() -> None:
-    data = [
-        _task(
-            image_id="img-a",
-            ann_result=[_choice("human_confirmed", "yes")],
-            predictions=[{"result": [_det_box(15.0, 25.0)]}],
-        )
+def test_latest_prediction_with_task_control_only() -> None:
+    """Reverse-scan: skip predictions without task control; take latest with one."""
+
+    task = _task(
+        image_id="img-latest",
+        ann_result=[
+            _choice("human_confirmed", "yes"),
+            _choice("needs_rework", "no"),
+        ],
+        predictions=[
+            {"result": [_det_box(1.0, 1.0)]},
+            {"result": []},
+            {"result": [_det_box(30.0, 40.0)]},
+        ],
+        prediction_link=None,
+    )
+    effective = resolve_effective_result(
+        task, task_type=TaskType.DET, image_id="img-latest"
+    )
+    assert effective.source == "prediction_fallback"
+    boxes = [
+        e for e in effective.effective_result if e.get("from_name") == "det_bbox"
     ]
-    by_id = extract_ls_raw_results_data(data, task_type=TaskType.DET)
-    result = by_id["img-a"]
-    boxes = [e for e in result if e.get("from_name") == "det_bbox"]
     assert len(boxes) == 1
-    assert boxes[0]["value"]["x"] == 15.0
+    assert boxes[0]["value"]["x"] == 30.0
 
 
-def test_parse_still_uses_prediction_for_det_payload() -> None:
-    """parse_ls_export DET confirm-only still fills bboxes from predictions."""
+def test_parse_confirm_only_uses_prediction() -> None:
+    """parse_ls_export confirm-only fills DET boxes from prediction."""
 
     data = [
         _task(
@@ -193,6 +205,43 @@ def test_parse_still_uses_prediction_for_det_payload() -> None:
         image_metadata_by_id={"img-p": ImageMetadata(width=100, height=100)},
     )
     assert len(parsed[0].annotation.bboxes) == 1
+
+
+def test_parse_human_cleared_yields_empty_det() -> None:
+    """parse_ls_export Accept-then-clear does not fall back to prediction boxes."""
+
+    data = [
+        _task(
+            image_id="img-hc",
+            ann_result=[
+                _choice("human_confirmed", "yes"),
+                _choice("needs_rework", "no"),
+            ],
+            predictions=[{"result": [_det_box(10.0, 20.0)]}],
+            prediction_link=99,
+        )
+    ]
+    parsed = parse_ls_export_data(
+        data,
+        task_type=TaskType.DET,
+        image_metadata_by_id={"img-hc": ImageMetadata(width=100, height=100)},
+    )
+    assert parsed[0].annotation.bboxes == ()
+
+
+def test_extract_confirm_only_includes_prediction_geometry() -> None:
+    data = [
+        _task(
+            image_id="img-a",
+            ann_result=[_choice("human_confirmed", "yes")],
+            predictions=[{"result": [_det_box(15.0, 25.0)]}],
+        )
+    ]
+    by_id = extract_ls_raw_results_data(data, task_type=TaskType.DET)
+    result = by_id["img-a"]
+    boxes = [e for e in result if e.get("from_name") == "det_bbox"]
+    assert len(boxes) == 1
+    assert boxes[0]["value"]["x"] == 15.0
 
 
 def _write_package(

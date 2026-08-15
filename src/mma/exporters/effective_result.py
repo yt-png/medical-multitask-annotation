@@ -51,10 +51,14 @@ def resolve_effective_result(
     2. Annotation has only Choices (no task payload), prediction has task
        payload, and the annotator did **not** intentionally clear via
        ``annotation.prediction`` link → prediction task controls + annotation
-       Choices
+       Choices (confirm-only → ``prediction_fallback``)
     3. Intentional clear (``annotation.prediction`` set, no task payload) →
-       keep annotation.result only (no prediction fallback)
+       keep annotation.result only (``human_cleared``; no prediction fallback)
     4. Otherwise → annotation.result (may be Choices-only / empty task payload)
+
+    Prediction selection (when falling back): reverse-scan ``predictions`` for
+    the latest entry whose ``result`` contains this task's control
+    (``det_bbox`` / ``cap_text`` / ``seg_mask``). Do not concatenate versions.
     """
 
     if not isinstance(task_type, TaskType):
@@ -84,7 +88,7 @@ def resolve_effective_result(
         )
     annotation_result = _deepcopy_result_list(ann_raw, image_id=resolved_id)
     prediction_result = _deepcopy_result_list(
-        _prediction_result_items(task),
+        _prediction_result_items(task, task_type=task_type),
         image_id=resolved_id,
     )
 
@@ -193,18 +197,33 @@ def _choice_entries(
     )
 
 
-def _prediction_result_items(task: Mapping[str, Any]) -> list[Any]:
-    """Prefer last prediction with a list ``result``; else ``[]``."""
+def _prediction_result_items(
+    task: Mapping[str, Any],
+    *,
+    task_type: TaskType,
+) -> list[Any]:
+    """Return ``result`` from the latest prediction with this task's control.
 
+    Label Studio ``predictions`` is a version history, not a bag of results to
+    merge. Walk the list in reverse and take the first prediction whose
+    ``result`` contains the task control (``det_bbox`` / ``cap_text`` /
+    ``seg_mask``). Predictions without that control are skipped.
+    """
+
+    control = DEFAULT_LS_RESULT_SPECS[task_type]["from_name"]
     predictions = task.get("predictions")
     if not isinstance(predictions, list) or not predictions:
         return []
-    # Prefer the last prediction that carries an inline result list.
     for prediction in reversed(predictions):
         if not isinstance(prediction, dict):
             continue
         result = prediction.get("result")
-        if isinstance(result, list):
+        if not isinstance(result, list):
+            continue
+        if any(
+            isinstance(entry, dict) and entry.get("from_name") == control
+            for entry in result
+        ):
             return result
     return []
 

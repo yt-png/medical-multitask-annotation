@@ -2,6 +2,38 @@
 
 ## 2026-08-15
 
+### Changed
+
+- final 数据集改为完全自包含：`final/<batch>/{images,masks,manifest.json}`；merge 复制原图为 `images/{image_id}.jpg`（源 jpg/jpeg 统一目标名），SEG mask 物化到 `masks/{image_id}.png`；manifest 仅存相对路径，禁止绝对路径与 `final_assets/` / `manual_masks/` / `prelabels/` 根
+- `paths.final_masks_dir` / `final_images_dir`；`final_assets_masks_dir` 保留为 `final_masks_dir` 别名
+
+### Tests
+
+- `tests/test_merge_to_final.py`：相对路径断言；`.jpeg` 源 → `.jpg` 目标名；自包含用例（删除 raw/processed/prelabels/manual_masks 后 manifest 路径仍有效）
+
+### Docs
+
+- `docs/data_layout.md` / `README.md`：同步 final 自包含布局
+
+### Fixed
+
+- `parse_ls_export`：以 `resolve_effective_result` 为唯一 human/prediction 决策入口；CAP/DET/SEG parser 只消费 `EffectiveLsResult`，不再自行读取 `task["predictions"]` / `annotation["prediction"]`
+- `resolve_effective_result`：prediction 回退改为倒序查找**第一个含当前任务控件**（`det_bbox` / `cap_text` / `seg_mask`）的版本，禁止多版本 concat
+- CAP Accept 后清空（`annotation.prediction` 有值且无 `cap_text`）不再错误回退 prediction 文本
+
+### Tests
+
+- `tests/test_parse_ls_export.py`：CAP confirm-only 回退 prediction；CAP human-cleared 为空 caption
+- `tests/test_effective_result.py`：latest 含任务控件的 prediction；parse confirm-only / human-cleared DET
+
+### Fixed
+
+- DET 导出解析：`predictions` 按版本历史回退，仅取**最后一个**含有效 `det_bbox` 的 prediction；禁止把多个 prediction 的框 concat（避免重复框）。新增 `_get_latest_det_prediction_boxes`；人工框优先与 Accept 后清空为空框的逻辑不变
+
+### Tests
+
+- `tests/test_parse_ls_export.py`：`test_parse_det_falls_back_to_latest_prediction_only`（prediction A + B、无人工框 → 仅 B）
+
 ### Fixed
 
 - `read_diagnosis_excel`：显式校验诊断表后缀仅为 `.xlsx`（大小写不敏感），非 xlsx 在 openpyxl 前以统一 `ValueError` 失败

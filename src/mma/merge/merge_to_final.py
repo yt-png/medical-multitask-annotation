@@ -1,21 +1,41 @@
-"""Orchestrate multitask merge into ``final/<batch_id>/`` (T5.4).
+"""Orchestrate multitask merge into a self-contained ``final/<batch_id>/`` (T5.4).
 
-Calls ``merge_multitask``, enriches ``image_path`` / ``diagnosis_text`` from
-``processed/<batch_id>/manifest.json``, materializes SEG masks into
-``final_assets/masks/``, then ``write_final_manifest``.
+Calls ``merge_multitask``, copies images from processed paths into
+``final/.../images/``, materializes SEG masks into ``final/.../masks/``,
+rewrites relative ``image_path`` / ``mask_ref``, then ``write_final_manifest``.
 """
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
 from mma.common.models import MergedMultitaskRecord
-from mma.common.paths import default_data_root, processed_batch_dir, validate_batch_id
-from mma.merge.materialize_final_seg import materialize_final_seg_masks
+from mma.common.paths import (
+    default_data_root,
+    final_images_dir,
+    processed_batch_dir,
+    validate_batch_id,
+)
+from mma.merge.materialize_final_seg import (
+    final_seg_mask_ref,
+    materialize_final_seg_masks,
+)
 from mma.merge.merge_multitask import merge_multitask
 from mma.merge.write_final import write_final_manifest
 from mma.preprocess.load_processed import load_processed_items
+
+FINAL_IMAGE_REL_DIR = "images"
+
+
+def final_image_path(image_id: str) -> str:
+    """Return unified final image_path: ``images/{image_id}.jpg``."""
+
+    cleaned = str(image_id).strip()
+    if not cleaned:
+        raise ValueError("image_id must be a non-empty string")
+    return f"{FINAL_IMAGE_REL_DIR}/{cleaned}.jpg"
 
 
 def merge_to_final(
@@ -23,24 +43,31 @@ def merge_to_final(
     *,
     data_root: Path | str | None = None,
 ) -> Path:
-    """Merge three-task ``current/`` results and write ``final`` manifest.
+    """Merge three-task ``current/`` results into a self-contained final dataset.
 
     On failure before write, existing final manifest (if any) is left unchanged.
     Missing processed manifest or missing ``image_id`` in processed raises
-    without writing. SEG masks are copied into ``final_assets/masks/`` before
-    the manifest is written.
+    without writing. Images are copied into ``images/{image_id}.jpg`` and SEG
+    masks into ``masks/{image_id}.png`` before the manifest is written. Manifest
+    paths are relative to the final batch directory (no absolute paths).
     """
 
     cleaned = validate_batch_id(batch_id)
     root = default_data_root() if data_root is None else Path(data_root)
     records = merge_multitask(cleaned, data_root=root)
     meta = _load_processed_image_meta(cleaned, data_root=root)
-    enriched = _enrich_from_processed(records, meta)
-    materialized = materialize_final_seg_masks(
-        enriched,
+    with_images = _copy_final_images(
+        records,
+        meta,
         batch_id=cleaned,
         data_root=root,
     )
+    materialized = materialize_final_seg_masks(
+        with_images,
+        batch_id=cleaned,
+        data_root=root,
+    )
+    assert_final_relative_paths(materialized)
     return write_final_manifest(materialized, batch_id=cleaned, data_root=root)
 
 
@@ -68,25 +95,70 @@ def _load_processed_image_meta(
     return indexed
 
 
-def _enrich_from_processed(
+def _copy_final_images(
     records: Sequence[MergedMultitaskRecord],
     meta: dict[str, tuple[str, str]],
+    *,
+    batch_id: str,
+    data_root: Path,
 ) -> tuple[MergedMultitaskRecord, ...]:
-    enriched: list[MergedMultitaskRecord] = []
+    """Copy source images into ``final/.../images/{image_id}.jpg``.
+
+    Target filename is always ``.jpg`` regardless of source suffix.
+    """
+
+    images_dir = final_images_dir(batch_id, data_root=data_root)
+    images_dir.mkdir(parents=True, exist_ok=True)
+    out: list[MergedMultitaskRecord] = []
     for record in records:
         if record.image_id not in meta:
             raise ValueError(
                 f"image_id={record.image_id!r} not found in processed manifest"
             )
-        image_path, diagnosis_text = meta[record.image_id]
-        enriched.append(
+        source_path_str, diagnosis_text = meta[record.image_id]
+        source = Path(source_path_str)
+        if not source.is_file():
+            raise FileNotFoundError(
+                f"source image not found for image_id={record.image_id!r}: "
+                f"{source}"
+            )
+        dest = images_dir / f"{record.image_id}.jpg"
+        shutil.copy2(source, dest)
+        out.append(
             MergedMultitaskRecord(
                 image_id=record.image_id,
                 seg=record.seg,
                 det=record.det,
                 cap=record.cap,
-                image_path=image_path,
+                image_path=final_image_path(record.image_id),
                 diagnosis_text=diagnosis_text,
             )
         )
-    return tuple(enriched)
+    return tuple(out)
+
+
+def assert_final_relative_paths(
+    records: Sequence[MergedMultitaskRecord],
+) -> None:
+    """Require relative ``images/{id}.jpg`` and ``masks/{id}.png`` paths."""
+
+    for record in records:
+        expected_image = final_image_path(record.image_id)
+        if record.image_path != expected_image:
+            raise ValueError(
+                f"final image_path contract failed for "
+                f"image_id={record.image_id!r}: expected {expected_image!r}, "
+                f"got {record.image_path!r}"
+            )
+        if record.image_path is None or Path(record.image_path).is_absolute():
+            raise ValueError(
+                f"final image_path must be relative "
+                f"(image_id={record.image_id!r}, image_path={record.image_path!r})"
+            )
+        expected_mask = final_seg_mask_ref(record.image_id)
+        if record.seg.mask_ref != expected_mask:
+            raise ValueError(
+                f"final mask_ref contract failed for "
+                f"image_id={record.image_id!r}: expected {expected_mask!r}, "
+                f"got {record.seg.mask_ref!r}"
+            )

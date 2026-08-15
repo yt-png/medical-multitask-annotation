@@ -82,14 +82,34 @@ def final_batch_dir(
     return root / "final" / cleaned
 
 
+def final_images_dir(
+    batch_id: str,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/final/{batch_id}/images``."""
+
+    return final_batch_dir(batch_id, data_root=data_root) / "images"
+
+
+def final_masks_dir(
+    batch_id: str,
+    *,
+    data_root: Path | str | None = None,
+) -> Path:
+    """Return ``{data_root}/final/{batch_id}/masks``."""
+
+    return final_batch_dir(batch_id, data_root=data_root) / "masks"
+
+
 def final_assets_masks_dir(
     batch_id: str,
     *,
     data_root: Path | str | None = None,
 ) -> Path:
-    """Return ``{data_root}/final/{batch_id}/final_assets/masks``."""
+    """Deprecated alias for ``final_masks_dir`` (self-contained ``masks/``)."""
 
-    return final_batch_dir(batch_id, data_root=data_root) / "final_assets" / "masks"
+    return final_masks_dir(batch_id, data_root=data_root)
 
 
 def task_packages_batch_dir(

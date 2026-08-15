@@ -113,8 +113,10 @@ mma rework-import --batch demo_batch --task cap --export data/ls_export/demo_bat
 mma merge --batch demo_batch --data-root data
 ```
 
-- 写出 `data/final/<batch>/manifest.json`（`{batch_id, items}`，每条含 SEG+DET+CAP 与 `image_path`/`diagnosis_text`）
-- 写盘前将 SEG mask **复制**到 `final/<batch>/final_assets/masks/{image_id}.png`；清单中 `seg.mask_ref` 统一为 `final_assets/masks/{image_id}.png`（相对该 final 批次目录；空 mask 只复制不重生成）
+- 写出 `data/final/<batch>/manifest.json`（`{batch_id, items}`，每条含 SEG+DET+CAP 与相对路径 `image_path`/`diagnosis_text`）
+- 写盘前将原图复制到 `final/<batch>/images/{image_id}.jpg`（源可为 `.jpg`/`.jpeg`，目标统一 `.jpg`）
+- 写盘前将 SEG mask **复制**到 `final/<batch>/masks/{image_id}.png`；清单中 `seg.mask_ref` 统一为 `masks/{image_id}.png`（相对该 final 批次目录；空 mask 只复制不重生成）
+- final 包自包含：迁移后不依赖 `raw/` / `processed/` / `prelabels/` / `manual_masks/`
 - 未就绪或缺任务时失败且不改写已有 final
 
 预标注 → Label Studio import（T2.2 / T3.1b，Python API，CLI `convert` 仍为 stub）：
@@ -163,7 +165,7 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T5.2 按 `image_id` 合并（`merge/merge_multitask.py` → `MergedMultitaskRecord`；含缺任务防御）
 - 已完成：T5.3 缺任务阻断（`assert_no_missing_tasks`：禁止静默缺字段；合并二次校验）
 - 已完成：T5.4 输出 `final/` 与接线 `mma merge --batch [--data-root]`（`merge/merge_to_final.py` + `write_final.py`）
-- 已完成：final SEG mask 统一物化到 `final/<batch>/final_assets/masks/`（`merge/materialize_final_seg.py`；contract 禁止 `masks/`/`manual_masks/`/`prelabels/`）
+- 已完成：final 自包含物化到 `final/<batch>/{images,masks}/`（`merge/materialize_final_seg.py` + 图片复制；contract 要求相对路径，禁止 `final_assets/`/`manual_masks/`/`prelabels/`/绝对路径）
 - 已完成：SEG 人工几何 → `results/.../seg/manual_masks/` 持久化（polygon + 历史 brush；删光写空 mask；无 SEG 操作才回退 `data.mask_ref`；`apply-current` / `export-split`）
 - 已完成：CAP 导出三态解析（人改文本 / 人工清空为空串 / 无 cap_text 回退 `predictions[-1]`；`current` 允许空 caption）
 - 已完成：DET 导出三态解析（人框 / 接受后删光为空 / 未操作回退 `predictions`；`parse_ls_export`）

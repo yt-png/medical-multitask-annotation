@@ -235,6 +235,40 @@ def test_cap_missing_textarea_and_prediction_raises() -> None:
         parse_ls_export_data([task], task_type=TaskType.CAP)
 
 
+def test_cap_confirm_only_falls_back_to_prediction() -> None:
+    """Confirm-only: choices only, no prediction link → use prediction caption."""
+
+    task = _cap_task(image_id="img-cap-confirm", caption="ignored")
+    task["annotations"][0]["result"] = [
+        entry
+        for entry in task["annotations"][0]["result"]
+        if entry.get("from_name") != "cap_text"
+    ]
+    task["annotations"][0]["prediction"] = None
+    task["predictions"] = [
+        {"result": [_cap_prediction_result("肺炎")]},
+    ]
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].annotation.caption == "肺炎"
+
+
+def test_cap_human_cleared_does_not_fall_back_to_prediction() -> None:
+    """Accept-then-clear: prediction link set, no cap_text → empty, not prediction."""
+
+    task = _cap_task(image_id="img-cap-cleared", caption="ignored")
+    task["annotations"][0]["result"] = [
+        entry
+        for entry in task["annotations"][0]["result"]
+        if entry.get("from_name") != "cap_text"
+    ]
+    task["annotations"][0]["prediction"] = 42
+    task["predictions"] = [
+        {"result": [_cap_prediction_result("肺炎")]},
+    ]
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].annotation.caption == ""
+
+
 def test_parse_det_percent_to_pixel_with_explicit_metadata() -> None:
     # percent on 640x480 → pixel (120, 80.5, 64, 48)
     data = [
@@ -342,6 +376,40 @@ def test_parse_det_unoperated_falls_back_to_predictions() -> None:
     assert box.y == pytest.approx(20.0)
     assert box.width == pytest.approx(5.0)
     assert box.height == pytest.approx(8.0)
+
+
+def test_parse_det_falls_back_to_latest_prediction_only() -> None:
+    """Multiple predictions are version history: use latest DET boxes only."""
+
+    task = _det_task(image_id="img-det-latest", boxes_pct=[])
+    task["predictions"] = [
+        {
+            "id": 1,
+            "result": [
+                _det_prediction_box(x=10.0, y=20.0, width=5.0, height=8.0),
+            ],
+        },
+        {
+            "id": 2,
+            "result": [
+                _det_prediction_box(x=30.0, y=40.0, width=6.0, height=7.0),
+            ],
+        },
+    ]
+    meta = {"img-det-latest": ImageMetadata(width=100, height=100)}
+    results = parse_ls_export_data(
+        [task],
+        task_type=TaskType.DET,
+        image_metadata_by_id=meta,
+    )
+    annotation = results[0].annotation
+    assert isinstance(annotation, DetAnnotation)
+    assert len(annotation.bboxes) == 1
+    box = annotation.bboxes[0]
+    assert box.x == pytest.approx(30.0)
+    assert box.y == pytest.approx(40.0)
+    assert box.width == pytest.approx(6.0)
+    assert box.height == pytest.approx(7.0)
 
 
 def test_parse_det_annotation_boxes_preferred_over_predictions() -> None:

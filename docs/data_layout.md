@@ -41,7 +41,7 @@
 
 **例外（processed）**：`processed/<batch_id>/manifest.json` 中的 `image_path` **允许写入预处理时解析得到的绝对路径**（当前 `preprocess` 实现：引用 `--images` 目录下原图，本阶段不强制改为相对路径）。任务包拆分（`package`）按该路径读源图并复制进各任务包；网盘分发以 **task_packages** 为准，不依赖 processed 中绝对路径的可迁移性。  
 换机/换盘后若原绝对路径不可读，须**重新执行 preprocess**（或保证原图绝对路径仍可读）后再 `package`。  
-`final/<batch_id>/manifest.json` 回填的 `image_path` 与 processed 清单一致，因此**也可能为绝对路径**。
+`final/<batch_id>/manifest.json` 的 `image_path` / `seg.mask_ref` 在 merge 时**改为相对路径**（`images/{image_id}.jpg`、`masks/{image_id}.png`），并复制资源进 final 目录，因此 final 包可独立迁移。
 
 ---
 
@@ -65,8 +65,9 @@ data/
 │   ├── current/
 │   └── manual_masks/          # 仅 seg：人工确认 brush/polygon 落盘
 └── final/<batch_id>/
-    ├── manifest.json
-    └── final_assets/masks/     # merge 时物化的统一 SEG mask
+    ├── images/                 # merge 时复制的原图（统一 {image_id}.jpg）
+    ├── masks/                  # merge 时物化的统一 SEG mask
+    └── manifest.json           # 相对路径索引；不依赖 raw/processed/prelabels
 ```
 
 ---
@@ -210,8 +211,9 @@ results/<batch>/<task>/rework/
 |---|---|
 | 职责 | 三任务合并后的多任务最终数据集 |
 | 前置 | 三路 `results/<batch_id>/{seg,det,cap}/current/` 均就绪，且无返工残留；三路 `image_id` 集合彼此一致且**等于** `processed/<batch_id>/manifest.json` 全量集合；processed 可回填图文 |
-| 内容 | 关键清单 `manifest.json`：`{"batch_id", "items"}`；每条对齐 `MergedMultitaskRecord`（必含 SEG+DET+CAP，以及 `image_path`/`diagnosis_text`）；其中 `image_path` 从 processed 回填，**可能为绝对路径**；缺任务必须阻断，禁止静默缺字段 |
-| SEG mask | merge 时复制到 `final/<batch_id>/final_assets/masks/{image_id}.png`；清单内 `seg.mask_ref` **必须**为 `final_assets/masks/{image_id}.png`（相对本 final 批次目录）。禁止在 final 清单中保留 `masks/`、`manual_masks/`、`prelabels/` 根路径；空 mask 只复制、不重生成。不修改 `prelabels/` / `manual_masks/` / `current/` |
+| 内容 | 关键清单 `manifest.json`：`{"batch_id", "items"}`；每条对齐 `MergedMultitaskRecord`（必含 SEG+DET+CAP，以及相对路径 `image_path`/`diagnosis_text`）；`image_path` **必须**为 `images/{image_id}.jpg`；缺任务必须阻断，禁止静默缺字段 |
+| SEG mask | merge 时复制到 `final/<batch_id>/masks/{image_id}.png`；清单内 `seg.mask_ref` **必须**为 `masks/{image_id}.png`（相对本 final 批次目录）。禁止绝对路径与 `final_assets/` / `manual_masks/` / `prelabels/` 根；空 mask 只复制、不重生成。不修改 `prelabels/` / `manual_masks/` / `current/` |
+| 原图 | merge 时从 processed 的 `image_path` 复制到 `final/<batch_id>/images/{image_id}.jpg`（源为 `.jpeg` 时目标仍统一为 `.jpg`）。final 包自包含，迁移后不依赖 raw/processed |
 
 ---
 
@@ -270,8 +272,9 @@ raw
 | `task_packages/<batch_id>/<task>/` | `manifest.json` | `package_id`、`task_type`、`batch_id`、样本列表 |
 | `prelabels/<batch_id>/<task>/` | `prelabels.json` | 统一中间格式（`docs/formats.md`）；关联键 `image_id` |
 | `results/<batch_id>/<task>/current/` | `annotations.json` | 当前有效 `TaskAnnotationResult` 列表 |
-| `final/<batch_id>/` | `manifest.json` | 合并后的多任务记录清单（字段对齐 `MergedMultitaskRecord`）；`seg.mask_ref` 统一为 `final_assets/masks/{image_id}.png` |
-| `final/<batch_id>/final_assets/masks/` | `{image_id}.png` | merge 时从 manual/prelabel 复制的统一 SEG mask |
+| `final/<batch_id>/` | `manifest.json` | 合并后的多任务记录清单（字段对齐 `MergedMultitaskRecord`）；`image_path`=`images/{image_id}.jpg`；`seg.mask_ref`=`masks/{image_id}.png` |
+| `final/<batch_id>/images/` | `{image_id}.jpg` | merge 时从 processed 源图复制（目标扩展名统一 `.jpg`） |
+| `final/<batch_id>/masks/` | `{image_id}.png` | merge 时从 manual/prelabel 复制的统一 SEG mask |
 
 轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。`TaskAnnotationResult.export_round` 由 `parse_export_round_from_path` 从 export 父目录解析并经 `apply-current` / `export-split` 写入 `current/`；非 `round_*` 布局仍为 `null`。
 

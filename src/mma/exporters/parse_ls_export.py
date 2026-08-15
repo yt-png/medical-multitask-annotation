@@ -3,25 +3,22 @@
 Supports SEG / DET / CAP exports aligned with package Labeling Configs.
 Does not classify rework bundles, overwrite ``current/``, or re-import.
 
-SEG human-priority rule: annotation SEG operation (``seg_mask`` entries and/or
-``annotation.prediction`` link) wins over ``data.mask_ref``; zero geometry after
-an operation yields an empty manual mask, not a prelabel fallback. Geometry may
-be ``brushlabels`` (``value.rle``) and/or ``polygonlabels`` (``value.points``);
-both decode to the same ``manual_masks/{image_id}_manual.png`` contract.
+Human vs prediction selection is owned solely by
+``resolve_effective_result`` (confirm-only → prediction_fallback; Accept-then-
+clear → human_cleared / empty task payload). CAP / DET / SEG parsers only
+convert ``EffectiveLsResult`` into annotation objects and must not re-read
+``task["predictions"]`` or ``annotation["prediction"]``.
 
-DET human-priority rule (three-way, mirrors SEG ``prediction`` link semantics):
+SEG: when the effective source is human (annotation geometry or human_cleared),
+write ``manual_masks/`` (brush RLE and/or polygon points; zero geometry → empty
+mask). When source is prediction_fallback / empty (no human SEG operation),
+keep ``data.mask_ref``.
 
-1. ``annotation.result`` has ``det_bbox`` → use those boxes
-2. no ``det_bbox`` but ``annotation.prediction`` is set → empty boxes
-   (accepted prelabel then cleared all rectangles)
-3. no ``det_bbox`` and ``annotation.prediction`` is null → fallback to
-   ``task.predictions[].result`` det boxes; if none → empty boxes
+DET: boxes come from ``effective_result`` (human or latest-task-control
+prediction). Human cleared → empty boxes.
 
-CAP human-priority rule:
-
-1. ``annotation.result`` has ``cap_text`` → use that text (empty string = human clear)
-2. no ``cap_text`` in annotation → fallback to ``task.predictions[-1].result``
-3. neither side has ``cap_text`` → raise (same as previous missing-textarea error)
+CAP: caption from ``effective_result``; human cleared with no ``cap_text`` →
+empty string; missing on both sides → raise.
 """
 
 from __future__ import annotations
@@ -46,7 +43,7 @@ from mma.converters.to_labelstudio import (
     DEFAULT_LS_RESULT_SPECS,
     ImageMetadata,
 )
-from mma.exporters.effective_result import resolve_effective_result
+from mma.exporters.effective_result import EffectiveLsResult, resolve_effective_result
 
 
 _CHOICE_YES = "yes"
@@ -161,38 +158,38 @@ def _parse_one_task(
         annotation=annotation,
     )
     # Choices always come from the original annotation.result (required yes/no).
-    result_items = list(effective.annotation_result)
+    choice_items = list(effective.annotation_result)
     if not isinstance(annotation.get("result"), list):
         raise ValueError(
             f"annotation result must be a list (image_id={image_id!r})"
         )
 
-    _assert_task_controls_match(result_items, task_type=task_type, image_id=image_id)
+    _assert_task_controls_match(choice_items, task_type=task_type, image_id=image_id)
+    _assert_task_controls_match(
+        list(effective.effective_result),
+        task_type=task_type,
+        image_id=image_id,
+    )
 
     human_confirmed = _parse_required_choice(
-        result_items,
+        choice_items,
         from_name=_FROM_HUMAN_CONFIRMED,
         image_id=image_id,
     )
     needs_rework = _parse_optional_choice(
-        result_items,
+        choice_items,
         from_name=_FROM_NEEDS_REWORK,
         image_id=image_id,
         default=False,
     )
 
-    # Payload uses original annotation.result + existing prediction / operated
-    # three-way rules (unchanged). resolve_effective_result is called above for
-    # shared policy + warning when confirm-only falls back for rework extract.
     payload = _parse_annotation_payload(
-        result_items,
+        effective,
         task_type=task_type,
         image_id=image_id,
         task_data=data,
         image_metadata_by_id=image_metadata_by_id,
         seg_manual_mask_dir=seg_manual_mask_dir,
-        task=task,
-        annotation=annotation,
     )
 
     package_id_raw = data.get(DATA_KEY_PACKAGE_ID)
@@ -375,39 +372,31 @@ def _parse_optional_choice(
 
 
 def _parse_annotation_payload(
-    result_items: Sequence[Any],
+    effective: EffectiveLsResult,
     *,
     task_type: TaskType,
     image_id: str,
     task_data: dict[str, Any],
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
     seg_manual_mask_dir: Path | str | None,
-    task: Mapping[str, Any] | None = None,
-    annotation: Mapping[str, Any] | None = None,
 ) -> SegAnnotation | DetAnnotation | CapAnnotation:
     if task_type is TaskType.SEG:
         return _parse_seg_annotation(
-            result_items,
+            effective,
             task_data=task_data,
             image_id=image_id,
             seg_manual_mask_dir=seg_manual_mask_dir,
-            task=task,
-            annotation=annotation,
         )
     if task_type is TaskType.DET:
         return _parse_det_annotation(
-            result_items,
+            effective,
             image_id=image_id,
             image_metadata_by_id=image_metadata_by_id,
-            task=task,
-            annotation=annotation,
         )
     if task_type is TaskType.CAP:
         return _parse_cap_annotation(
-            result_items,
+            effective,
             image_id=image_id,
-            task=task,
-            annotation=annotation,
         )
     raise ValueError(f"unsupported task type: {task_type!r}")  # pragma: no cover
 
@@ -417,44 +406,20 @@ _SEG_RESULT_TYPES = frozenset({"brushlabels", "polygonlabels"})
 
 
 def _parse_seg_annotation(
-    result_items: Sequence[Any],
+    effective: EffectiveLsResult,
     *,
     task_data: dict[str, Any],
     image_id: str,
     seg_manual_mask_dir: Path | str | None,
-    task: Mapping[str, Any] | None = None,
-    annotation: Mapping[str, Any] | None = None,
 ) -> SegAnnotation:
-    """Build SEG payload with human-result priority.
+    """Build SEG payload from ``EffectiveLsResult`` only.
 
-    Label Studio SEG export shape (relevant fields)::
+    - ``human_cleared`` or annotation ``seg_mask`` controls → human path
+      (geometry → manual mask; zero geometry → empty manual mask)
+    - ``prediction_fallback`` / ``empty`` → ``data.mask_ref`` (do not treat
+      prediction geometry as a human edit)
 
-        {
-          "data": {"mask_ref": "...", "image_id": "..."},
-          "annotations": [{
-            "prediction": <id|null>,   # set when annotation was created from a prediction
-            "result": [
-              {"from_name": "seg_mask", "type": "brushlabels", "value": {"format": "rle", "rle": [...]}},
-              {"from_name": "seg_mask", "type": "polygonlabels", "value": {"points": [[x%, y%], ...]}},
-              {"from_name": "human_confirmed", ...},
-              ...
-            ]
-          }],
-          "predictions": [{"result": [ /* prelabel geometry */ ]}]  # optional; may be ids only
-        }
-
-    Decision (not ``if not geometry: fallback`` alone):
-
-    1. If annotation has a SEG operation record → human result.
-       Operation record means any ``from_name=seg_mask`` entry (including empty
-       ``rle`` / empty ``points`` clear markers) **or** ``annotation.prediction``
-       is set (accepted prediction then possibly cleared all regions).
-       - Non-empty brush RLE and/or polygon points → decode/write manual mask
-       - Zero geometry → write an empty (all-background) manual mask
-    2. Else → fallback to ``data.mask_ref`` (prelabel / prediction path)
-
-    When ``seg_manual_mask_dir`` is omitted, human geometry/empty masks are not
-    written and the prelabel ``mask_ref`` is kept (legacy / unit-test path).
+    Does not read ``task["predictions"]`` or ``annotation["prediction"]``.
     """
 
     from mma.converters.seg_brush import write_empty_manual_mask
@@ -468,7 +433,15 @@ def _parse_seg_annotation(
         )
     fallback_ref = fallback_ref.strip()
 
-    control_entries = _collect_seg_control_entries(result_items, image_id=image_id)
+    # Confirm-only / no human SEG operation: keep prelabel file ref.
+    if effective.source in ("prediction_fallback", "empty") and not effective.human_cleared:
+        return SegAnnotation(mask_ref=fallback_ref)
+
+    # Human path: geometry from effective_result (annotation side).
+    control_entries = _collect_seg_control_entries(
+        list(effective.effective_result),
+        image_id=image_id,
+    )
     brush_entries = [
         entry
         for entry in control_entries
@@ -479,13 +452,6 @@ def _parse_seg_annotation(
         for entry in control_entries
         if _seg_entry_has_nonempty_points(entry)
     ]
-    operated = _annotation_has_seg_operation(
-        control_entries,
-        annotation=annotation,
-    )
-
-    if not operated:
-        return SegAnnotation(mask_ref=fallback_ref)
 
     if seg_manual_mask_dir is None:
         # Human SEG intent detected but no output dir: keep legacy fallback.
@@ -502,7 +468,7 @@ def _parse_seg_annotation(
 
     width, height = _resolve_empty_mask_size(
         control_entries,
-        task=task,
+        prediction_result=effective.prediction_result,
         image_id=image_id,
     )
     mask_ref = write_empty_manual_mask(
@@ -512,28 +478,6 @@ def _parse_seg_annotation(
         manual_mask_dir=seg_manual_mask_dir,
     )
     return SegAnnotation(mask_ref=mask_ref)
-
-
-def _annotation_has_seg_operation(
-    control_entries: Sequence[dict[str, Any]],
-    *,
-    annotation: Mapping[str, Any] | None,
-) -> bool:
-    """Return True when the annotation records a SEG human operation.
-
-    Signals (either is enough):
-
-    - Any ``from_name=seg_mask`` result (including empty ``rle`` / ``points``)
-    - ``annotation.prediction`` is not null (annotation created from a
-      prediction; deleting all regions may leave no ``seg_mask`` items but the
-      prediction link remains)
-    """
-
-    if control_entries:
-        return True
-    if annotation is None:
-        return False
-    return annotation.get("prediction") is not None
 
 
 def _seg_entry_has_nonempty_rle(entry: Mapping[str, Any]) -> bool:
@@ -679,35 +623,27 @@ def _collect_seg_brush_entries(
 def _resolve_empty_mask_size(
     control_entries: Sequence[Mapping[str, Any]],
     *,
-    task: Mapping[str, Any] | None,
+    prediction_result: Sequence[Mapping[str, Any]],
     image_id: str,
 ) -> tuple[int, int]:
-    """Resolve width/height for an empty human mask."""
+    """Resolve width/height for an empty human mask.
+
+    Uses sizes on SEG control entries first, then the already-resolved
+    ``EffectiveLsResult.prediction_result`` (not raw ``task["predictions"]``).
+    """
 
     for entry in control_entries:
         size = _try_entry_original_size(entry)
         if size is not None:
             return size
 
-    if task is not None:
-        predictions = task.get("predictions")
-        if isinstance(predictions, list):
-            for prediction in predictions:
-                if not isinstance(prediction, dict):
-                    continue
-                result = prediction.get("result")
-                if not isinstance(result, list):
-                    continue
-                for entry in result:
-                    if not isinstance(entry, dict):
-                        continue
-                    if entry.get("from_name") != DEFAULT_LS_RESULT_SPECS[TaskType.SEG][
-                        "from_name"
-                    ]:
-                        continue
-                    size = _try_entry_original_size(entry)
-                    if size is not None:
-                        return size
+    seg_from_name = DEFAULT_LS_RESULT_SPECS[TaskType.SEG]["from_name"]
+    for entry in prediction_result:
+        if entry.get("from_name") != seg_from_name:
+            continue
+        size = _try_entry_original_size(entry)
+        if size is not None:
+            return size
 
     raise ValueError(
         f"cannot determine empty SEG mask size (image_id={image_id!r}); "
@@ -729,60 +665,27 @@ def _try_entry_original_size(
 
 
 def _parse_det_annotation(
-    result_items: Sequence[Any],
+    effective: EffectiveLsResult,
     *,
     image_id: str,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
-    task: Mapping[str, Any] | None = None,
-    annotation: Mapping[str, Any] | None = None,
 ) -> DetAnnotation:
-    """Build DET payload with three-way human / cleared / prediction fallback.
+    """Build DET payload from ``EffectiveLsResult`` only.
 
-    Label Studio DET export shape (relevant fields)::
-
-        {
-          "annotations": [{
-            "prediction": <id|null>,  # set when annotation was created from a prediction
-            "result": [
-              {"from_name": "det_bbox", "type": "rectanglelabels", "value": {...}},
-              {"from_name": "human_confirmed", ...},
-              ...
-            ]
-          }],
-          "predictions": [{"result": [ /* prelabel rectangles */ ]}]
-        }
-
-    Decision:
-
-    1. Annotation has ``det_bbox`` entries → use those (human kept / edited boxes)
-    2. No ``det_bbox`` but ``annotation.prediction`` is set → empty boxes
-       (accepted prediction then deleted all rectangles)
-    3. No ``det_bbox`` and ``annotation.prediction`` is null → fallback to
-       ``task.predictions`` det boxes; if none → empty boxes
+    Boxes are taken from ``effective.effective_result`` (already resolved by
+    ``resolve_effective_result``: human boxes, latest-task-control prediction,
+    or empty after human clear). Does not read ``task["predictions"]``.
     """
 
-    ann_entries = _collect_det_bbox_entries(result_items, image_id=image_id)
-    if ann_entries:
-        return DetAnnotation(
-            bboxes=_det_entries_to_bboxes(
-                ann_entries,
-                image_id=image_id,
-                image_metadata_by_id=image_metadata_by_id,
-            )
-        )
-
-    if annotation is not None and annotation.get("prediction") is not None:
-        return DetAnnotation(bboxes=())
-
-    pred_entries = _collect_det_bbox_entries_from_predictions(
-        task,
+    entries = _collect_det_bbox_entries(
+        list(effective.effective_result),
         image_id=image_id,
     )
-    if not pred_entries:
+    if not entries:
         return DetAnnotation(bboxes=())
     return DetAnnotation(
         bboxes=_det_entries_to_bboxes(
-            pred_entries,
+            entries,
             image_id=image_id,
             image_metadata_by_id=image_metadata_by_id,
         )
@@ -814,32 +717,6 @@ def _collect_det_bbox_entries(
                 f"DET rectangle value must be an object (image_id={image_id!r})"
             )
         entries.append(entry)
-    return entries
-
-
-def _collect_det_bbox_entries_from_predictions(
-    task: Mapping[str, Any] | None,
-    *,
-    image_id: str,
-) -> list[dict[str, Any]]:
-    """Collect DET boxes from ``task.predictions[].result`` (prelabel fallback)."""
-
-    if task is None:
-        return []
-    predictions = task.get("predictions")
-    if not isinstance(predictions, list):
-        return []
-
-    entries: list[dict[str, Any]] = []
-    for prediction in predictions:
-        if not isinstance(prediction, dict):
-            continue
-        result = prediction.get("result")
-        if not isinstance(result, list):
-            continue
-        entries.extend(
-            _collect_det_bbox_entries(result, image_id=image_id)
-        )
     return entries
 
 
@@ -915,25 +792,6 @@ def _percent_bbox_to_pixel(
     )
 
 
-def _extract_prediction_result(
-    task: Mapping[str, Any] | None,
-) -> list[Any]:
-    """Return ``task["predictions"][-1]["result"]`` or ``[]`` if unavailable."""
-
-    if task is None:
-        return []
-    predictions = task.get("predictions")
-    if not isinstance(predictions, list) or not predictions:
-        return []
-    last = predictions[-1]
-    if not isinstance(last, dict):
-        return []
-    result = last.get("result")
-    if not isinstance(result, list):
-        return []
-    return result
-
-
 def _collect_cap_text_entries(
     result_items: Sequence[Any],
     *,
@@ -967,66 +825,34 @@ def _collect_cap_text_entries(
 
 
 def _parse_cap_annotation(
-    result_items: Sequence[Any],
+    effective: EffectiveLsResult,
     *,
     image_id: str,
-    task: Mapping[str, Any] | None = None,
-    annotation: Mapping[str, Any] | None = None,
 ) -> CapAnnotation:
-    """Build CAP payload with human-over-prelabel priority.
+    """Build CAP payload from ``EffectiveLsResult`` only.
 
-    Label Studio CAP export shape (relevant fields)::
-
-        {
-          "annotations": [{
-            "result": [
-              {"from_name": "cap_text", "type": "textarea", "value": {"text": [...]}},
-              {"from_name": "human_confirmed", ...},
-              ...
-            ]
-          }],
-          "predictions": [{"result": [ /* prelabel caption */ ]}]
-        }
-
-    Decision:
-
-    1. Annotation has ``cap_text`` → use it (empty text = human cleared caption)
-    2. No ``cap_text`` in annotation → fallback to ``predictions[-1].result``
-    3. Neither has ``cap_text`` → raise missing textarea error
-
-    ``annotation`` is accepted for API symmetry with SEG/DET; CAP decisions use
-    ``result_items`` (selected annotation.result) plus ``task.predictions``.
+    Caption is taken from ``effective.effective_result``. Human cleared with
+    no ``cap_text`` yields an empty caption (no prediction re-read).
     """
 
-    _ = annotation  # reserved for future prediction-link signals
-    human_entries = _collect_cap_text_entries(result_items, image_id=image_id)
-    if len(human_entries) > 1:
+    entries = _collect_cap_text_entries(
+        list(effective.effective_result),
+        image_id=image_id,
+    )
+    if len(entries) > 1:
         raise ValueError(
             f"CAP duplicate {DEFAULT_LS_RESULT_SPECS[TaskType.CAP]['from_name']!r} "
             f"textarea result (image_id={image_id!r})"
         )
-    if human_entries:
-        text = human_entries[0]["value"].get("text")
+    if entries:
+        text = entries[0]["value"].get("text")
         caption = _normalize_cap_text(
             text, image_id=image_id, allow_empty=True
         )
         return CapAnnotation(caption=caption)
 
-    pred_entries = _collect_cap_text_entries(
-        _extract_prediction_result(task),
-        image_id=image_id,
-    )
-    if len(pred_entries) > 1:
-        raise ValueError(
-            f"CAP duplicate {DEFAULT_LS_RESULT_SPECS[TaskType.CAP]['from_name']!r} "
-            f"textarea result in predictions (image_id={image_id!r})"
-        )
-    if pred_entries:
-        text = pred_entries[0]["value"].get("text")
-        caption = _normalize_cap_text(
-            text, image_id=image_id, allow_empty=True
-        )
-        return CapAnnotation(caption=caption)
+    if effective.human_cleared:
+        return CapAnnotation(caption="")
 
     raise ValueError(
         f"CAP missing {DEFAULT_LS_RESULT_SPECS[TaskType.CAP]['from_name']!r} "

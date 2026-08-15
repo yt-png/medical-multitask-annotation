@@ -1,8 +1,8 @@
-"""Materialize SEG masks into ``final/<batch>/final_assets/masks/`` (T5.4).
+"""Materialize SEG masks into ``final/<batch>/masks/`` (T5.4).
 
-Copies current effective masks (manual or prelabel) into a single directory so
-``final/.../manifest.json`` uses one ``mask_ref`` root. Does not modify
-``prelabels/``, ``manual_masks/``, or ``current/``.
+Copies current effective masks (manual or prelabel) into a self-contained
+directory so ``final/.../manifest.json`` uses relative ``masks/{image_id}.png``.
+Does not modify ``prelabels/``, ``manual_masks/``, or ``current/``.
 """
 
 from __future__ import annotations
@@ -14,17 +14,17 @@ from pathlib import Path
 from mma.common.models import MergedMultitaskRecord, SegAnnotation
 from mma.common.paths import (
     default_data_root,
-    final_assets_masks_dir,
+    final_masks_dir,
     validate_batch_id,
 )
 from mma.common.seg_mask_paths import resolve_current_seg_mask_path
 
-FINAL_SEG_MASK_REL_DIR = "final_assets/masks"
-_FORBIDDEN_MASK_REF_MARKERS = ("manual_masks/", "prelabels/")
+FINAL_SEG_MASK_REL_DIR = "masks"
+_FORBIDDEN_MASK_REF_MARKERS = ("final_assets/", "manual_masks/", "prelabels/")
 
 
 def final_seg_mask_ref(image_id: str) -> str:
-    """Return unified final mask_ref: ``final_assets/masks/{image_id}.png``."""
+    """Return unified final mask_ref: ``masks/{image_id}.png``."""
 
     cleaned = str(image_id).strip()
     if not cleaned:
@@ -39,7 +39,7 @@ def materialize_final_seg_mask(
     batch_id: str,
     data_root: Path | str | None = None,
 ) -> SegAnnotation:
-    """Copy the current SEG mask into ``final_assets/masks/{image_id}.png``.
+    """Copy the current SEG mask into ``masks/{image_id}.png``.
 
     Empty masks are copied as-is (not regenerated). Returns a new
     ``SegAnnotation`` with the unified ``mask_ref``.
@@ -63,7 +63,7 @@ def materialize_final_seg_mask(
             f"(mask_ref={seg.mask_ref!r})"
         )
 
-    dest_dir = final_assets_masks_dir(cleaned_batch, data_root=root)
+    dest_dir = final_masks_dir(cleaned_batch, data_root=root)
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"{str(image_id).strip()}.png"
     shutil.copy2(source, dest)
@@ -105,9 +105,10 @@ def materialize_final_seg_masks(
 def assert_final_seg_mask_contract(
     records: Sequence[MergedMultitaskRecord],
 ) -> None:
-    """Require every ``seg.mask_ref`` to be ``final_assets/masks/{image_id}.png``.
+    """Require every ``seg.mask_ref`` to be ``masks/{image_id}.png``.
 
-    Forbids bare ``masks/``, ``manual_masks/``, and ``prelabels/`` references.
+    Forbids ``final_assets/``, ``manual_masks/``, ``prelabels/``, and absolute
+    paths.
     """
 
     for record in records:
@@ -120,10 +121,13 @@ def assert_final_seg_mask_contract(
                 f"got {ref!r}"
             )
         normalized = ref.replace("\\", "/")
-        if normalized.startswith("masks/") or any(
-            marker in normalized for marker in _FORBIDDEN_MASK_REF_MARKERS
-        ):
+        if Path(normalized).is_absolute() or normalized.startswith("/"):
             raise ValueError(
-                f"final SEG mask_ref must not use prelabel/manual roots "
+                f"final SEG mask_ref must be relative "
+                f"(image_id={record.image_id!r}, mask_ref={ref!r})"
+            )
+        if any(marker in normalized for marker in _FORBIDDEN_MASK_REF_MARKERS):
+            raise ValueError(
+                f"final SEG mask_ref must not use external roots "
                 f"(image_id={record.image_id!r}, mask_ref={ref!r})"
             )
