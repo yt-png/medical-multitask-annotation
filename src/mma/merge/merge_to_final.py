@@ -15,7 +15,7 @@ from mma.common.paths import default_data_root, processed_batch_dir, validate_ba
 from mma.merge.materialize_final_seg import materialize_final_seg_masks
 from mma.merge.merge_multitask import merge_multitask
 from mma.merge.write_final import write_final_manifest
-from mma.packaging.split_task_packages import load_processed_items
+from mma.preprocess.load_processed import load_processed_items
 
 
 def merge_to_final(

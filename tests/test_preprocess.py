@@ -17,6 +17,7 @@ from mma.preprocess.build_processed import (
     build_processed_batch,
     write_processed_manifest,
 )
+from mma.preprocess.load_processed import load_processed_items
 from mma.preprocess.pair_images_excel import pair_images_with_excel
 
 # Tiny valid JPEG (1x1) for fixture files.
@@ -511,3 +512,42 @@ def test_build_processed_batch_end_to_end(tmp_path: Path) -> None:
         assert Path(item["image_path"]).is_file()
     # Images are referenced, not copied into processed/
     assert not (out_dir / "images").exists()
+
+
+def test_load_processed_missing_manifest_fails(tmp_path: Path) -> None:
+    processed = tmp_path / "processed" / "batch_a"
+    processed.mkdir(parents=True)
+    with pytest.raises(FileNotFoundError):
+        load_processed_items(processed)
+
+
+def test_load_processed_items_roundtrip(tmp_path: Path) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    _write_jpeg(images / "a.jpg")
+    _write_jpeg(images / "b.jpg")
+    excel = tmp_path / "diagnoses.xlsx"
+    _write_excel(
+        excel,
+        [
+            ("a.jpg", "findings A"),
+            ("b.jpg", "findings B"),
+        ],
+    )
+    data_root = tmp_path / "data"
+    out_dir = build_processed_batch(
+        "demo_batch",
+        images,
+        excel,
+        data_root=data_root,
+    )
+
+    records = load_processed_items(out_dir)
+    assert len(records) == 2
+    assert records[0].image_id == "demo_batch__000001"
+    assert records[0].diagnosis_text == "findings A"
+    assert records[0].source_image_name == "a.jpg"
+    assert records[0].batch_id == "demo_batch"
+    assert Path(records[0].image_path).is_file()
+    assert records[1].image_id == "demo_batch__000002"
+    assert records[1].diagnosis_text == "findings B"

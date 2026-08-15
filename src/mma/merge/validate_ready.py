@@ -12,7 +12,7 @@ from pathlib import Path
 from mma.common.models import TaskAnnotationResult, TaskType, should_rework
 from mma.common.paths import default_data_root, processed_batch_dir, validate_batch_id
 from mma.exporters.load_current import load_current
-from mma.packaging.split_task_packages import load_processed_items
+from mma.preprocess.load_processed import load_processed_items
 
 _TASK_ORDER = (TaskType.SEG, TaskType.DET, TaskType.CAP)
 _MAX_IDS_IN_MESSAGE = 20

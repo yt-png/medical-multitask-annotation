@@ -2,6 +2,15 @@
 
 ## 2026-08-15
 
+### Changed
+
+- 将 `load_processed_items` 从 `packaging/split_task_packages` 下沉到 `preprocess/load_processed.py`；`merge` / `packaging` 改为从 preprocess 导入，解除 merge → packaging 反向依赖；`mma.packaging` 不再导出该符号
+
+### Tests
+
+- `tests/test_preprocess.py`：迁入缺 manifest 用例；新增 load 往返用例
+- `tests/test_packaging.py`：改为从 preprocess 导入 `load_processed_items`
+
 ### Fixed
 
 - `package` / `split_task_packages`：重跑时按 processed 期望文件名差集清理各任务 `images/` 清单外文件（含旧后缀与杂文件）；`images/` 下出现子目录则失败

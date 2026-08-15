@@ -15,11 +15,9 @@ from mma.packaging.build_task_packages import (
     build_task_packages,
     write_task_package_manifest,
 )
-from mma.packaging.split_task_packages import (
-    load_processed_items,
-    split_task_packages,
-)
+from mma.packaging.split_task_packages import split_task_packages
 from mma.preprocess.build_processed import build_processed_batch
+from mma.preprocess.load_processed import load_processed_items
 
 _MIN_JPEG = bytes(
     [
@@ -402,13 +400,6 @@ def test_build_task_packages_rerun_orphan_removed(tmp_path: Path) -> None:
 def test_split_missing_processed_dir_fails(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="processed batch directory"):
         split_task_packages("missing_batch", data_root=tmp_path / "data")
-
-
-def test_load_processed_missing_manifest_fails(tmp_path: Path) -> None:
-    processed = tmp_path / "processed" / "batch_a"
-    processed.mkdir(parents=True)
-    with pytest.raises(FileNotFoundError):
-        load_processed_items(processed)
 
 
 def test_split_missing_source_image_fails(tmp_path: Path) -> None:
