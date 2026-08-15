@@ -24,6 +24,7 @@ from mma.common.io import read_json
 from mma.common.models import TaskType
 from mma.common.paths import (
     default_data_root,
+    parse_export_round_from_path,
     results_manual_masks_dir,
     validate_batch_id,
 )
@@ -93,6 +94,7 @@ def apply_current_from_export(
         task_type=task_type,
         image_metadata_by_id=metadata,
         seg_manual_mask_dir=seg_mask_dir,
+        export_round=parse_export_round_from_path(path),
     )
     current_path = overwrite_current(
         results,

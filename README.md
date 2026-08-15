@@ -71,15 +71,17 @@ mma ls-import --batch demo_batch --task seg --data-root data
 
 ```bash
 # 推荐：一条命令完成 current 同步 + normal/rework 重建
-mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
+# 建议按轮次目录存放：.../round_001/export.json（export_round 会写入 current）
+mma export-split --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/round_001/export.json --data-root data
 ```
 
 ```bash
 # 底层等价入口（勿再紧跟 export-split）
-mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/export.json --data-root data
+mma apply-current --batch demo_batch --task cap --export data/ls_export/demo_batch/cap/round_001/export.json --data-root data
 ```
 
 - 解析导出（含仍需返工样本）并覆盖写入 `data/results/<batch>/<task>/current/annotations.json`
+- 若 `--export` 父目录为 `round_NNN`（如 `round_001`），则 `TaskAnnotationResult.export_round` 记为整数轮次（`1`）；非轮次目录仍为 `null`（仅追溯，不影响分类/合并）
 - 按 `image_id` **合并**写入：命中则覆盖；**未出现在本轮 export 中的样本保留**（非整表清空）
 - 写入后**自动全量重建**同任务 `normal/` 与 `rework/`（以 `current/` 为唯一真实源，禁止按本轮 export 子集追加历史）
 - 首轮/全量刷新：请导出该任务本批全部样本后再 apply / export-split；返工轮允许子集 export（详见 `docs/data_layout.md`、`docs/labelstudio_usage.md`）
@@ -153,6 +155,7 @@ python examples/scripts/run_p2_demo.py
 - 已完成：T4.3 返工再导入（优先 `rework/previous_annotations/` 标注快照；旧模式 `--export` 经 `resolve_effective_result` / `extract_ls_raw_results` → `importers/build_rework_tasks.py`；原图仍依赖 `task_packages`）
 - 已完成：`resolve_effective_result`（人工 payload 优先；仅 Choices 时 prediction fallback；人工清空不回退；confirm-only 打 warning）
 - 已完成：接线 `mma apply-current`（底层：export → current）与 `mma export-split`（高级封装：调用 apply-current 并返回 normal/rework；**勿对同一 export 连跑两条**）
+- 已完成：`export_round` 追溯字段接线（`parse_export_round_from_path`：`round_001`→`1`；`apply-current`/`export-split` 写入 `current/`；不改分类/合并逻辑）
 - 已完成：接线 `mma rework-import --batch --task [--export] [--data-root] [--local-root]`（`importers/rework_import_from_export.py` → `rework_tasks.json`）
 - 已完成：rework 包标注快照 `previous_annotations/<task>.json`（+ SEG `masks/`；`write_normal_rework_bundles`；不含原图）
 - 已完成：T4.5 读取 current 清单（`exporters/load_current.py` + `current_annotations` 序列化；供 P5 merge）

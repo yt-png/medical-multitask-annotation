@@ -61,6 +61,7 @@ def parse_ls_export(
     task_type: TaskType,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None = None,
     seg_manual_mask_dir: Path | str | None = None,
+    export_round: int | None = None,
 ) -> tuple[TaskAnnotationResult, ...]:
     """Load a Label Studio export JSON file and parse task results.
 
@@ -70,6 +71,10 @@ def parse_ls_export(
     ``manual_masks/{image_id}_manual.png``. If the directory is omitted (unit
     tests / legacy callers), SEG keeps ``data.mask_ref`` even when brush
     results are present.
+
+    ``export_round`` is a traceability field only (does not affect
+    classification or merge). Callers such as ``apply-current`` typically
+    derive it via ``parse_export_round_from_path``.
     """
 
     payload = read_json(path)
@@ -78,6 +83,7 @@ def parse_ls_export(
         task_type=task_type,
         image_metadata_by_id=image_metadata_by_id,
         seg_manual_mask_dir=seg_manual_mask_dir,
+        export_round=export_round,
     )
 
 
@@ -87,11 +93,18 @@ def parse_ls_export_data(
     task_type: TaskType,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None = None,
     seg_manual_mask_dir: Path | str | None = None,
+    export_round: int | None = None,
 ) -> tuple[TaskAnnotationResult, ...]:
     """Parse an in-memory Label Studio export payload (task list)."""
 
     if not isinstance(task_type, TaskType):
         raise ValueError(f"task_type must be TaskType, got {type(task_type)!r}")
+    if export_round is not None and (
+        not isinstance(export_round, int) or isinstance(export_round, bool)
+    ):
+        raise ValueError(
+            f"export_round must be int or None, got {type(export_round)!r}"
+        )
     if not isinstance(data, list):
         raise ValueError(
             f"Label Studio export must be a JSON array, got {type(data).__name__}"
@@ -110,6 +123,7 @@ def parse_ls_export_data(
             task_type=task_type,
             image_metadata_by_id=image_metadata_by_id,
             seg_manual_mask_dir=seg_manual_mask_dir,
+            export_round=export_round,
             index=index,
         )
         if parsed.image_id in seen_image_ids:
@@ -125,6 +139,7 @@ def _parse_one_task(
     task_type: TaskType,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
     seg_manual_mask_dir: Path | str | None,
+    export_round: int | None,
     index: int,
 ) -> TaskAnnotationResult:
     data = task.get("data")
@@ -199,7 +214,7 @@ def _parse_one_task(
         human_confirmed=human_confirmed,
         needs_rework=needs_rework,
         package_id=package_id,
-        export_round=None,
+        export_round=export_round,
     )
 
 

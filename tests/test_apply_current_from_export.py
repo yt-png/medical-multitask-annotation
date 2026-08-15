@@ -196,6 +196,7 @@ def test_cap_and_seg_write_current(tmp_path: Path) -> None:
     assert isinstance(loaded[0].annotation, CapAnnotation)
     assert loaded[0].needs_rework is True
     assert loaded[1].needs_rework is False
+    assert loaded[0].export_round is None
 
     export_seg = _write_export(
         tmp_path / "seg.json",
@@ -460,3 +461,19 @@ def test_multi_round_rework_moves_sample_into_normal(tmp_path: Path) -> None:
     by_id = {item.image_id: item for item in current}
     assert by_id["img-fix"].annotation.caption == "fixed"
     assert by_id["img-fix"].needs_rework is False
+
+
+def test_apply_current_sets_export_round_from_round_dir(tmp_path: Path) -> None:
+    export = _write_export(
+        tmp_path / "round_003" / "export.json",
+        [_cap_task(image_id="img-a", caption="c1", rework="no")],
+    )
+    apply_current_from_export(
+        export,
+        batch_id="batch1",
+        task="cap",
+        data_root=tmp_path,
+    )
+    loaded = load_current("batch1", TaskType.CAP, data_root=tmp_path)
+    assert len(loaded) == 1
+    assert loaded[0].export_round == 3

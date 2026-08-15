@@ -8,6 +8,7 @@ from pathlib import Path
 from mma.common.models import TaskType
 
 _BATCH_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+_EXPORT_ROUND_DIR_RE = re.compile(r"^round_(\d+)$", re.IGNORECASE)
 
 _TASK_DIR_NAMES = {
     TaskType.SEG: "seg",
@@ -40,6 +41,21 @@ def default_data_root() -> Path:
     """Default runtime data root relative to the current working directory."""
 
     return Path("data")
+
+
+def parse_export_round_from_path(path: Path | str) -> int | None:
+    """Parse ``export_round`` from an LS export file path.
+
+    Recognizes a parent directory named ``round_NNN`` (zero-padded digits
+    allowed), e.g. ``.../round_001/export.json`` → ``1``. Paths without such a
+    parent return ``None`` (compatible with flat export layouts).
+    """
+
+    parent_name = Path(path).parent.name
+    match = _EXPORT_ROUND_DIR_RE.fullmatch(parent_name)
+    if match is None:
+        return None
+    return int(match.group(1))
 
 
 def processed_batch_dir(

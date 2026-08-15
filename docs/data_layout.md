@@ -186,7 +186,7 @@ results/<batch>/<task>/rework/
   - **返工轮**：允许只导出返工子集再 `export-split` / `apply-current`；未出现的 id **刻意保留**上一轮有效结果（含已 normal 的样本）
   - **禁止**：从全量项目中随意导出少量样本并 apply，却期望其余样本被自动删除或状态被清空
 - 合并（P5）只读各任务的 `current/`
-- 建议清单文件：`current/annotations.json`（字段对齐 `TaskAnnotationResult`）。其中可选字段 `export_round` **当前解析恒为 `null`**；轮次追溯靠 `ls_export/.../round_XXX/`（及可选的 `normal|rework/round_XXX/` 快照），不以该字段接线
+- 建议清单文件：`current/annotations.json`（字段对齐 `TaskAnnotationResult`）。可选字段 `export_round`：当 `--export` 位于 `.../round_NNN/` 下时，由 `apply-current` / `export-split` 填入整数轮次（`round_001` → `1`）；非轮次目录为 `null`。**仅追溯**，分类/合并仍只看勾选与 `image_id`；历史排障仍可对照 `ls_export/.../round_XXX/`（及可选的 `normal|rework/round_XXX/` 快照）
 
 #### `manual_masks/`（仅 SEG）
 
@@ -272,7 +272,7 @@ raw
 | `final/<batch_id>/` | `manifest.json` | 合并后的多任务记录清单（字段对齐 `MergedMultitaskRecord`）；`seg.mask_ref` 统一为 `final_assets/masks/{image_id}.png` |
 | `final/<batch_id>/final_assets/masks/` | `{image_id}.png` | merge 时从 manual/prelabel 复制的统一 SEG mask |
 
-轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。`TaskAnnotationResult.export_round` 字段预留，**当前未从导出轮次目录自动填充**。
+轮次目录名建议：`round_001`、`round_002`、…（三位零填充，便于排序）。`TaskAnnotationResult.export_round` 由 `parse_export_round_from_path` 从 export 父目录解析并经 `apply-current` / `export-split` 写入 `current/`；非 `round_*` 布局仍为 `null`。
 
 业务结果 JSON 字段以 `mma.common.models` 为准；预标注统一中间格式与 Label Studio 转换约定见 `docs/formats.md`。
 

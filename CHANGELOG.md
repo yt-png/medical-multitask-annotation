@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-15
+
+### Added
+
+- `parse_export_round_from_path`（`common/paths.py`）：从 export 父目录解析 `round_001` → `1`；非轮次目录返回 `None`
+- `parse_ls_export` / `parse_ls_export_data` 支持可选参数 `export_round`，写入 `TaskAnnotationResult.export_round`（追溯字段，不改分类/合并）
+- `apply-current` / `export-split`（经 `apply_current_from_export`）自动从 `--export` 路径填充 `export_round` 并落入 `current/annotations.json`
+
+### Tests
+
+- 新增 `tests/test_parse_export_round.py`：路径解析、`parse_ls_export_data` 含 `export_round`、文件路径接线
+- `tests/test_apply_current_from_export.py`：`round_003/export.json` 写入 `export_round=3`；无 round 目录仍为 `null`
+
+### Docs
+
+- `README.md`：示例改用 `round_001/export.json`，说明 `export_round` 追溯语义
+- `docs/data_layout.md`：同步「已从轮次目录填充」说明
+
 ## 2026-08-14
 
 ### Changed
