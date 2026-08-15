@@ -2,6 +2,14 @@
 
 ## 2026-08-15
 
+### Fixed
+
+- `read_diagnosis_excel`：显式校验诊断表后缀仅为 `.xlsx`（大小写不敏感），非 xlsx 在 openpyxl 前以统一 `ValueError` 失败
+
+### Tests
+
+- `tests/test_preprocess.py`：拒绝 `.xls`；接受 `.XLSX` 大小写变体
+
 ### Changed
 
 - 将 `load_processed_items` 从 `packaging/split_task_packages` 下沉到 `preprocess/load_processed.py`；`merge` / `packaging` 改为从 preprocess 导入，解除 merge → packaging 反向依赖；`mma.packaging` 不再导出该符号

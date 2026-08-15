@@ -10,6 +10,8 @@ from openpyxl import load_workbook
 
 ALLOWED_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg"})
 
+ALLOWED_EXCEL_SUFFIXES = frozenset({".xlsx"})
+
 REQUIRED_EXCEL_COLUMNS = ("image_name", "diagnosis_text")
 
 
@@ -41,16 +43,27 @@ def list_image_files(images_dir: Path | str) -> list[Path]:
     return allowed
 
 
+def _assert_xlsx_suffix(path: Path) -> None:
+    """Require diagnosis Excel path to use an allowed ``.xlsx`` suffix."""
+
+    suffix = path.suffix.lower()
+    if suffix not in ALLOWED_EXCEL_SUFFIXES:
+        raise ValueError(
+            f"diagnosis excel must be .xlsx, got {path} (suffix={suffix!r})"
+        )
+
+
 def read_diagnosis_excel(excel_path: Path | str) -> list[tuple[str, str]]:
     """Read ``image_name`` / ``diagnosis_text`` rows from the first sheet.
 
-    Empty diagnosis text raises ``ValueError``. Missing required columns
-    raise ``ValueError``.
+    Only ``.xlsx`` is accepted (case-insensitive). Empty diagnosis text
+    raises ``ValueError``. Missing required columns raise ``ValueError``.
     """
 
     path = Path(excel_path)
     if not path.is_file():
         raise FileNotFoundError(f"excel file not found: {path}")
+    _assert_xlsx_suffix(path)
 
     workbook = load_workbook(path, read_only=True, data_only=True)
     try:

@@ -275,6 +275,30 @@ def test_non_jpg_file_in_directory_fails(tmp_path: Path) -> None:
         pair_images_with_excel(images, excel)
 
 
+def test_excel_xls_suffix_rejected(tmp_path: Path) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    _write_jpeg(images / "a.jpg")
+    excel = tmp_path / "diagnoses.xls"
+    excel.write_bytes(b"not-xlsx")
+
+    with pytest.raises(ValueError, match="must be .xlsx"):
+        pair_images_with_excel(images, excel)
+
+
+def test_excel_xlsx_suffix_case_insensitive(tmp_path: Path) -> None:
+    images = tmp_path / "images"
+    images.mkdir()
+    _write_jpeg(images / "a.jpg")
+    excel = tmp_path / "diagnoses.XLSX"
+    _write_excel(excel, [("a.jpg", "text-a")])
+
+    pairs = pair_images_with_excel(images, excel, batch_id="batch-demo")
+    assert len(pairs) == 1
+    assert pairs[0].source_image_name == "a.jpg"
+    assert pairs[0].diagnosis_text == "text-a"
+
+
 def test_missing_excel_columns_fails(tmp_path: Path) -> None:
     images = tmp_path / "images"
     images.mkdir()
