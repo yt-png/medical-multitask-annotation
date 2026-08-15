@@ -225,6 +225,180 @@ def test_split_task_packages_rerun_overwrites(tmp_path: Path) -> None:
     ).is_file()
 
 
+def test_split_rerun_removes_orphan_when_processed_shrinks(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    processed_dir = _prepare_processed(tmp_path, "batch_a")
+    split_task_packages("batch_a", data_root=data_root)
+
+    records = load_processed_items(processed_dir)
+    kept = records[0]
+    (processed_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "batch_id": "batch_a",
+                "items": [
+                    {
+                        "image_id": kept.image_id,
+                        "image_path": kept.image_path,
+                        "diagnosis_text": kept.diagnosis_text,
+                        "source_image_name": kept.source_image_name,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = split_task_packages("batch_a", data_root=data_root)
+    expected_name = f"{kept.image_id}.jpg"
+    for task_type, samples in result.items():
+        assert len(samples) == 1
+        assert samples[0].image_id == kept.image_id
+        images_dir = task_package_dir("batch_a", task_type, data_root=data_root) / (
+            "images"
+        )
+        names = sorted(p.name for p in images_dir.iterdir() if p.is_file())
+        assert names == [expected_name]
+        assert not (images_dir / "batch_a__000002.jpg").exists()
+
+
+def test_split_rerun_removes_old_suffix_on_extension_change(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    processed_dir = _prepare_processed(tmp_path, "batch_a")
+    split_task_packages("batch_a", data_root=data_root)
+
+    records = load_processed_items(processed_dir)
+    first = records[0]
+    jpeg_source = Path(first.image_path)
+    jpeg_bytes = jpeg_source.read_bytes()
+    new_source = jpeg_source.with_suffix(".jpeg")
+    new_source.write_bytes(jpeg_bytes)
+
+    items = [
+        {
+            "image_id": first.image_id,
+            "image_path": str(new_source),
+            "diagnosis_text": first.diagnosis_text,
+            "source_image_name": new_source.name,
+        }
+    ]
+    for record in records[1:]:
+        items.append(
+            {
+                "image_id": record.image_id,
+                "image_path": record.image_path,
+                "diagnosis_text": record.diagnosis_text,
+                "source_image_name": record.source_image_name,
+            }
+        )
+    (processed_dir / "manifest.json").write_text(
+        json.dumps(
+            {"batch_id": "batch_a", "items": items},
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    split_task_packages("batch_a", data_root=data_root)
+    for task_type in (TaskType.SEG, TaskType.DET, TaskType.CAP):
+        images_dir = task_package_dir("batch_a", task_type, data_root=data_root) / (
+            "images"
+        )
+        assert (images_dir / f"{first.image_id}.jpeg").is_file()
+        assert not (images_dir / f"{first.image_id}.jpg").exists()
+        names = sorted(p.name for p in images_dir.iterdir() if p.is_file())
+        assert names == [
+            f"{first.image_id}.jpeg",
+            "batch_a__000002.jpg",
+        ]
+
+
+def test_split_rerun_removes_stray_files_in_images(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    _prepare_processed(tmp_path, "batch_a")
+    split_task_packages("batch_a", data_root=data_root)
+
+    for task_type in (TaskType.SEG, TaskType.DET, TaskType.CAP):
+        images_dir = task_package_dir("batch_a", task_type, data_root=data_root) / (
+            "images"
+        )
+        (images_dir / "readme.txt").write_text("stray\n", encoding="utf-8")
+        _write_jpeg(images_dir / "orphan_extra.jpg")
+
+    split_task_packages("batch_a", data_root=data_root)
+    for task_type in (TaskType.SEG, TaskType.DET, TaskType.CAP):
+        images_dir = task_package_dir("batch_a", task_type, data_root=data_root) / (
+            "images"
+        )
+        names = sorted(p.name for p in images_dir.iterdir() if p.is_file())
+        assert names == [
+            "batch_a__000001.jpg",
+            "batch_a__000002.jpg",
+        ]
+
+
+def test_split_images_subdir_raises(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    _prepare_processed(tmp_path, "batch_a")
+    split_task_packages("batch_a", data_root=data_root)
+
+    nested = (
+        data_root / "task_packages" / "batch_a" / "seg" / "images" / "extra"
+    )
+    nested.mkdir()
+    (nested / "x.txt").write_text("nested\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unexpected subdirectory"):
+        split_task_packages("batch_a", data_root=data_root)
+
+
+def test_build_task_packages_rerun_orphan_removed(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    processed_dir = _prepare_processed(tmp_path, "batch_a")
+    build_task_packages("batch_a", data_root=data_root)
+
+    records = load_processed_items(processed_dir)
+    kept = records[0]
+    (processed_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "batch_id": "batch_a",
+                "items": [
+                    {
+                        "image_id": kept.image_id,
+                        "image_path": kept.image_path,
+                        "diagnosis_text": kept.diagnosis_text,
+                        "source_image_name": kept.source_image_name,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    packages = build_task_packages("batch_a", data_root=data_root)
+    for task_type, package in packages.items():
+        assert len(package.samples) == 1
+        package_dir = task_package_dir("batch_a", task_type, data_root=data_root)
+        names = sorted(
+            p.name for p in (package_dir / "images").iterdir() if p.is_file()
+        )
+        assert names == [f"{kept.image_id}.jpg"]
+        payload = json.loads(
+            (package_dir / "manifest.json").read_text(encoding="utf-8")
+        )
+        assert len(payload["samples"]) == 1
+        assert payload["samples"][0]["image_id"] == kept.image_id
+
+
 def test_split_missing_processed_dir_fails(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="processed batch directory"):
         split_task_packages("missing_batch", data_root=tmp_path / "data")

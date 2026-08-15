@@ -2,6 +2,18 @@
 
 ## 2026-08-15
 
+### Fixed
+
+- `package` / `split_task_packages`：重跑时按 processed 期望文件名差集清理各任务 `images/` 清单外文件（含旧后缀与杂文件）；`images/` 下出现子目录则失败
+
+### Tests
+
+- `tests/test_packaging.py`：缩样孤儿删除、扩展名变更、杂文件清理、子目录报错、`build_task_packages` 端到端孤儿清理
+
+### Docs
+
+- `docs/data_layout.md` §4.3：补充 `mma package` 重跑 `images/` 对齐语义
+
 ### Added
 
 - `parse_export_round_from_path`（`common/paths.py`）：从 export 父目录解析 `round_001` → `1`；非轮次目录返回 `None`

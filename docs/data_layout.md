@@ -99,6 +99,7 @@ data/
 | 职责 | 按任务类型拆分的**全量**任务包（每类样本数 = 预处理有效图像数 N） |
 | 建议内容 | `images/`、诊断文本清单、`manifest.json` |
 | `manifest.json` 必填 | `package_id`、`task_type`（`SEG`/`DET`/`CAP`）、`batch_id`、样本列表（`image_id`、`image_path`、`diagnosis_text`） |
+| 重跑对齐 | `mma package` 重跑时，各任务 `images/` 与当前 `processed` 清单对齐：按期望文件名做差集，**删除清单外文件**（含同 `image_id` 旧后缀、杂文件）；`images/` 下若出现子目录则失败。已发出的旧网盘包需人工重新分发 |
 | 网盘 | 整目录分发给对应任务标注员 |
 
 同一 `batch_id` 下恰好三个任务目录；每个目录对应一个 `package_id`（写在 manifest 中，不另建 `package_id` 目录层）。
