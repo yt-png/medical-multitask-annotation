@@ -441,7 +441,7 @@ def _parse_seg_annotation(
             brush_entries=brush_entries,
             polygon_entries=polygon_entries,
         )
-        return SegAnnotation(mask_ref=mask_ref)
+        return SegAnnotation(mask_ref=mask_ref, has_foreground=True)
 
     width, height = _resolve_empty_mask_size(
         control_entries,
@@ -454,7 +454,7 @@ def _parse_seg_annotation(
         height=height,
         manual_mask_dir=seg_manual_mask_dir,
     )
-    return SegAnnotation(mask_ref=mask_ref)
+    return SegAnnotation(mask_ref=mask_ref, has_foreground=False)
 
 
 def _seg_entry_has_nonempty_rle(entry: Mapping[str, Any]) -> bool:

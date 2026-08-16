@@ -52,10 +52,13 @@ class BBox:
 class SegAnnotation:
     """SEG annotation payload; mask stored as a string reference.
 
-    Prelabel-stage SEG uses ``mma.formats.SegPrelabelPayload`` (file ref only).
+    ``has_foreground`` is True when the manual mask has lesion foreground.
+    False means an empty manual mask (no effective SEG payload). Missing
+    field in legacy ``current/`` JSON defaults to True on load.
     """
 
     mask_ref: str
+    has_foreground: bool = True
 
 
 @dataclass(frozen=True)
@@ -149,10 +152,8 @@ def should_rework(*, human_confirmed: bool, needs_rework: bool) -> bool:
         should_rework = (not human_confirmed) or needs_rework
 
     Only ``human_confirmed=True`` and ``needs_rework=False`` is normal under
-    this legacy/runtime rule used by ``split_by_rework`` until M6.3.
-
-    V1 full rule (also empty / missing task payload → rework) is
-    ``should_rework_result``.
+    this choice-flag helper. Runtime classification uses ``should_rework_result``
+    (also empty / missing task payload → rework).
     """
 
     return (not human_confirmed) or needs_rework
@@ -169,8 +170,8 @@ def has_effective_task_payload(
 
     - DET: at least one bbox
     - CAP: non-empty caption after strip
-    - SEG: non-empty ``mask_ref`` string only — **does not** inspect mask file
-      contents (empty vs non-empty PNG is M5.2)
+    - SEG: non-empty ``mask_ref`` and ``has_foreground`` (empty manual mask
+      sets ``has_foreground=False`` at parse time)
 
     ``task_type`` must match ``annotation`` (same as ``assert_annotation_matches_task``).
     """
@@ -184,7 +185,7 @@ def has_effective_task_payload(
         return bool(annotation.caption.strip())
     if task_type is TaskType.SEG:
         assert isinstance(annotation, SegAnnotation)
-        return bool(annotation.mask_ref.strip())
+        return bool(annotation.mask_ref.strip()) and annotation.has_foreground
     raise ValueError(f"unsupported task type: {task_type!r}")  # pragma: no cover
 
 
@@ -204,8 +205,7 @@ def should_rework_result(
 
     ``effective_payload`` is ``has_task_payload`` when provided (non-None),
     otherwise ``has_effective_task_payload(item.task_type, item.annotation)``.
-    Callers such as M5.2 may pass an overridden SEG empty-mask verdict via
-    ``has_task_payload``.
+    Callers may pass an overridden payload verdict via ``has_task_payload``.
     """
 
     if has_task_payload is None:
@@ -238,7 +238,7 @@ class TaskAnnotationResult:
 
 
 def assert_result_bundle_consistent(bundle: ResultBundle) -> None:
-    """Validate result bundle kind vs ``should_rework`` and task_type alignment."""
+    """Validate result bundle kind vs ``should_rework_result`` and task types."""
 
     for item in bundle.items:
         if item.task_type is not bundle.task_type:
@@ -246,10 +246,7 @@ def assert_result_bundle_consistent(bundle: ResultBundle) -> None:
                 f"item task_type {item.task_type.value} does not match "
                 f"bundle task_type {bundle.task_type.value}"
             )
-        item_should_rework = should_rework(
-            human_confirmed=item.human_confirmed,
-            needs_rework=item.needs_rework,
-        )
+        item_should_rework = should_rework_result(item)
         if bundle.bundle_kind is BundleKind.NORMAL and item_should_rework:
             raise ValueError(
                 "NORMAL bundle cannot contain items that should_rework "

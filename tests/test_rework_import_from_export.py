@@ -97,10 +97,13 @@ def _seg_task(
     *,
     image_id: str,
     mask_ref: str,
-    rle: list[int],
+    rle: list[int] | None = None,
     rework: str = "yes",
     package_id: str = "batch1__seg",
 ) -> dict:
+    from mma.converters.seg_brush import mask_to_ls_rle
+
+    brush_rle = rle if rle is not None else mask_to_ls_rle([[1, 0], [0, 1]])
     return {
         "data": {
             "image_id": image_id,
@@ -118,9 +121,11 @@ def _seg_task(
                         "from_name": "seg_mask",
                         "to_name": "image",
                         "type": "brushlabels",
+                        "original_width": 2,
+                        "original_height": 2,
                         "value": {
                             "format": "rle",
-                            "rle": rle,
+                            "rle": brush_rle,
                             "brushlabels": ["lesion"],
                         },
                     },
@@ -251,13 +256,16 @@ def test_seg_keeps_raw_rle_strips_choices(tmp_path: Path) -> None:
         samples=[(image_id, "seg diag")],
     )
     export = tmp_path / "seg.json"
+    from mma.converters.seg_brush import mask_to_ls_rle
+
+    brush_rle = mask_to_ls_rle([[1, 0], [0, 1]])
     write_json(
         export,
         [
             _seg_task(
                 image_id=image_id,
                 mask_ref=f"masks/{image_id}.png",
-                rle=[9, 8, 7],
+                rle=brush_rle,
                 rework="yes",
             )
         ],
@@ -269,10 +277,12 @@ def test_seg_keeps_raw_rle_strips_choices(tmp_path: Path) -> None:
         data_root=tmp_path,
     )
     task = read_json(out)[0]
-    assert task["data"]["mask_ref"] == f"masks/{image_id}.png"
+    from mma.converters.seg_brush import manual_mask_ref
+
+    assert task["data"]["mask_ref"] == manual_mask_ref(image_id)
     pred = task["predictions"][0]["result"]
     assert len(pred) == 1
-    assert pred[0]["value"]["rle"] == [9, 8, 7]
+    assert pred[0]["value"]["rle"] == brush_rle
 
 
 def test_det_builds_with_package_images(tmp_path: Path) -> None:

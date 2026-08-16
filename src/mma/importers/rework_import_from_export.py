@@ -15,6 +15,7 @@ from mma.common.models import TaskType
 from mma.common.paths import (
     default_data_root,
     ls_import_task_dir,
+    results_manual_masks_dir,
     results_rework_dir,
     validate_batch_id,
 )
@@ -136,18 +137,30 @@ def _build_from_export(
         raise FileNotFoundError(f"LS export not found: {path}")
 
     metadata: dict[str, ImageMetadata] | None = None
-    if task_type is TaskType.DET:
+    if task_type is TaskType.DET or task_type is TaskType.SEG:
         image_ids = _peek_export_image_ids(path)
-        metadata = _det_image_metadata_by_id(
-            batch_id,
-            image_ids,
-            data_root=data_root,
-        )
+        if task_type is TaskType.DET:
+            metadata = _det_image_metadata_by_id(
+                batch_id,
+                image_ids,
+                data_root=data_root,
+            )
+        else:
+            metadata = _seg_image_metadata_by_id(
+                batch_id,
+                image_ids,
+                data_root=data_root,
+            )
+
+    seg_mask_dir = None
+    if task_type is TaskType.SEG:
+        seg_mask_dir = results_manual_masks_dir(batch_id, data_root=data_root)
 
     results = parse_ls_export(
         path,
         task_type=task_type,
         image_metadata_by_id=metadata,
+        seg_manual_mask_dir=seg_mask_dir,
     )
     _, rework = split_by_rework(results)
     raw = extract_ls_raw_results(path, task_type=task_type)
@@ -207,6 +220,37 @@ def _det_image_metadata_by_id(
             image_id,
             data_root=data_root,
         )
+        try:
+            with Image.open(image_path) as img:
+                width, height = img.size
+        except OSError as exc:
+            raise ValueError(
+                f"failed to read image for metadata: {image_path} "
+                f"(image_id={image_id!r})"
+            ) from exc
+        meta[image_id] = ImageMetadata(width=width, height=height)
+    return meta
+
+
+def _seg_image_metadata_by_id(
+    batch_id: str,
+    image_ids: list[str],
+    *,
+    data_root: Path,
+) -> dict[str, ImageMetadata]:
+    """Best-effort SEG sizes from task packages (missing images skipped)."""
+
+    meta: dict[str, ImageMetadata] = {}
+    for image_id in image_ids:
+        try:
+            image_path = resolve_task_image_path(
+                batch_id,
+                "seg",
+                image_id,
+                data_root=data_root,
+            )
+        except ValueError:
+            continue
         try:
             with Image.open(image_path) as img:
                 width, height = img.size

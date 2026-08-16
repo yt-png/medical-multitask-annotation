@@ -67,7 +67,7 @@ def materialize_final_seg_mask(
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"{str(image_id).strip()}.png"
     shutil.copy2(source, dest)
-    return SegAnnotation(mask_ref=final_seg_mask_ref(image_id))
+    return SegAnnotation(mask_ref=final_seg_mask_ref(image_id), has_foreground=True)
 
 
 def materialize_final_seg_masks(

@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from mma.common.models import TaskAnnotationResult, TaskType, should_rework
+from mma.common.models import TaskAnnotationResult, TaskType, should_rework_result
 from mma.common.paths import default_data_root, processed_batch_dir, validate_batch_id
 from mma.exporters.load_current import load_current
 from mma.preprocess.load_processed import load_processed_items
@@ -123,24 +123,26 @@ def _assert_flag_constraints(
 ) -> None:
     rework: list[str] = []
     unconfirmed: list[str] = []
+    empty_payload: list[str] = []
     for task_type, items in by_task.items():
         for item in items:
             label = f"{task_type.value}:{item.image_id}"
-            if not should_rework(
-                human_confirmed=item.human_confirmed,
-                needs_rework=item.needs_rework,
-            ):
+            if not should_rework_result(item):
                 continue
             if item.needs_rework:
                 rework.append(label)
             if not item.human_confirmed:
                 unconfirmed.append(label)
+            if item.human_confirmed and not item.needs_rework:
+                empty_payload.append(label)
 
     parts: list[str] = []
     if rework:
         parts.append("needs_rework residual: " + _format_id_list(rework))
     if unconfirmed:
         parts.append("human_confirmed missing: " + _format_id_list(unconfirmed))
+    if empty_payload:
+        parts.append("empty task payload: " + _format_id_list(empty_payload))
     if parts:
         raise ValueError("batch not ready for merge; " + "; ".join(parts))
 

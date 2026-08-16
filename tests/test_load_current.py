@@ -87,6 +87,7 @@ def test_roundtrip_seg_det_cap_via_overwrite(tmp_path: Path) -> None:
     assert len(seg) == 1
     assert isinstance(seg[0].annotation, SegAnnotation)
     assert seg[0].annotation.mask_ref == "masks/s1.png"
+    assert seg[0].annotation.has_foreground is True
 
     assert [x.image_id for x in det] == ["d1", "d2"]
     assert det[0].annotation.bboxes == (BBox(1.0, 2.0, 3.0, 4.0),)
@@ -122,6 +123,54 @@ def test_cap_empty_caption_human_clear_roundtrip(tmp_path: Path) -> None:
     loaded = load_current_annotations_file(path, task_type=TaskType.CAP)
     assert len(loaded) == 1
     assert loaded[0].annotation.caption == ""
+
+
+def test_seg_has_foreground_roundtrip(tmp_path: Path) -> None:
+    overwrite_current(
+        [
+            TaskAnnotationResult(
+                image_id="empty-fg",
+                task_type=TaskType.SEG,
+                annotation=SegAnnotation(
+                    mask_ref="manual_masks/empty-fg_manual.png",
+                    has_foreground=False,
+                ),
+                human_confirmed=True,
+                needs_rework=False,
+            )
+        ],
+        batch_id="b1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
+    )
+    loaded = load_current("b1", TaskType.SEG, data_root=tmp_path)
+    assert loaded[0].annotation.has_foreground is False
+
+
+def test_seg_legacy_json_missing_has_foreground_defaults_true(
+    tmp_path: Path,
+) -> None:
+    path = (
+        results_current_dir("b1", TaskType.SEG, data_root=tmp_path)
+        / "annotations.json"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(
+        path,
+        [
+            {
+                "image_id": "legacy",
+                "task_type": "SEG",
+                "annotation": {"mask_ref": "masks/legacy.png"},
+                "human_confirmed": True,
+                "needs_rework": False,
+                "package_id": None,
+                "export_round": None,
+            }
+        ],
+    )
+    loaded = load_current("b1", TaskType.SEG, data_root=tmp_path)
+    assert loaded[0].annotation.has_foreground is True
 
 
 def test_missing_file_raises(tmp_path: Path) -> None:

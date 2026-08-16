@@ -72,6 +72,22 @@ def _seg_export_task(
                 },
             }
         )
+    else:
+        # Explicit empty clear marker supplies size for empty manual mask.
+        results.append(
+            {
+                "from_name": "seg_mask",
+                "to_name": "image",
+                "type": "brushlabels",
+                "original_width": 2,
+                "original_height": 2,
+                "value": {
+                    "format": "rle",
+                    "rle": [],
+                    "brushlabels": [],
+                },
+            }
+        )
     results.append(_choice("human_confirmed", "yes"))
     results.append(_choice("needs_rework", "no"))
     return {
@@ -174,7 +190,11 @@ def test_ignores_non_manual_png(tmp_path: Path) -> None:
     assert plain.is_file()
 
 
-def test_apply_current_seg_cleans_after_fallback(tmp_path: Path) -> None:
+def test_apply_current_seg_empty_geometry_keeps_manual_mask(
+    tmp_path: Path,
+) -> None:
+    """Brush then clear → empty manual mask remains referenced (no prelabel fallback)."""
+
     export1 = tmp_path / "export1.json"
     write_json(
         export1,
@@ -199,6 +219,7 @@ def test_apply_current_seg_cleans_after_fallback(tmp_path: Path) -> None:
     assert manual_path.is_file()
     loaded = load_current("batch1", TaskType.SEG, data_root=tmp_path)
     assert loaded[0].annotation.mask_ref == manual_mask_ref("img-a")
+    assert loaded[0].annotation.has_foreground is True
 
     export2 = tmp_path / "export2.json"
     write_json(
@@ -218,8 +239,9 @@ def test_apply_current_seg_cleans_after_fallback(tmp_path: Path) -> None:
         data_root=tmp_path,
     )
     loaded2 = load_current("batch1", TaskType.SEG, data_root=tmp_path)
-    assert loaded2[0].annotation.mask_ref == "masks/prelabel.png"
-    assert not manual_path.exists()
+    assert loaded2[0].annotation.mask_ref == manual_mask_ref("img-a")
+    assert loaded2[0].annotation.has_foreground is False
+    assert manual_path.is_file()
 
 
 def test_empty_current_deletes_all_manual_masks(tmp_path: Path) -> None:

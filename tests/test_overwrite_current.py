@@ -158,7 +158,10 @@ def test_seg_det_shapes(tmp_path: Path) -> None:
     )
     seg = read_json(seg_path)
     det = read_json(det_path)
-    assert seg[0]["annotation"] == {"mask_ref": "masks/s1.png"}
+    assert seg[0]["annotation"] == {
+        "mask_ref": "masks/s1.png",
+        "has_foreground": True,
+    }
     assert det[0]["annotation"]["bboxes"] == [
         {"x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0}
     ]

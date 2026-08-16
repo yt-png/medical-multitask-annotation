@@ -160,7 +160,10 @@ def read_annotations_json(
 def _annotation_to_dict(item: TaskAnnotationResult) -> dict[str, Any]:
     annotation = item.annotation
     if isinstance(annotation, SegAnnotation):
-        return {"mask_ref": annotation.mask_ref}
+        return {
+            "mask_ref": annotation.mask_ref,
+            "has_foreground": annotation.has_foreground,
+        }
     if isinstance(annotation, DetAnnotation):
         return {
             "bboxes": [
@@ -197,7 +200,16 @@ def _annotation_from_dict(
                 f"SEG annotation.mask_ref must be non-empty "
                 f"(image_id={image_id!r})"
             )
-        return SegAnnotation(mask_ref=mask_ref.strip())
+        has_foreground = raw.get("has_foreground", True)
+        if not isinstance(has_foreground, bool):
+            raise ValueError(
+                f"SEG annotation.has_foreground must be bool "
+                f"(image_id={image_id!r})"
+            )
+        return SegAnnotation(
+            mask_ref=mask_ref.strip(),
+            has_foreground=has_foreground,
+        )
     if task_type is TaskType.DET:
         bboxes_raw = raw.get("bboxes")
         if not isinstance(bboxes_raw, list):

@@ -515,7 +515,10 @@ def test_parse_seg_confirm_only_writes_empty_manual(tmp_path: Path) -> None:
             "img-seg-nb": ImageMetadata(width=2, height=2)
         },
     )
-    assert results[0].annotation.mask_ref == manual_mask_ref("img-seg-nb")
+    annotation = results[0].annotation
+    assert isinstance(annotation, SegAnnotation)
+    assert annotation.mask_ref == manual_mask_ref("img-seg-nb")
+    assert annotation.has_foreground is False
     loaded, width, height = load_foreground_mask(
         mask_dir / "img-seg-nb_manual.png"
     )
@@ -565,6 +568,7 @@ def test_parse_seg_cleared_brushes_writes_empty_mask(tmp_path: Path) -> None:
     annotation = results[0].annotation
     assert isinstance(annotation, SegAnnotation)
     assert annotation.mask_ref == manual_mask_ref("img-cleared")
+    assert annotation.has_foreground is False
     out_file = mask_dir / "img-cleared_manual.png"
     assert out_file.is_file()
     loaded, width, height = load_foreground_mask(out_file)
@@ -607,6 +611,7 @@ def test_parse_seg_cleared_via_empty_rle_marker_writes_empty_mask(
         seg_manual_mask_dir=mask_dir,
     )
     assert results[0].annotation.mask_ref == manual_mask_ref("img-empty-rle")
+    assert results[0].annotation.has_foreground is False
     loaded, width, height = load_foreground_mask(
         mask_dir / "img-empty-rle_manual.png"
     )
@@ -646,6 +651,7 @@ def test_parse_seg_with_brush_and_manual_dir_writes_mask(tmp_path: Path) -> None
     annotation = results[0].annotation
     assert isinstance(annotation, SegAnnotation)
     assert annotation.mask_ref == manual_mask_ref("img-manual")
+    assert annotation.has_foreground is True
     out_file = mask_dir / "img-manual_manual.png"
     assert out_file.is_file()
     loaded, width, height = load_foreground_mask(out_file)
@@ -705,6 +711,7 @@ def test_parse_seg_with_polygon_and_manual_dir_writes_mask(tmp_path: Path) -> No
     annotation = results[0].annotation
     assert isinstance(annotation, SegAnnotation)
     assert annotation.mask_ref == manual_mask_ref("img-poly")
+    assert annotation.has_foreground is True
     out_file = mask_dir / "img-poly_manual.png"
     assert out_file.is_file()
     loaded, width, height = load_foreground_mask(out_file)
@@ -755,6 +762,7 @@ def test_parse_seg_cleared_polygon_writes_empty_mask(tmp_path: Path) -> None:
         seg_manual_mask_dir=mask_dir,
     )
     assert results[0].annotation.mask_ref == manual_mask_ref("img-empty-poly")
+    assert results[0].annotation.has_foreground is False
     loaded, width, height = load_foreground_mask(
         mask_dir / "img-empty-poly_manual.png"
     )

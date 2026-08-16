@@ -162,23 +162,31 @@ def test_has_effective_task_payload_det_cap() -> None:
     )
 
 
-def test_has_effective_task_payload_seg_mask_ref_only() -> None:
-    """SEG: non-empty mask_ref only; does not read mask file contents (M5.2)."""
+def test_has_effective_task_payload_seg_has_foreground() -> None:
+    """SEG: non-empty mask_ref and has_foreground."""
 
     from mma.common.models import has_effective_task_payload
 
     assert (
         has_effective_task_payload(
-            TaskType.SEG, SegAnnotation(mask_ref="manual_masks/x_manual.png")
+            TaskType.SEG,
+            SegAnnotation(
+                mask_ref="manual_masks/x_manual.png", has_foreground=True
+            ),
         )
         is True
     )
     assert (
-        has_effective_task_payload(TaskType.SEG, SegAnnotation(mask_ref=""))
+        has_effective_task_payload(
+            TaskType.SEG,
+            SegAnnotation(
+                mask_ref="manual_masks/x_manual.png", has_foreground=False
+            ),
+        )
         is False
     )
     assert (
-        has_effective_task_payload(TaskType.SEG, SegAnnotation(mask_ref="  "))
+        has_effective_task_payload(TaskType.SEG, SegAnnotation(mask_ref=""))
         is False
     )
 
@@ -200,8 +208,18 @@ def test_should_rework_result_or_empty_payload() -> None:
         human_confirmed=True,
         needs_rework=False,
     )
+    empty_seg = TaskAnnotationResult(
+        image_id="img-seg",
+        task_type=TaskType.SEG,
+        annotation=SegAnnotation(
+            mask_ref="manual_masks/img_manual.png", has_foreground=False
+        ),
+        human_confirmed=True,
+        needs_rework=False,
+    )
     assert should_rework_result(empty_det) is True
     assert should_rework_result(empty_cap) is True
+    assert should_rework_result(empty_seg) is True
 
 
 def test_should_rework_result_confirmed_with_payload_normal() -> None:
@@ -337,13 +355,29 @@ def test_rework_bundle_rejects_normal_item() -> None:
     item = TaskAnnotationResult(
         image_id="img-1",
         task_type=TaskType.DET,
-        annotation=DetAnnotation(bboxes=()),
+        annotation=DetAnnotation(bboxes=(BBox(1.0, 2.0, 3.0, 4.0),)),
         human_confirmed=True,
         needs_rework=False,
     )
     with pytest.raises(ValueError, match="REWORK bundle"):
         ResultBundle(
             bundle_kind=BundleKind.REWORK,
+            task_type=TaskType.DET,
+            items=(item,),
+        )
+
+
+def test_normal_bundle_rejects_empty_payload_item() -> None:
+    item = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.DET,
+        annotation=DetAnnotation(bboxes=()),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    with pytest.raises(ValueError, match="NORMAL bundle"):
+        ResultBundle(
+            bundle_kind=BundleKind.NORMAL,
             task_type=TaskType.DET,
             items=(item,),
         )

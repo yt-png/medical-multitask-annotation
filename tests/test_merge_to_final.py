@@ -468,6 +468,7 @@ def test_materialize_final_seg_mask_copies_file(tmp_path: Path) -> None:
         data_root=tmp_path,
     )
     assert out.mask_ref == final_seg_mask_ref(image_id)
+    assert out.has_foreground is True
     assert (tmp_path / "final" / "batch1" / "masks" / "x.png").is_file()
 
 

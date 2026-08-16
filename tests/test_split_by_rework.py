@@ -5,12 +5,13 @@ from __future__ import annotations
 import pytest
 
 from mma.common.models import (
+    BBox,
     CapAnnotation,
     DetAnnotation,
     SegAnnotation,
     TaskAnnotationResult,
     TaskType,
-    should_rework,
+    should_rework_result,
 )
 from mma.exporters import split_by_rework
 
@@ -20,11 +21,15 @@ def _seg(
     *,
     needs_rework: bool,
     human_confirmed: bool = True,
+    has_foreground: bool = True,
 ) -> TaskAnnotationResult:
     return TaskAnnotationResult(
         image_id=image_id,
         task_type=TaskType.SEG,
-        annotation=SegAnnotation(mask_ref=f"masks/{image_id}.png"),
+        annotation=SegAnnotation(
+            mask_ref=f"masks/{image_id}.png",
+            has_foreground=has_foreground,
+        ),
         human_confirmed=human_confirmed,
         needs_rework=needs_rework,
     )
@@ -35,11 +40,13 @@ def _det(
     *,
     needs_rework: bool,
     human_confirmed: bool = True,
+    empty: bool = False,
 ) -> TaskAnnotationResult:
+    bboxes = () if empty else (BBox(x=1.0, y=2.0, width=3.0, height=4.0),)
     return TaskAnnotationResult(
         image_id=image_id,
         task_type=TaskType.DET,
-        annotation=DetAnnotation(bboxes=()),
+        annotation=DetAnnotation(bboxes=bboxes),
         human_confirmed=human_confirmed,
         needs_rework=needs_rework,
     )
@@ -50,11 +57,13 @@ def _cap(
     *,
     needs_rework: bool,
     human_confirmed: bool = True,
+    caption: str | None = None,
 ) -> TaskAnnotationResult:
+    text = f"caption-{image_id}" if caption is None else caption
     return TaskAnnotationResult(
         image_id=image_id,
         task_type=TaskType.CAP,
-        annotation=CapAnnotation(caption=f"caption-{image_id}"),
+        annotation=CapAnnotation(caption=text),
         human_confirmed=human_confirmed,
         needs_rework=needs_rework,
     )
@@ -67,7 +76,7 @@ def test_empty_input() -> None:
 
 
 def test_should_rework_truth_table_via_split() -> None:
-    """False/False→rework; False/True→rework; True/False→normal; True/True→rework."""
+    """Choice flags + payload: True/False with payload → normal; else rework."""
 
     cases = (
         (_seg("ff", needs_rework=False, human_confirmed=False), "rework"),
@@ -76,10 +85,7 @@ def test_should_rework_truth_table_via_split() -> None:
         (_seg("tt", needs_rework=True, human_confirmed=True), "rework"),
     )
     for item, expected in cases:
-        assert should_rework(
-            human_confirmed=item.human_confirmed,
-            needs_rework=item.needs_rework,
-        ) is (expected == "rework")
+        assert should_rework_result(item) is (expected == "rework")
         normal, rework = split_by_rework((item,))
         if expected == "normal":
             assert [x.image_id for x in normal] == [item.image_id]
@@ -87,6 +93,17 @@ def test_should_rework_truth_table_via_split() -> None:
         else:
             assert normal == ()
             assert [x.image_id for x in rework] == [item.image_id]
+
+
+def test_empty_payload_confirmed_goes_rework() -> None:
+    items = (
+        _det("d", needs_rework=False, human_confirmed=True, empty=True),
+        _cap("c", needs_rework=False, human_confirmed=True, caption=""),
+        _seg("s", needs_rework=False, human_confirmed=True, has_foreground=False),
+    )
+    normal, rework = split_by_rework(items)
+    assert normal == ()
+    assert [x.image_id for x in rework] == ["d", "c", "s"]
 
 
 def test_case1_confirmed_no_rework_goes_normal() -> None:

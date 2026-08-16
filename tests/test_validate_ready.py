@@ -168,6 +168,51 @@ def test_human_confirmed_missing_raises(tmp_path: Path) -> None:
     assert "SEG:img-a" in str(exc.value)
 
 
+def test_empty_task_payload_raises(tmp_path: Path) -> None:
+    _write_ready_triple(tmp_path, "batch1", image_ids=("img-a",))
+    overwrite_current(
+        [
+            TaskAnnotationResult(
+                image_id="img-a",
+                task_type=TaskType.DET,
+                annotation=DetAnnotation(bboxes=()),
+                human_confirmed=True,
+                needs_rework=False,
+            )
+        ],
+        batch_id="batch1",
+        task_type=TaskType.DET,
+        data_root=tmp_path,
+    )
+    with pytest.raises(ValueError, match="empty task payload") as exc:
+        validate_ready("batch1", data_root=tmp_path)
+    assert "DET:img-a" in str(exc.value)
+
+
+def test_empty_seg_has_foreground_false_raises(tmp_path: Path) -> None:
+    _write_ready_triple(tmp_path, "batch1", image_ids=("img-a",))
+    overwrite_current(
+        [
+            TaskAnnotationResult(
+                image_id="img-a",
+                task_type=TaskType.SEG,
+                annotation=SegAnnotation(
+                    mask_ref="manual_masks/img-a_manual.png",
+                    has_foreground=False,
+                ),
+                human_confirmed=True,
+                needs_rework=False,
+            )
+        ],
+        batch_id="batch1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
+    )
+    with pytest.raises(ValueError, match="empty task payload") as exc:
+        validate_ready("batch1", data_root=tmp_path)
+    assert "SEG:img-a" in str(exc.value)
+
+
 def test_multiple_flag_violations_aggregated(tmp_path: Path) -> None:
     overwrite_current(
         [

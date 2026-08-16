@@ -257,6 +257,7 @@ def test_seg_brush_writes_manual_mask_ref(tmp_path: Path) -> None:
     )
     loaded = load_current("batch1", TaskType.SEG, data_root=tmp_path)
     assert loaded[0].annotation.mask_ref == "manual_masks/img-brush_manual.png"
+    assert loaded[0].annotation.has_foreground is True
     out = results_manual_masks_dir("batch1", data_root=tmp_path) / (
         "img-brush_manual.png"
     )
@@ -287,6 +288,7 @@ def test_seg_without_brush_writes_empty_manual_mask(tmp_path: Path) -> None:
     )
     loaded = load_current("batch1", TaskType.SEG, data_root=tmp_path)
     assert loaded[0].annotation.mask_ref == manual_mask_ref("img-nb")
+    assert loaded[0].annotation.has_foreground is False
     out = results_manual_masks_dir("batch1", data_root=tmp_path) / (
         "img-nb_manual.png"
     )

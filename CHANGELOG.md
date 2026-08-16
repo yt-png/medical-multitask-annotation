@@ -1,5 +1,33 @@
 # Changelog
 
+## V1 — M5.2 SEG 空 mask 载荷 + rework 接入（2026-08-16）
+
+### Added
+
+- `SegAnnotation.has_foreground`（默认 `True`；legacy `current/` 缺字段加载为 `True`）
+- parse：有几何 → `True`；写空 `manual_masks/` → `False`
+- `has_effective_task_payload(SEG)`：非空 `mask_ref` **且** `has_foreground`
+
+### Changed
+
+- `split_by_rework` / `assert_result_bundle_consistent` / `validate_ready` 改用 `should_rework_result`（空 DET/CAP/SEG 载荷 → rework；合并就绪报 `empty task payload`）
+- `materialize_final_seg`：最终 `SegAnnotation` 带 `has_foreground=True`
+- `rework_import_from_export` legacy export 路径：SEG 传入 `seg_manual_mask_dir` + 包图 metadata（与 M6.2 parse 要求对齐）
+- 保留旧 `should_rework`（仅勾选）供对照
+
+### Tests
+
+- `tests/test_models.py` / `test_split_by_rework.py` / `test_parse_ls_export.py` / `test_load_current.py` / `test_validate_ready.py` / `test_apply_current_from_export.py` / `test_merge_to_final.py`
+
+### Docs
+
+- `README.md`：运行时分类改为 `should_rework_result`；SEG 空 mask 经 `has_foreground`
+
+### Planned（仍未完成）
+
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- 返工语义收紧（M4.3 / M6.4）
+
 ## V1 — M5.1 空标注 rework 判定 API（2026-08-16）
 
 ### Added
@@ -21,8 +49,8 @@
 
 ### Planned（仍未完成）
 
-- **M5.2**：SEG 空 mask 文件可表达「无有效载荷」
-- **M6.3**：`split_by_rework` / refresh 接入 `should_rework_result`
+- ~~**M5.2**：SEG 空 mask 文件可表达「无有效载荷」~~ → 见上一节
+- ~~**M6.3**：`split_by_rework` / refresh 接入 `should_rework_result`~~ → 见上一节（随 M5.2 一并落地）
 - **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
 - 返工语义收紧（M4.3 / M6.4）
 
