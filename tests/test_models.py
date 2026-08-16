@@ -132,6 +132,118 @@ def test_should_rework_parametrized_buckets(
     ) is (bucket == "rework")
 
 
+def test_has_effective_task_payload_det_cap() -> None:
+    from mma.common.models import has_effective_task_payload
+
+    assert (
+        has_effective_task_payload(
+            TaskType.DET,
+            DetAnnotation(bboxes=(BBox(0.0, 0.0, 1.0, 1.0),)),
+        )
+        is True
+    )
+    assert (
+        has_effective_task_payload(TaskType.DET, DetAnnotation(bboxes=()))
+        is False
+    )
+    assert (
+        has_effective_task_payload(
+            TaskType.CAP, CapAnnotation(caption="left lung")
+        )
+        is True
+    )
+    assert (
+        has_effective_task_payload(TaskType.CAP, CapAnnotation(caption=""))
+        is False
+    )
+    assert (
+        has_effective_task_payload(TaskType.CAP, CapAnnotation(caption="  \n"))
+        is False
+    )
+
+
+def test_has_effective_task_payload_seg_mask_ref_only() -> None:
+    """SEG: non-empty mask_ref only; does not read mask file contents (M5.2)."""
+
+    from mma.common.models import has_effective_task_payload
+
+    assert (
+        has_effective_task_payload(
+            TaskType.SEG, SegAnnotation(mask_ref="manual_masks/x_manual.png")
+        )
+        is True
+    )
+    assert (
+        has_effective_task_payload(TaskType.SEG, SegAnnotation(mask_ref=""))
+        is False
+    )
+    assert (
+        has_effective_task_payload(TaskType.SEG, SegAnnotation(mask_ref="  "))
+        is False
+    )
+
+
+def test_should_rework_result_or_empty_payload() -> None:
+    from mma.common.models import should_rework_result
+
+    empty_det = TaskAnnotationResult(
+        image_id="img-det",
+        task_type=TaskType.DET,
+        annotation=DetAnnotation(bboxes=()),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    empty_cap = TaskAnnotationResult(
+        image_id="img-cap",
+        task_type=TaskType.CAP,
+        annotation=CapAnnotation(caption=""),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    assert should_rework_result(empty_det) is True
+    assert should_rework_result(empty_cap) is True
+
+
+def test_should_rework_result_confirmed_with_payload_normal() -> None:
+    from mma.common.models import should_rework_result
+
+    item = TaskAnnotationResult(
+        image_id="img-ok",
+        task_type=TaskType.CAP,
+        annotation=CapAnnotation(caption="ok"),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    assert should_rework_result(item) is False
+
+
+def test_should_rework_result_override_has_task_payload() -> None:
+    from mma.common.models import should_rework_result
+
+    item = TaskAnnotationResult(
+        image_id="img-seg",
+        task_type=TaskType.SEG,
+        annotation=SegAnnotation(mask_ref="manual_masks/img_manual.png"),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    assert should_rework_result(item) is False
+    assert should_rework_result(item, has_task_payload=False) is True
+
+
+def test_should_rework_result_unconfirmed_still_rework() -> None:
+    from mma.common.models import should_rework_result
+
+    item = TaskAnnotationResult(
+        image_id="img-u",
+        task_type=TaskType.DET,
+        annotation=DetAnnotation(bboxes=(BBox(1.0, 2.0, 3.0, 4.0),)),
+        human_confirmed=False,
+        needs_rework=False,
+    )
+    assert should_rework_result(item) is True
+
+
 def test_construct_result_bundles() -> None:
     normal_item = TaskAnnotationResult(
         image_id="img-1",

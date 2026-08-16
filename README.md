@@ -93,9 +93,9 @@ mma merge --batch demo_batch --data-root data
 
 **权威结果**：每任务以 `results/<batch>/<task>/current/` 为准。按 `image_id` **合并覆盖**——本轮出现的覆盖，未出现的保留；首轮请导出该任务本批全部样本。
 
-**分类规则（当前已实现）**：`should_rework = (not human_confirmed) or needs_rework`。仅「已确认且不需返工」进 `normal/`；其余进 `rework/`（含未勾确认）。每次 `export-split` / `apply-current` 后按最新 `current/` **全量重建** normal/rework。
+**分类规则（当前运行时）**：`should_rework = (not human_confirmed) or needs_rework`。仅「已确认且不需返工」进 `normal/`；其余进 `rework/`（含未勾确认）。每次 `export-split` / `apply-current` 后按最新 `current/` **全量重建** normal/rework。
 
-**空标注 → rework（V1 目标，尚未实现）**：无有效人工载荷（空 result / 缺 mask·bbox·text）也应进入 `rework/`。〔现状〕分类仍主要看勾选。
+**空标注 → rework（M5.1 API 已落地）**：完整规则见 `should_rework_result`：`(not human_confirmed) or needs_rework or (not effective_payload)`（DET/CAP 已可判定空框/空文案；SEG 空 mask 文件属 M5.2）。〔现状〕`split_by_rework` 仍只用旧勾选 `should_rework`，接入见 M6.3。
 
 **金标准来源（M6.1 / M6.2 已落地）**：`resolve_effective_result` 与 `parse_ls_export` 有效结果仅来自人工 `annotation`；已删除 `prediction_fallback`；SEG 不再用 `data.mask_ref` / pred 几何作金标准（空/无几何写 `manual_masks/`）。
 

@@ -142,16 +142,83 @@ def assert_annotation_matches_task(
 
 
 def should_rework(*, human_confirmed: bool, needs_rework: bool) -> bool:
-    """Return whether a sample belongs in the rework path.
+    """Return whether a sample belongs in the rework path (choice flags only).
 
     Business rule::
 
         should_rework = (not human_confirmed) or needs_rework
 
-    Only ``human_confirmed=True`` and ``needs_rework=False`` is normal.
+    Only ``human_confirmed=True`` and ``needs_rework=False`` is normal under
+    this legacy/runtime rule used by ``split_by_rework`` until M6.3.
+
+    V1 full rule (also empty / missing task payload → rework) is
+    ``should_rework_result``.
     """
 
     return (not human_confirmed) or needs_rework
+
+
+def has_effective_task_payload(
+    task_type: TaskType,
+    annotation: AnnotationPayload,
+) -> bool:
+    """Return whether ``annotation`` carries an effective human task payload.
+
+    Maps the requirement "empty LS result / missing mask·bbox·text" onto the
+    already-parsed ``TaskAnnotationResult.annotation`` model:
+
+    - DET: at least one bbox
+    - CAP: non-empty caption after strip
+    - SEG: non-empty ``mask_ref`` string only — **does not** inspect mask file
+      contents (empty vs non-empty PNG is M5.2)
+
+    ``task_type`` must match ``annotation`` (same as ``assert_annotation_matches_task``).
+    """
+
+    assert_annotation_matches_task(task_type, annotation)
+    if task_type is TaskType.DET:
+        assert isinstance(annotation, DetAnnotation)
+        return len(annotation.bboxes) > 0
+    if task_type is TaskType.CAP:
+        assert isinstance(annotation, CapAnnotation)
+        return bool(annotation.caption.strip())
+    if task_type is TaskType.SEG:
+        assert isinstance(annotation, SegAnnotation)
+        return bool(annotation.mask_ref.strip())
+    raise ValueError(f"unsupported task type: {task_type!r}")  # pragma: no cover
+
+
+def should_rework_result(
+    item: TaskAnnotationResult,
+    *,
+    has_task_payload: bool | None = None,
+) -> bool:
+    """V1 rework rule including empty / missing task payload.
+
+    Business rule::
+
+        should_rework_result =
+            (not human_confirmed)
+            or needs_rework
+            or (not effective_payload)
+
+    ``effective_payload`` is ``has_task_payload`` when provided (non-None),
+    otherwise ``has_effective_task_payload(item.task_type, item.annotation)``.
+    Callers such as M5.2 may pass an overridden SEG empty-mask verdict via
+    ``has_task_payload``.
+    """
+
+    if has_task_payload is None:
+        effective_payload = has_effective_task_payload(
+            item.task_type, item.annotation
+        )
+    else:
+        effective_payload = has_task_payload
+    return (
+        (not item.human_confirmed)
+        or item.needs_rework
+        or (not effective_payload)
+    )
 
 
 @dataclass(frozen=True)

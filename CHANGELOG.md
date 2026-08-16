@@ -1,5 +1,31 @@
 # Changelog
 
+## V1 — M5.1 空标注 rework 判定 API（2026-08-16）
+
+### Added
+
+- `common/models.py`：`has_effective_task_payload`（DET 非空框；CAP strip 非空文案；SEG 仅非空 `mask_ref`，空 mask 文件判定属 M5.2）
+- `should_rework_result`：V1 完整规则 `(not human_confirmed) or needs_rework or (not effective_payload)`；支持 `has_task_payload` 覆盖
+
+### Changed
+
+- 保留旧 `should_rework`（仅勾选），供现有 `split_by_rework` 等调用至 M6.3
+
+### Tests
+
+- `tests/test_models.py`：载荷判定与 `should_rework_result` 用例
+
+### Docs
+
+- `README.md`：空标注规则 API 已落地；运行时分类仍用勾选规则（待 M6.3）
+
+### Planned（仍未完成）
+
+- **M5.2**：SEG 空 mask 文件可表达「无有效载荷」
+- **M6.3**：`split_by_rework` / refresh 接入 `should_rework_result`
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- 返工语义收紧（M4.3 / M6.4）
+
 ## V1 — M6.2 parse 只消费人工 effective（2026-08-16）
 
 ### Changed
@@ -19,7 +45,7 @@
 
 ### Planned（仍未完成）
 
-- **空标注 / 缺结果 → `rework/`**（M5.1 / M6.3）
+- ~~**空标注 / 缺结果 → `rework/`**（M5.1 API）~~ → 见上一节；**M5.2 / M6.3** 仍待做
 - **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
 - 返工语义收紧（M4.3 / M6.4）
 
