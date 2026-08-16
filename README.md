@@ -13,7 +13,7 @@
 | 空标注 | 可能被 prediction 回填 | 空 / 缺结果 → `rework/` |
 | prelabel 能力 | 主流程 | **隔离为 legacy**（历史参考，非主流程必做） |
 
-> **实现状态**：首轮 **空任务 `ls-import` 已落地**（M4）；**M6.1–M6.5 / M5.1–M5.2 / M5.6**：金标准仅人工 annotation；空标注→`rework/` 已落地（含 common 规则测锁定与 exporters 收口）。下列项**仍未完成**：adapters/formats legacy 隔离、`seg_mask_paths` 去 prelabels（M5.4）、返工语义收紧（M6.4）等（见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`）。与尚未交付行为不一致处仍标 **〔现状〕**。
+> **实现状态**：首轮 **空任务 `ls-import` 已落地**（M4）；**M6.1–M6.5 / M5.1–M5.2 / M5.6 / M12.1**：金标准仅人工 annotation；空标注→`rework/` 已落地；正常人工→`normal/` 场景门禁见 `tests/test_m12_1_normal_path.py`。下列项**仍未完成**：adapters/formats legacy 隔离、`seg_mask_paths` 去 prelabels（M5.4）、返工语义收紧（M6.4）、M12.2/M12.3 等（见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`）。与尚未交付行为不一致处仍标 **〔现状〕**。
 
 ## 流水线一览（V1）
 
