@@ -1,7 +1,10 @@
-"""Resolve Label Studio effective annotation result (human vs prediction).
+"""Resolve Label Studio effective annotation result (annotation only).
 
-Used by ``parse_ls_export`` (warning + shared policy) and
-``extract_ls_raw_results`` (legacy rework side-channel).
+V1: effective payload comes **only** from ``annotation.result``.
+``task["predictions"]`` may still be copied into ``prediction_result`` for
+tracing, but must never become the final effective source.
+
+Used by ``parse_ls_export`` and ``extract_ls_raw_results``.
 
 Does not change ``TaskAnnotationResult`` / ``current/`` JSON schema.
 """
@@ -9,7 +12,6 @@ Does not change ``TaskAnnotationResult`` / ``current/`` JSON schema.
 from __future__ import annotations
 
 import copy
-import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -17,10 +19,8 @@ from typing import Any, Literal
 from mma.common.models import TaskType
 from mma.converters.to_labelstudio import DEFAULT_LS_RESULT_SPECS
 
-logger = logging.getLogger(__name__)
-
 CHOICE_FROM_NAMES = frozenset({"human_confirmed", "needs_rework"})
-EffectiveSource = Literal["annotation", "prediction_fallback", "empty"]
+EffectiveSource = Literal["annotation", "empty"]
 
 
 @dataclass(frozen=True)
@@ -43,22 +43,21 @@ def resolve_effective_result(
     image_id: str | None = None,
     annotation: Mapping[str, Any] | None = None,
 ) -> EffectiveLsResult:
-    """Build effective ``result`` for one LS task.
+    """Build effective ``result`` for one LS task (annotation-only).
 
     Rules:
 
-    1. Annotation has task payload controls → use annotation.result
-    2. Annotation has only Choices (no task payload), prediction has task
-       payload, and the annotator did **not** intentionally clear via
-       ``annotation.prediction`` link → prediction task controls + annotation
-       Choices (confirm-only → ``prediction_fallback``)
-    3. Intentional clear (``annotation.prediction`` set, no task payload) →
-       keep annotation.result only (``human_cleared``; no prediction fallback)
-    4. Otherwise → annotation.result (may be Choices-only / empty task payload)
+    1. Annotation has task payload controls → ``source="annotation"``,
+       ``effective_result = annotation.result``
+    2. No task payload (confirm-only, human-cleared, or empty) →
+       ``source="empty"``; ``effective_result`` is ``annotation.result``
+       when present (may be Choices-only), else ``()``
+    3. ``task["predictions"]`` is never merged into ``effective_result``
+       (including rework LS JSON that still uses a ``predictions`` slot)
 
-    Prediction selection (when falling back): reverse-scan ``predictions`` for
-    the latest entry whose ``result`` contains this task's control
-    (``det_bbox`` / ``cap_text`` / ``seg_mask``). Do not concatenate versions.
+    ``prediction_result`` is filled for tracing only (latest prediction that
+    contains this task's control). ``human_cleared`` remains True when
+    ``annotation.prediction`` is set and there is no task payload.
     """
 
     if not isinstance(task_type, TaskType):
@@ -94,8 +93,6 @@ def resolve_effective_result(
 
     control = DEFAULT_LS_RESULT_SPECS[task_type]["from_name"]
     ann_payload = _task_payload_entries(annotation_result, control=control)
-    pred_payload = _task_payload_entries(prediction_result, control=control)
-    choices = _choice_entries(annotation_result)
 
     human_cleared = _is_human_cleared(
         annotation,
@@ -105,29 +102,12 @@ def resolve_effective_result(
     if ann_payload:
         source: EffectiveSource = "annotation"
         effective = annotation_result
-    elif human_cleared:
-        source = "annotation"
-        effective = annotation_result
-    elif pred_payload:
-        source = "prediction_fallback"
-        effective = tuple(list(pred_payload) + list(choices))
     elif annotation_result:
         source = "empty"
         effective = annotation_result
     else:
         source = "empty"
         effective = ()
-
-    if source == "prediction_fallback" and _annotation_has_human_confirmed(
-        annotation_result
-    ):
-        logger.warning(
-            "human_confirmed set but annotation has no task payload; "
-            "using prediction fallback "
-            "(image_id=%r, task_type=%s)",
-            resolved_id,
-            task_type.value,
-        )
 
     return EffectiveLsResult(
         image_id=resolved_id,
@@ -155,24 +135,6 @@ def _is_human_cleared(
     if has_ann_payload:
         return False
     return annotation.get("prediction") is not None
-
-
-def _annotation_has_human_confirmed(
-    annotation_result: Sequence[Mapping[str, Any]],
-) -> bool:
-    for entry in annotation_result:
-        if entry.get("from_name") != "human_confirmed":
-            continue
-        value = entry.get("value")
-        if not isinstance(value, dict):
-            continue
-        choices = value.get("choices")
-        if not isinstance(choices, list) or not choices:
-            continue
-        raw = choices[0]
-        if isinstance(raw, str) and raw.strip().lower() == "yes":
-            return True
-    return False
 
 
 def _task_payload_entries(
@@ -204,10 +166,9 @@ def _prediction_result_items(
 ) -> list[Any]:
     """Return ``result`` from the latest prediction with this task's control.
 
-    Label Studio ``predictions`` is a version history, not a bag of results to
-    merge. Walk the list in reverse and take the first prediction whose
-    ``result`` contains the task control (``det_bbox`` / ``cap_text`` /
-    ``seg_mask``). Predictions without that control are skipped.
+    Tracing only — never used as ``effective_result``. Label Studio
+    ``predictions`` is a version history: reverse-scan and take the first
+    entry whose ``result`` contains the task control.
     """
 
     control = DEFAULT_LS_RESULT_SPECS[task_type]["from_name"]

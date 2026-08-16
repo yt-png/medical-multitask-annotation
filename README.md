@@ -13,7 +13,7 @@
 | 空标注 | 可能被 prediction 回填 | 空 / 缺结果 → `rework/` |
 | prelabel 能力 | 主流程 | **隔离为 legacy**（历史参考，非主流程必做） |
 
-> **实现状态**：首轮 **空任务 `ls-import` 已落地**（M4.1 / M4.2）：仅读 `task_packages/`，写出无 `predictions` 的 `tasks.json`。下列项**仍未完成**：去 `prediction_fallback`、空标注→rework、adapters/formats legacy 隔离等（见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`）。与尚未交付行为不一致处仍标 **〔现状〕**。
+> **实现状态**：首轮 **空任务 `ls-import` 已落地**（M4.1 / M4.2）；**M6.1 已去掉** `resolve_effective_result` 的 `prediction_fallback`（有效结果仅人工 annotation）。下列项**仍未完成**：M6.2 parse 收口、空标注→rework、adapters/formats legacy 隔离等（见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`）。与尚未交付行为不一致处仍标 **〔现状〕**。
 
 ## 流水线一览（V1）
 
@@ -95,17 +95,17 @@ mma merge --batch demo_batch --data-root data
 
 **分类规则（当前已实现）**：`should_rework = (not human_confirmed) or needs_rework`。仅「已确认且不需返工」进 `normal/`；其余进 `rework/`（含未勾确认）。每次 `export-split` / `apply-current` 后按最新 `current/` **全量重建** normal/rework。
 
-**空标注 → rework（V1 目标，尚未实现）**：无有效人工载荷（空 result / 缺 mask·bbox·text）也应进入 `rework/`。〔现状〕分类仍主要看勾选；导出侧仍可能经 prediction 回退填有效结果（见下）。
+**空标注 → rework（V1 目标，尚未实现）**：无有效人工载荷（空 result / 缺 mask·bbox·text）也应进入 `rework/`。〔现状〕分类仍主要看勾选。
 
-**金标准来源（V1 目标）**：仅人工 annotation；禁止将 model / prelabel prediction 回退为最终结果。〔现状〕`resolve_effective_result` 仍含 prediction fallback；**未删除**。
+**金标准来源（M6.1 已落地）**：`resolve_effective_result` 有效结果仅来自人工 `annotation.result`；已删除 `prediction_fallback`。〔现状〕`parse_ls_export` 对旧 `empty` / `mask_ref` 等分支的收口见 M6.2。
 
 **首轮导入（已实现）**：`tasks.json` 每条仅含 `data.image` / `image_id` / `package_id` / `diagnosis_text`；**无** `predictions`、`mask_ref` 或 prelabel 字段。输入仅为 `task_packages/`。
 
 **SEG**：人工几何写入 `manual_masks/`。首轮导入不再做 prelabel polygon 预填。
 
-**DET / CAP**：首轮导入无预填框/文本。〔现状〕导出解析侧未操作时仍可能回退 prediction（见金标准来源）；人工清空则保留空结果。
+**DET / CAP**：首轮导入无预填框/文本；导出 effective 不再回填 prediction（M6.1）；人工清空则保留空结果。
 
-**返工预填**：`previous_annotations` = 上一轮**人工**快照；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**，且不得再作为导出金标准的 fallback 源（目标；导出侧改造见 M6）。
+**返工预填**：`previous_annotations` = 上一轮**人工**快照；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**；导出金标准**不再**将该槽位作 fallback（M6.1）；parse/返工语义收紧见 M6.2 / M6.4。
 
 **final**：自包含（含 `images/`、`masks/` 与相对路径清单）；未就绪或缺任务则失败，不改写已有 final。
 

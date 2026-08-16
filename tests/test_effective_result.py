@@ -1,16 +1,15 @@
-"""Tests for resolve_effective_result and legacy rework extract fallback."""
+"""Tests for resolve_effective_result (V1: annotation-only effective)."""
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
-import pytest
 from PIL import Image
 
 from mma.common.io import write_json
 from mma.common.models import TaskType
 from mma.converters import ImageMetadata
+from mma.converters.to_labelstudio import DEFAULT_LS_RESULT_SPECS
 from mma.exporters.effective_result import resolve_effective_result
 from mma.exporters.extract_ls_raw_results import extract_ls_raw_results_data
 from mma.exporters.parse_ls_export import parse_ls_export_data
@@ -91,6 +90,10 @@ def _task(
     return task
 
 
+def _task_control(task_type: TaskType) -> str:
+    return DEFAULT_LS_RESULT_SPECS[task_type]["from_name"]
+
+
 def test_human_edit_overrides_prediction() -> None:
     task = _task(
         image_id="img-edit",
@@ -110,9 +113,15 @@ def test_human_edit_overrides_prediction() -> None:
     ]
     assert len(boxes) == 1
     assert boxes[0]["value"]["x"] == 1.0
+    # Predictions may still be traced but must not replace human effective.
+    pred_boxes = [
+        e for e in effective.prediction_result if e.get("from_name") == "det_bbox"
+    ]
+    assert len(pred_boxes) == 1
+    assert pred_boxes[0]["value"]["x"] == 90.0
 
 
-def test_confirm_only_falls_back_to_prediction(caplog: pytest.LogCaptureFixture) -> None:
+def test_confirm_only_does_not_use_prediction() -> None:
     task = _task(
         image_id="img-confirm",
         ann_result=[
@@ -128,20 +137,21 @@ def test_confirm_only_falls_back_to_prediction(caplog: pytest.LogCaptureFixture)
         ],
         prediction_link=None,
     )
-    with caplog.at_level(logging.WARNING):
-        effective = resolve_effective_result(
-            task, task_type=TaskType.DET, image_id="img-confirm"
-        )
-    assert effective.source == "prediction_fallback"
+    effective = resolve_effective_result(
+        task, task_type=TaskType.DET, image_id="img-confirm"
+    )
+    assert effective.source == "empty"
     assert effective.human_cleared is False
     from_names = {e["from_name"] for e in effective.effective_result}
-    assert "det_bbox" in from_names
+    assert "det_bbox" not in from_names
     assert "human_confirmed" in from_names
-    assert any("prediction fallback" in r.message for r in caplog.records)
-    assert any("img-confirm" in r.message for r in caplog.records)
+    pred_boxes = [
+        e for e in effective.prediction_result if e.get("from_name") == "det_bbox"
+    ]
+    assert len(pred_boxes) == 1
 
 
-def test_human_cleared_blocks_prediction_fallback() -> None:
+def test_human_cleared_no_prediction_in_effective() -> None:
     task = _task(
         image_id="img-clear",
         ann_result=[
@@ -155,12 +165,12 @@ def test_human_cleared_blocks_prediction_fallback() -> None:
         task, task_type=TaskType.DET, image_id="img-clear"
     )
     assert effective.human_cleared is True
-    assert effective.source == "annotation"
+    assert effective.source == "empty"
     assert all(e.get("from_name") != "det_bbox" for e in effective.effective_result)
 
 
-def test_latest_prediction_with_task_control_only() -> None:
-    """Reverse-scan: skip predictions without task control; take latest with one."""
+def test_predictions_traced_but_not_effective() -> None:
+    """Confirm-only: latest prediction is traced; effective stays annotation-only."""
 
     task = _task(
         image_id="img-latest",
@@ -178,16 +188,20 @@ def test_latest_prediction_with_task_control_only() -> None:
     effective = resolve_effective_result(
         task, task_type=TaskType.DET, image_id="img-latest"
     )
-    assert effective.source == "prediction_fallback"
+    assert effective.source == "empty"
     boxes = [
         e for e in effective.effective_result if e.get("from_name") == "det_bbox"
     ]
-    assert len(boxes) == 1
-    assert boxes[0]["value"]["x"] == 30.0
+    assert boxes == []
+    traced = [
+        e for e in effective.prediction_result if e.get("from_name") == "det_bbox"
+    ]
+    assert len(traced) == 1
+    assert traced[0]["value"]["x"] == 30.0
 
 
-def test_parse_confirm_only_uses_prediction() -> None:
-    """parse_ls_export confirm-only fills DET boxes from prediction."""
+def test_parse_confirm_only_yields_empty_det() -> None:
+    """parse_ls_export confirm-only does not fill DET boxes from prediction."""
 
     data = [
         _task(
@@ -204,7 +218,7 @@ def test_parse_confirm_only_uses_prediction() -> None:
         task_type=TaskType.DET,
         image_metadata_by_id={"img-p": ImageMetadata(width=100, height=100)},
     )
-    assert len(parsed[0].annotation.bboxes) == 1
+    assert parsed[0].annotation.bboxes == ()
 
 
 def test_parse_human_cleared_yields_empty_det() -> None:
@@ -229,7 +243,7 @@ def test_parse_human_cleared_yields_empty_det() -> None:
     assert parsed[0].annotation.bboxes == ()
 
 
-def test_extract_confirm_only_includes_prediction_geometry() -> None:
+def test_extract_confirm_only_excludes_prediction_geometry() -> None:
     data = [
         _task(
             image_id="img-a",
@@ -240,8 +254,8 @@ def test_extract_confirm_only_includes_prediction_geometry() -> None:
     by_id = extract_ls_raw_results_data(data, task_type=TaskType.DET)
     result = by_id["img-a"]
     boxes = [e for e in result if e.get("from_name") == "det_bbox"]
-    assert len(boxes) == 1
-    assert boxes[0]["value"]["x"] == 15.0
+    assert boxes == []
+    assert any(e.get("from_name") == "human_confirmed" for e in result)
 
 
 def _write_package(
@@ -274,17 +288,22 @@ def _write_package(
     )
 
 
-def test_legacy_rework_import_keeps_prelabel_for_all_tasks(tmp_path: Path) -> None:
-    """Legacy path (no previous_annotations): confirm-only export still prefills."""
+def test_legacy_rework_raw_confirm_only_no_prelabel_geometry(tmp_path: Path) -> None:
+    """Legacy raw path: no task-control geometry from predictions in extract/rework.
+
+    CAP confirm-only without ``cap_text`` cannot parse after M6.1 (no fallback);
+    use human_cleared so parse yields empty caption while pred text is ignored.
+    """
 
     batch_id = "leg_fb"
-    for task, image_id, ann_result, pred_result, task_type in [
+    cases: list[tuple[str, str, list[dict], list[dict], TaskType, int | None]] = [
         (
             "det",
             "img-det",
             [_choice("human_confirmed", "yes"), _choice("needs_rework", "yes")],
             [_det_box(10.0, 20.0)],
             TaskType.DET,
+            None,
         ),
         (
             "cap",
@@ -292,6 +311,7 @@ def test_legacy_rework_import_keeps_prelabel_for_all_tasks(tmp_path: Path) -> No
             [_choice("human_confirmed", "yes"), _choice("needs_rework", "yes")],
             [_cap_text("prelabel caption")],
             TaskType.CAP,
+            1,
         ),
         (
             "seg",
@@ -299,13 +319,16 @@ def test_legacy_rework_import_keeps_prelabel_for_all_tasks(tmp_path: Path) -> No
             [_choice("human_confirmed", "yes"), _choice("needs_rework", "yes")],
             [_seg_poly()],
             TaskType.SEG,
+            None,
         ),
-    ]:
+    ]
+    for task, image_id, ann_result, pred_result, task_type, prediction_link in cases:
         _write_package(tmp_path, batch_id=batch_id, task=task, image_id=image_id)
         export_task = _task(
             image_id=image_id,
             ann_result=ann_result,
             predictions=[{"result": pred_result}],
+            prediction_link=prediction_link,
         )
         if task == "det":
             results = parse_ls_export_data(
@@ -320,6 +343,9 @@ def test_legacy_rework_import_keeps_prelabel_for_all_tasks(tmp_path: Path) -> No
 
         _, rework = split_by_rework(results)
         raw = extract_ls_raw_results_data([export_task], task_type=task_type)
+        control = _task_control(task_type)
+        assert all(e.get("from_name") != control for e in raw[image_id])
+
         tasks = build_rework_ls_tasks(
             rework,
             batch_id=batch_id,
@@ -330,11 +356,8 @@ def test_legacy_rework_import_keeps_prelabel_for_all_tasks(tmp_path: Path) -> No
         )
         assert len(tasks) == 1
         pred = tasks[0]["predictions"][0]["result"]
-        assert pred, f"{task} rework predictions empty"
-        if task == "det":
-            assert any(e.get("type") == "rectanglelabels" for e in pred)
-        elif task == "cap":
-            assert any(e.get("type") == "textarea" for e in pred)
-            assert pred[0]["value"]["text"] == ["prelabel caption"]
-        else:
-            assert any(e.get("type") == "polygonlabels" for e in pred)
+        assert all(e.get("from_name") != control for e in pred)
+        assert not any(
+            e.get("type") in {"rectanglelabels", "textarea", "polygonlabels"}
+            for e in pred
+        )

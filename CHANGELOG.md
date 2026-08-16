@@ -1,5 +1,28 @@
 # Changelog
 
+## V1 — M6.1 去 prediction_fallback（2026-08-16）
+
+### Changed
+
+- `exporters/effective_result.py`：`resolve_effective_result` 有效结果**仅**来自 `annotation.result`；`EffectiveSource` 改为 `"annotation" | "empty"`（删除 `"prediction_fallback"`）
+- confirm-only / 无任务载荷（含 `human_cleared`）→ `source="empty"`，不回填 `task["predictions"]`
+- `prediction_result` 仍可追踪最新含任务控件的 prediction，但**不得**写入 `effective_result`
+
+### Tests
+
+- `tests/test_effective_result.py`：改写为 V1 用例（confirm-only / human-cleared / 追踪-only / parse·extract·legacy raw 均不回填 pred）
+
+### Docs
+
+- `README.md`：金标准来源〔现状〕改为 M6.1 已去掉 fallback；M6.2（parse 收口）等仍见 Planned
+
+### Planned（仍未完成）
+
+- **M6.2**：`parse_ls_export` 去掉对旧 `prediction_fallback` 源分支 / SEG `mask_ref` 收口
+- **空标注 / 缺结果 → `rework/`**（M5.1 / M6.3）
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- 返工语义收紧（M4.3 / M6.4）
+
 ## V1 — M3.1 / M10.1 legacy converter + CLI 语义（2026-08-16）
 
 ### Changed
@@ -21,7 +44,7 @@
 
 ### Planned（仍未完成；本轮无关）
 
-- **去 `prediction_fallback`**（M6.1–M6.2）
+- ~~**去 `prediction_fallback`（M6.1）**~~ → 见上一节（已落地）；**M6.2** parse 收口仍待做
 - **空标注 / 缺结果 → `rework/`**（M5.1 / M6.3）
 - **adapters / formats legacy 隔离**；`paths.prelabels_task_dir` 主流程废弃（M1 / M2 / M5.3）
 - 返工语义收紧（M4.3 / M6.4）
