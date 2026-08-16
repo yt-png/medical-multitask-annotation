@@ -49,9 +49,13 @@ def export_split_from_export(
     ``apply_current_from_export`` (export → current + refresh bundles), then
     returns ``(normal_path, rework_path)``. Empty sides are ``[]``.
 
-    Classification (from full current after merge):
-    - ``human_confirmed and not needs_rework`` → normal
-    - otherwise → rework
+    Classification (from full current after merge) uses
+    ``should_rework_result`` via ``refresh_normal_rework_from_current`` /
+    ``split_by_rework``:
+
+    - confirmed, not flagged, and effective payload present → normal
+    - otherwise (unconfirmed, needs_rework, or empty / missing payload) →
+      rework
     """
 
     cleaned = validate_batch_id(batch_id)

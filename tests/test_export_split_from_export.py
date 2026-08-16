@@ -206,6 +206,59 @@ def test_unconfirmed_goes_to_rework_not_normal(tmp_path: Path) -> None:
     assert all(x["human_confirmed"] is False for x in rework)
 
 
+def test_empty_cap_caption_confirmed_goes_rework(tmp_path: Path) -> None:
+    """Confirmed + empty caption → rework (empty payload), not normal."""
+
+    export = _write_export(
+        tmp_path / "cap.json",
+        [_cap_task(image_id="img-empty", caption="", rework="no", human="yes")],
+    )
+    normal_path, rework_path = export_split_from_export(
+        export,
+        batch_id="batch1",
+        task="cap",
+        data_root=tmp_path,
+    )
+    assert read_json(normal_path) == []
+    rework = read_json(rework_path)
+    assert len(rework) == 1
+    assert rework[0]["image_id"] == "img-empty"
+    assert rework[0]["human_confirmed"] is True
+    assert rework[0]["needs_rework"] is False
+    assert rework[0]["annotation"]["caption"] == ""
+
+
+def test_empty_det_boxes_confirmed_goes_rework(tmp_path: Path) -> None:
+    """Confirmed + empty bboxes → rework (empty payload), not normal."""
+
+    images = tmp_path / "task_packages" / "batch1" / "det" / "images"
+    images.mkdir(parents=True)
+    Image.new("RGB", (200, 100), color=(1, 2, 3)).save(images / "img-empty.jpg")
+    export = _write_export(
+        tmp_path / "det.json",
+        [
+            _det_task(
+                image_id="img-empty",
+                boxes_pct=[],
+                rework="no",
+            )
+        ],
+    )
+    normal_path, rework_path = export_split_from_export(
+        export,
+        batch_id="batch1",
+        task="det",
+        data_root=tmp_path,
+    )
+    assert read_json(normal_path) == []
+    rework = read_json(rework_path)
+    assert len(rework) == 1
+    assert rework[0]["image_id"] == "img-empty"
+    assert rework[0]["human_confirmed"] is True
+    assert rework[0]["needs_rework"] is False
+    assert rework[0]["annotation"]["bboxes"] == []
+
+
 def test_det_split_uses_task_package_size(tmp_path: Path) -> None:
     images = tmp_path / "task_packages" / "batch1" / "det" / "images"
     images.mkdir(parents=True)

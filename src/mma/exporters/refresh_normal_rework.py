@@ -2,6 +2,9 @@
 
 ``current/`` is the sole source of truth. Bundles are never appended from a
 partial export; each refresh overwrites both annotation files completely.
+
+Classification is delegated to ``split_by_rework`` → ``should_rework_result``
+(choices plus empty / missing task payload → rework).
 """
 
 from __future__ import annotations
@@ -36,7 +39,8 @@ def refresh_normal_rework_from_current(
     """Full-rebuild ``normal/`` and ``rework/`` from ``current/annotations.json``.
 
     - Missing ``current/`` → both sides written as ``[]``
-    - Otherwise load current, ``split_by_rework``, overwrite both files
+    - Otherwise load current, ``split_by_rework`` (``should_rework_result``,
+      including empty payload), overwrite both files
 
     Returns ``(normal_path, rework_path)``.
     """

@@ -1,5 +1,26 @@
 # Changelog
 
+## V1 — M6.3 空标注分类验收闭环（2026-08-16）
+
+### Changed
+
+- 分类逻辑已在 M5.2 接入 `should_rework_result`；本任务收口文档与落盘验收
+- `export_split_from_export` / `refresh_normal_rework`：文档与运行时规则对齐（含空载荷 → rework）
+
+### Tests
+
+- `tests/test_export_split_from_export.py`：已确认空 CAP / 空 DET → 写入 `rework/`、不进 `normal/`
+
+### Docs
+
+- `CHANGELOG.md`：正式关闭 M6.3；README 运行时规则已与 `should_rework_result` 一致
+
+### Planned（仍未完成）
+
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- 返工语义收紧（M4.3 / M6.4）
+- **M6.5**：effective/parse/split/export-split 测试场景扩写
+
 ## V1 — M5.2 SEG 空 mask 载荷 + rework 接入（2026-08-16）
 
 ### Added
