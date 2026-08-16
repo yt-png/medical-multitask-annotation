@@ -411,7 +411,90 @@ def test_seg_split_uses_manual_mask_ref(tmp_path: Path) -> None:
     )
     assert read_json(rework_path) == []
     normal = read_json(normal_path)
+    assert len(normal) == 1
+    assert normal[0]["image_id"] == "img-a"
     assert normal[0]["annotation"]["mask_ref"] == manual_mask_ref("img-a")
+    assert normal[0]["annotation"]["has_foreground"] is True
     assert (
         results_manual_masks_dir("batch1", data_root=tmp_path) / "img-a_manual.png"
     ).is_file()
+
+
+def test_empty_seg_geometry_confirmed_goes_rework(tmp_path: Path) -> None:
+    """Confirmed + empty SEG geometry → rework (has_foreground=False)."""
+
+    from mma.common.paths import results_manual_masks_dir
+    from mma.converters.seg_brush import manual_mask_ref
+
+    export = _write_export(
+        tmp_path / "seg-empty.json",
+        [
+            {
+                "data": {
+                    "image_id": "img-empty-seg",
+                    "package_id": "batch1__seg",
+                    "diagnosis_text": "diag",
+                },
+                "annotations": [
+                    {
+                        "id": 1,
+                        "was_cancelled": False,
+                        "updated_at": "2026-08-11T00:00:00.000000Z",
+                        "result": [
+                            {
+                                "from_name": "seg_mask",
+                                "to_name": "image",
+                                "type": "brushlabels",
+                                "original_width": 2,
+                                "original_height": 2,
+                                "value": {
+                                    "format": "rle",
+                                    "rle": [],
+                                    "brushlabels": [],
+                                },
+                            },
+                            _choice("human_confirmed", "yes"),
+                            _choice("needs_rework", "no"),
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+    normal_path, rework_path = export_split_from_export(
+        export,
+        batch_id="batch1",
+        task="seg",
+        data_root=tmp_path,
+    )
+    assert read_json(normal_path) == []
+    rework = read_json(rework_path)
+    assert len(rework) == 1
+    assert rework[0]["image_id"] == "img-empty-seg"
+    assert rework[0]["human_confirmed"] is True
+    assert rework[0]["needs_rework"] is False
+    assert rework[0]["annotation"]["mask_ref"] == manual_mask_ref("img-empty-seg")
+    assert rework[0]["annotation"]["has_foreground"] is False
+    assert (
+        results_manual_masks_dir("batch1", data_root=tmp_path)
+        / "img-empty-seg_manual.png"
+    ).is_file()
+
+
+def test_cap_without_predictions_key_goes_normal(tmp_path: Path) -> None:
+    """Export task without predictions key still splits to normal when payload ok."""
+
+    task = _cap_task(image_id="img-np", caption="ok text", rework="no", human="yes")
+    assert "predictions" not in task
+    export = _write_export(tmp_path / "cap-np.json", [task])
+    normal_path, rework_path = export_split_from_export(
+        export,
+        batch_id="batch1",
+        task="cap",
+        data_root=tmp_path,
+    )
+    assert read_json(rework_path) == []
+    normal = read_json(normal_path)
+    assert len(normal) == 1
+    assert normal[0]["image_id"] == "img-np"
+    assert normal[0]["annotation"]["caption"] == "ok text"

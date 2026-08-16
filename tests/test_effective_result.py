@@ -219,6 +219,9 @@ def test_parse_confirm_only_yields_empty_det() -> None:
         image_metadata_by_id={"img-p": ImageMetadata(width=100, height=100)},
     )
     assert parsed[0].annotation.bboxes == ()
+    normal, rework = split_by_rework(parsed)
+    assert normal == ()
+    assert [item.image_id for item in rework] == ["img-p"]
 
 
 def test_parse_human_cleared_yields_empty_det() -> None:

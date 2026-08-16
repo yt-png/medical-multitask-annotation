@@ -1,5 +1,23 @@
 # Changelog
 
+## V1 — M6.5 exporters 测试场景收口（2026-08-16）
+
+### Tests
+
+- `test_export_split_from_export.py`：SEG 有几何 → normal（含 `has_foreground`）；SEG 空几何 → rework；无 `predictions` 键 CAP → normal
+- `test_effective_result.py`：confirm-only DET 空框经 `split_by_rework` → rework
+- `test_parse_ls_export.py`：去掉误导性 `img-fallback` 命名；保留「有 pred 但不进金标准」负向用例
+
+### Docs
+
+- 正式关闭 M6.5；README 实现状态与空标注→rework 已落地对齐
+
+### Planned（仍未完成）
+
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- 返工语义收紧（M4.3 / M6.4）
+- **M5.6 / M12.1–M12.3**：common 规则锁定与场景门禁收口
+
 ## V1 — M6.3 空标注分类验收闭环（2026-08-16）
 
 ### Changed
@@ -19,7 +37,7 @@
 
 - **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
 - 返工语义收紧（M4.3 / M6.4）
-- **M6.5**：effective/parse/split/export-split 测试场景扩写
+- ~~**M6.5**：effective/parse/split/export-split 测试场景扩写~~ → 见上一节
 
 ## V1 — M5.2 SEG 空 mask 载荷 + rework 接入（2026-08-16）
 

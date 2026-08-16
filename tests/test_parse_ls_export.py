@@ -209,7 +209,7 @@ def test_cap_human_empty_clears_prediction() -> None:
 
 
 def test_cap_missing_textarea_yields_empty() -> None:
-    task = _cap_task(image_id="img-fallback", caption="ignored")
+    task = _cap_task(image_id="img-no-textarea", caption="ignored")
     task["annotations"][0]["result"] = [
         entry
         for entry in task["annotations"][0]["result"]
