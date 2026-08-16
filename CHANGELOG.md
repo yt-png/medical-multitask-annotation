@@ -1,5 +1,22 @@
 # Changelog
 
+## V1 — M12.2 场景门禁：空标注 → rework/（2026-08-16）
+
+### Tests
+
+- 新增 `tests/test_m12_2_empty_to_rework.py`：CAP/DET/SEG 各 1 条（确认 + 空载荷 → 仅 `rework/`）
+
+### Docs
+
+- 正式关闭 M12.2；M12.3 仍待做
+
+### Planned（仍未完成）
+
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- **`seg_mask_paths` 去 prelabels**（M5.4）及 models 注释清理（M5.5）
+- 返工语义收紧（M4.3 / M6.4）
+- **M12.3**：无 prelabels/prediction 主流程门禁
+
 ## V1 — M12.1 场景门禁：正常人工 → normal/（2026-08-16）
 
 ### Tests
@@ -8,14 +25,14 @@
 
 ### Docs
 
-- 正式关闭 M12.1；M12.2 / M12.3 仍待做
+- 正式关闭 M12.1；~~M12.2 / M12.3 仍待做~~ → M12.2 见上一节；**M12.3** 仍待做
 
 ### Planned（仍未完成）
 
 - **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
 - **`seg_mask_paths` 去 prelabels**（M5.4）及 models 注释清理（M5.5）
 - 返工语义收紧（M4.3 / M6.4）
-- **M12.2 / M12.3**：空→rework；无 prelabels/prediction 主流程门禁
+- ~~**M12.2 / M12.3**：空→rework；无 prelabels/prediction 主流程门禁~~ → M12.2 见上一节；**M12.3** 仍待做
 
 ## V1 — M5.6 common 空标注规则测试锁定（2026-08-16）
 
