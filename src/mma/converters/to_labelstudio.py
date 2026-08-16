@@ -1,9 +1,14 @@
-"""Convert unified prelabel intermediate format to Label Studio import JSON.
+"""LEGACY — convert prelabel intermediate format to Label Studio import JSON.
 
-SEG geometry prefill (T3.1b) is optional via ``mask_root``. Default mode is
-polygonlabels; brush RLE mode remains available via ``SEG_PREFILL_MODE``.
-Does not wire CLI or define Label Studio XML. ``from_name`` / ``to_name`` /
-``type`` defaults live in ``DEFAULT_LS_RESULT_SPECS``.
+Historical / reference only: prelabel document → LS tasks (including
+``predictions``). **Not used by V1 first-round** ``mma ls-import`` (empty
+tasks come from ``importers.build_ls_tasks``).
+
+APIs such as ``document_to_ls_tasks`` / ``item_to_ls_task`` / ``ImageMetadata``
+and ``DEFAULT_LS_RESULT_SPECS`` are retained for legacy tests and callers.
+SEG geometry prefill via ``mask_root`` remains available; default mode is
+polygonlabels (brush RLE via ``SEG_PREFILL_MODE``). Does not wire the V1 CLI
+main path or define Label Studio XML.
 """
 
 from __future__ import annotations
@@ -211,15 +216,16 @@ def item_to_ls_task(
     mask_root: Path | str | None = None,
     seg_prefill_mode: SegPrefillMode | None = None,
 ) -> dict[str, Any]:
-    """Convert one ``PrelabelItem`` to a Label Studio import task dict.
+    """LEGACY: convert one ``PrelabelItem`` to a Label Studio import task dict.
 
-    ``id`` is set to ``image_id`` as an auxiliary LS task identifier only.
-    The system association key remains ``data.image_id``.
+    Not part of V1 first-round ``ls-import``. ``id`` is set to ``image_id`` as
+    an auxiliary LS task identifier only. The system association key remains
+    ``data.image_id``.
 
     For DET, ``image_metadata`` is required (pixel → percent).
-    For SEG, pass ``mask_root`` to emit geometry prefill (T3.1b); omit it to
-    keep empty ``predictions[].result`` (T2.2-compatible). Prefill mode defaults
-    to module ``SEG_PREFILL_MODE`` (``polygon``); pass ``brush`` for legacy RLE.
+    For SEG, pass ``mask_root`` to emit geometry prefill; omit it to keep empty
+    ``predictions[].result``. Prefill mode defaults to module
+    ``SEG_PREFILL_MODE`` (``polygon``); pass ``brush`` for brush RLE.
     Optional SEG ``image_metadata`` is only used to validate mask size when
     provided. CAP ignores ``mask_root`` / ``image_metadata``.
     """
@@ -263,12 +269,12 @@ def document_to_ls_tasks(
     mask_root: Path | str | None = None,
     seg_prefill_mode: SegPrefillMode | None = None,
 ) -> list[dict[str, Any]]:
-    """Convert a ``PrelabelDocument`` to a list of Label Studio import tasks.
+    """LEGACY: convert a ``PrelabelDocument`` to Label Studio import tasks.
 
-    When ``document.task_type`` is DET, ``image_metadata_by_id`` must map every
-    item ``image_id`` to an ``ImageMetadata``.
-    For SEG, optional ``mask_root`` enables geometry prefill for all items;
-    ``seg_prefill_mode`` selects polygon (default) or legacy brush RLE.
+    Not part of V1 first-round ``ls-import``. When ``document.task_type`` is
+    DET, ``image_metadata_by_id`` must map every item ``image_id`` to an
+    ``ImageMetadata``. For SEG, optional ``mask_root`` enables geometry
+    prefill; ``seg_prefill_mode`` selects polygon (default) or brush RLE.
     """
 
     metadata_map = image_metadata_by_id or {}

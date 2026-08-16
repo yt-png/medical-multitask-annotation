@@ -1,4 +1,8 @@
-"""Tests for intermediate → Label Studio import conversion (T2.2)."""
+"""LEGACY tests: prelabel intermediate → Label Studio import conversion.
+
+Exercises historical ``mma.converters`` APIs (not V1 first-round ls-import).
+Test logic below is unchanged from the frozen prelabel conversion suite.
+"""
 
 from __future__ import annotations
 

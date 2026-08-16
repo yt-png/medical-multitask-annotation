@@ -1,4 +1,4 @@
-"""Tests for unified CLI (preprocess/package/ls-import/export-split/rework-import/apply-current/merge wired; convert stub)."""
+"""Tests for unified CLI (V1 main flow wired; convert is LEGACY stub)."""
 
 from __future__ import annotations
 
@@ -169,20 +169,44 @@ def test_invalid_task_fails() -> None:
 
 
 @pytest.mark.parametrize("task", TASK_CHOICES)
-def test_valid_task_accepted_then_stub(task: str, capsys: pytest.CaptureFixture[str]) -> None:
+def test_valid_task_accepted_then_legacy_convert_stub(
+    task: str, capsys: pytest.CaptureFixture[str]
+) -> None:
     code = main(["convert", "--batch", "b1", "--task", task])
     assert code == 2
-    err = capsys.readouterr().err
-    assert "not implemented yet" in err
+    err = capsys.readouterr().err.lower()
+    assert "legacy" in err
+    assert "ls-import" in err
     assert "convert" in err
 
 
 def test_stub_for_convert(capsys: pytest.CaptureFixture[str]) -> None:
     code = main(["convert", "--batch", "batch-a", "--task", "cap"])
     assert code == 2
-    err = capsys.readouterr().err
-    assert "not implemented yet" in err
+    err = capsys.readouterr().err.lower()
+    assert "legacy" in err
+    assert "ls-import" in err
     assert "convert" in err
+
+
+def test_convert_help_marks_legacy() -> None:
+    parser = build_parser()
+    convert_parser = parser._subparsers._group_actions[0].choices["convert"]
+    text = convert_parser.format_help().lower()
+    assert "legacy" in text
+    assert "v1" in text
+
+
+def test_ls_import_help_describes_empty_task_packages() -> None:
+    parser = build_parser()
+    ls_parser = parser._subparsers._group_actions[0].choices["ls-import"]
+    text = ls_parser.format_help().lower()
+    assert "empty" in text
+    assert "task_packages" in text
+    assert "prediction" in text
+    # Must not require preparing prelabels for V1 first-round import.
+    assert "must" not in text or "prelabel" not in text
+    assert "require" not in text or "prelabel" not in text
 
 
 def test_export_split_requires_export() -> None:

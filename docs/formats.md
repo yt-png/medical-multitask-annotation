@@ -1,9 +1,13 @@
-# 预标注统一中间格式说明（T2.1）
+# LEGACY — 预标注统一中间格式说明
 
-本文档定义 SEG / DET / CAP 进入 Label Studio 转换之前的**统一中间格式**。  
+> **V1 地位：历史参考，不是主流程。**  
+> V1 目标为纯人工金标准：首轮空任务导入，**不要求**准备 `prelabels.json`，也不将 model / prelabel prediction 写入金标准。  
+> 本文档描述冻结 V2 时代的预标注中间格式、转换与 adapter 约定，供对照与尚未完成的 legacy 隔离（见 CHANGELOG「Planned」、任务 M1/M2）。  
+> **〔现状〕**：仓库代码仍可能 `load_prelabel_document` / `ls-import` 读取本格式；这不表示 V1 主流程仍应「必须写 prelabels」。
+
 实现代码：`src/mma/formats/intermediate.py`；包内样例：`src/mma/formats/{seg,det,cap}.json`。
 
-相关落盘见 `docs/data_layout.md`。业务结果契约仍见 `src/mma/common/models.py`（本格式层不修改其字段与语义）。
+相关落盘见 `docs/data_layout.md` §4.4（Legacy）。业务结果契约仍见 `src/mma/common/models.py`。
 
 ---
 
@@ -15,13 +19,15 @@
 | Python 类型与校验 | Label Studio import JSON（T2.2） |
 | 样例与测试用落盘约定 | 真实算法调用、工作台 XML |
 
-数据流位置：
+数据流位置（**Legacy / 历史半自动**；非 V1 目标主流程）：
 
 ```text
-算法原始输出  --(T2.3 adapter)-->  统一中间格式  --(T2.2)-->  LS import JSON
+算法原始输出  --(adapter)-->  统一中间格式  --(converter)-->  LS import JSON（含 predictions）
                                       ↑
-                                   本文档 / T2.1
+                                   本文档（Legacy）
 ```
+
+V1 目标主流程见仓库 README：`task_packages` → 空 `tasks.json` → 人工标注（无本格式步骤）。
 
 ---
 
@@ -29,8 +35,8 @@
 
 | 用途 | 路径 |
 |---|---|
-| 运行时（gitignore 的 `data/`） | `data/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
-| 测试 / 仓库内样例 | `examples/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
+| 运行时（gitignore 的 `data/`；**Legacy / 〔现状〕仍可能被 ls-import 读取**） | `data/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
+| 测试 / 仓库内样例（**Legacy**） | `examples/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
 | 包内 schema 样例 | `src/mma/formats/{seg,det,cap}.json`（内容与文档样例同构） |
 
 **主文件名固定为 `prelabels.json`。**

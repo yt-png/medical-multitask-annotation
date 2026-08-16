@@ -1,4 +1,10 @@
-"""Converters from unified prelabel format to downstream import formats."""
+"""LEGACY converters: prelabel intermediate → downstream import formats.
+
+Historical / reference only. **Not used by V1 first-round** ``ls-import``
+(empty tasks are built in ``importers.build_ls_tasks``). Public APIs such as
+``document_to_ls_tasks``, ``item_to_ls_task``, ``ImageMetadata``, and
+``DEFAULT_LS_RESULT_SPECS`` remain available for legacy tests and callers.
+"""
 
 from mma.converters.seg_brush import build_seg_brush_results
 from mma.converters.seg_polygon import build_seg_polygon_results

@@ -1,5 +1,93 @@
 # Changelog
 
+## V1 — M3.1 / M10.1 legacy converter + CLI 语义（2026-08-16）
+
+### Changed
+
+- `converters/to_labelstudio.py` / `converters/__init__.py`：标记 **LEGACY**（prelabel intermediate → Label Studio，含 `predictions`；历史/对照用途）；明确**不参与** V1 首轮 `ls-import`
+- 保留旧 API，未删除：`document_to_ls_tasks`、`item_to_ls_task`、`ImageMetadata`、`DEFAULT_LS_RESULT_SPECS` 等
+- `cli.py`：
+  - `mma convert`：help 标明 **LEGACY / not V1 main workflow**；执行失败（exit **2**）说明为 legacy stub，并提示使用 `mma ls-import`
+  - `mma ls-import`：help 改为从 `task_packages` 生成 **empty** Label Studio annotation tasks（V1 manual；**no predictions**）
+
+### Tests
+
+- `tests/test_convert.py`：仅增加 LEGACY 文件头说明；历史 prelabel→LS API 用例逻辑不变且仍通过
+- `tests/test_cli.py`：convert stub/help 断言含 `legacy` + 指向 `ls-import`；ls-import help 断言含 `empty` / `task_packages` / `prediction`，且不要求准备 prelabels
+
+### Docs
+
+- 本 CHANGELOG 节记录 Sprint A1 收尾（converter 定位 + CLI 文案）；业务导入逻辑未再改动（已由 M4 落地）
+
+### Planned（仍未完成；本轮无关）
+
+- **去 `prediction_fallback`**（M6.1–M6.2）
+- **空标注 / 缺结果 → `rework/`**（M5.1 / M6.3）
+- **adapters / formats legacy 隔离**；`paths.prelabels_task_dir` 主流程废弃（M1 / M2 / M5.3）
+- 返工语义收紧（M4.3 / M6.4）
+
+## V1 — M4.1 / M4.2 / M4.4 空任务导入（2026-08-16）
+
+### Changed
+
+- `build_ls_import_tasks`：首轮仅读 `task_packages/<batch>/<task>/manifest.json` + 包内图像；写出空 `tasks.json`（每条仅 `data.image` / `image_id` / `package_id` / `diagnosis_text`）
+- 首轮导入链路**不再**调用 `load_prelabel_document`、`document_to_ls_tasks`、`validate_prelabel_coverage`；不读 `prelabels.json`
+- `mma.importers` 包导出去掉 `validate_prelabel_coverage`（`validate_prelabel_coverage.py` 文件保留作 legacy 助手）
+
+### Removed（首轮导入路径）
+
+- 对 `prelabels/`、`predictions`、`mask_ref`、DET/SEG 预填几何的运行时依赖（转换 API 与 `ImageMetadata` 等公共工具**未删除**，仅解除首轮调用）
+
+### Tests
+
+- `tests/test_build_ls_tasks.py`：改写为 V1 空任务行为（无 prelabels 成功；三任务无 predictions；orphan prelabels 目录被忽略；coverage 助手保留为 legacy 单测）
+
+### Docs
+
+- `README.md`：首轮 `ls-import` 标为已落地；常用命令去掉「仍需 prelabels」脚注
+
+### Planned（部分已由后续节覆盖）
+
+- **去 `prediction_fallback`**（M6.1–M6.2）— **未删除**
+- **空标注 / 缺结果 → `rework/`**（M5.1 / M6.3）— **未完成**
+- **adapters / formats legacy 隔离**；`paths.prelabels_task_dir` 主流程废弃（M1 / M2 / M5.3）— **未完成**（导出/merge/mask 路径仍可能引用 prelabels）
+- ~~CLI `ls-import` / `convert` 文案与 V1 对齐（M10.1 / M3.3）~~ → 见上一节（已落地）
+- 返工语义收紧 M4.3 / M6.4 — **未完成**
+
+## V1 — 文档定位草稿（2026-08-16）
+
+本段仅记录 **V1 项目定位与文档** 变更。下列 **Planned** 中「空任务 ls-import / 覆盖校验 / CLI 文案」已由后续节落地；其余仍有效。
+
+### Added（文档）
+
+- README：V1 独立项目定位；纯人工金标准目标流程；与冻结 V2 的业务层差异表；〔现状〕脚注区分目标与当前实现
+- `docs/data_layout.md` / `docs/labelstudio_usage.md`：主流程按 V1 目标叙述，并标明当前仍依赖 prelabels / prediction fallback 之处
+- Legacy 说明：`docs/formats.md`、`examples/prelabels/`、`examples/README.md` 标为历史参考，非 V1 主流程必做
+
+### Changed（文档）
+
+- 主 README 快速开始不再要求「必须外部写入 prelabels」作为目标步骤；改为目标空任务导入 + 〔现状〕仍需 prelabels 的说明
+- 返工预填语义在文档中强调：`previous_annotations`（人工历史）≠ 模型 / prelabel prediction（LS 字段名可能仍为 `predictions`）
+
+### Removed（文档主路径）
+
+- 从主流程操作说明中移除「半自动 / 外部写 prelabels 为必做」的表述（代码路径尚未移除，见 Planned）
+
+### Tests
+
+- 本轮**无**新增或改写业务测试；不虚构空任务导入、去 fallback、空标注 rework 等已通过的用例
+
+### Planned（代码改造；部分已由后续节覆盖）
+
+- ~~**空任务 `ls-import`**~~ → 见 M4 节（已落地）
+- ~~**删除运行时 prelabel 覆盖校验（首轮）**~~ → 见 M4 节（已落地；文件保留）
+- ~~CLI `ls-import` / `convert` 文案与 V1 对齐（M10.1 / M3.3）~~ → 见 M3.1 / M10.1 节（已落地）
+- **去 `prediction_fallback`**：金标准仅来自人工 annotation（M6.1–M6.2）— **未删除**
+- **空标注 / 缺结果 → `rework/`**（M5.1 / M6.3）— **未完成**
+- **adapters / formats legacy 隔离**，运行时零依赖 `legacy_prelabel`（M1 / M2）— **未完成**
+
+历史条目（2026-08-15 及更早）描述的是复制自冻结 V2 的实现演进，其中含 prelabel / prediction 行为；V1 改造落地后应在新日期段用 Added/Changed/Removed/Tests 记录真实代码变更。
+
 ## 2026-08-15
 
 ### Changed

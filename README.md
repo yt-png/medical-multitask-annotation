@@ -1,22 +1,34 @@
-# 医学图像多任务标注数据流（mma）
+# 医学图像多任务标注平台 V1（mma）
 
-本地可脚本化的医学图像标注流水线：对同一批图像分别完成 **SEG / DET / CAP** 三类标注，经 Label Studio 人工确认与返工闭环后，合并为每张图同时具备三类结果的最终数据集。
+**V1 定位**：基于冻结 V2 复制后的**独立项目**，目标是纯人工医学图像**金标准**生产流程（SEG / DET / CAP），经 Label Studio 标注与返工闭环后，合并为每张图同时具备三类结果的最终数据集。
 
 协作分发与回传走网盘；本仓库**不包含**业务服务端，也**不实现**预标注算法 / 大模型调用。
 
-## 流水线一览
+### 与冻结 V2 的差异（业务层，非代码兼容承诺）
+
+| | V2（冻结参考） | V1（目标） |
+|---|---|---|
+| 首轮导入 | 外部 `prelabels/` → LS `predictions` | 仅 `task_packages/` → 空任务（无模型/prelabel 预填） |
+| 金标准来源 | 允许 prediction 回退填结果 | 仅人工 `annotation`；禁止 model/prelabel 进金标准 |
+| 空标注 | 可能被 prediction 回填 | 空 / 缺结果 → `rework/` |
+| prelabel 能力 | 主流程 | **隔离为 legacy**（历史参考，非主流程必做） |
+
+> **实现状态**：首轮 **空任务 `ls-import` 已落地**（M4.1 / M4.2）：仅读 `task_packages/`，写出无 `predictions` 的 `tasks.json`。下列项**仍未完成**：去 `prediction_fallback`、空标注→rework、adapters/formats legacy 隔离等（见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`）。与尚未交付行为不一致处仍标 **〔现状〕**。
+
+## 流水线一览（V1）
 
 ```text
 raw 图文
   → preprocess          # 图文绑定 → processed/<batch>/manifest.json
   → package             # 拆成三类全量任务包 → task_packages/
-  → 外部写入 prelabels/ # 统一中间格式（本仓库不跑算法）
-  → ls-import           # 生成 Label Studio 导入 JSON
-  → [Label Studio 标注]
+  → ls-import           # 仅从任务包生成空 LS 任务（无 prelabels）
+  → [Label Studio 人工标注]
   → export-split        # 导出 → 更新 current/，并重建 normal/ + rework/
-  → rework-import       # （有返工时）再导入 → 再标注 → 再 export-split
+  → rework-import       # （有返工时）再导入「上一轮人工历史」预填 → 再标注 → 再 export-split
   → merge               # 三路 current 就绪后 → final/<batch>/
 ```
+
+`ls-import` 输入仅为 `task_packages/<batch>/<task>/`（含 `manifest.json` 与 `images/`）；**不读取** `prelabels/`。
 
 数据根默认 `./data`（可用 `--data-root`）。目录职责见 [docs/data_layout.md](docs/data_layout.md)。
 
@@ -47,21 +59,21 @@ pip install -e .
 | `apply-current` | 底层：仅同步 `current/`（也会刷新 normal/rework） | 同左；日常优先用 `export-split` |
 | `rework-import` | 生成返工再导入任务 | `ls_import/<batch>/<task>/rework_tasks.json` |
 | `merge` | 三任务合并为最终集 | `final/<batch>/{manifest.json,images/,masks/}` |
-| `convert` | **未接线**（stub） | — |
+| `convert` | **未接线**（stub；V1 不作为 prelabel 转换入口） | — |
 
 `export-split` 与 `apply-current` 对**同一份 export 二选一**，勿连跑。
 
 ### 常用命令
 
 ```bash
-# 1. 预处理 + 拆包
+# 1. 预处理 + 拆包（V1 与当前实现均适用）
 mma preprocess --batch demo_batch \
   --images examples/raw/demo_batch/images \
   --excel examples/raw/demo_batch/diagnoses.xlsx \
   --data-root data
 mma package --batch demo_batch --data-root data
 
-# 2. 预标注就绪后生成 LS 导入（需 prelabels/ + task_packages/）
+# 2. 生成 LS 空任务导入（仅需 task_packages/；无需 prelabels/）
 mma ls-import --batch demo_batch --task seg --data-root data
 
 # 3. LS 导出后落盘（建议按轮次存放 export）
@@ -70,6 +82,7 @@ mma export-split --batch demo_batch --task cap \
   --data-root data
 
 # 4. 有返工时再导入（优先读 rework/previous_annotations/）
+# 返工预填 = 上一轮人工历史；业务上 ≠ 模型 prediction（LS 字段名可能仍叫 predictions）
 mma rework-import --batch demo_batch --task cap --data-root data
 
 # 5. 三路 current 均无返工后合并
@@ -80,41 +93,41 @@ mma merge --batch demo_batch --data-root data
 
 **权威结果**：每任务以 `results/<batch>/<task>/current/` 为准。按 `image_id` **合并覆盖**——本轮出现的覆盖，未出现的保留；首轮请导出该任务本批全部样本。
 
-**分类规则**：`should_rework = (not human_confirmed) or needs_rework`。仅「已确认且不需返工」进 `normal/`；其余进 `rework/`（含未勾确认）。每次 `export-split` / `apply-current` 后按最新 `current/` **全量重建** normal/rework。
+**分类规则（当前已实现）**：`should_rework = (not human_confirmed) or needs_rework`。仅「已确认且不需返工」进 `normal/`；其余进 `rework/`（含未勾确认）。每次 `export-split` / `apply-current` 后按最新 `current/` **全量重建** normal/rework。
 
-**预标注覆盖**：`ls-import` 要求任务包与 `prelabels.json` 的 `image_id` 集合完全一致；缺/多均失败，不静默跳过。
+**空标注 → rework（V1 目标，尚未实现）**：无有效人工载荷（空 result / 缺 mask·bbox·text）也应进入 `rework/`。〔现状〕分类仍主要看勾选；导出侧仍可能经 prediction 回退填有效结果（见下）。
 
-**SEG**：默认 polygon 预填；人工几何写入 `manual_masks/`，不覆盖 `prelabels/.../masks/`。  
-**DET / CAP**：人工结果优先；未操作可回退预标注；人工清空则保留空结果。
+**金标准来源（V1 目标）**：仅人工 annotation；禁止将 model / prelabel prediction 回退为最终结果。〔现状〕`resolve_effective_result` 仍含 prediction fallback；**未删除**。
+
+**首轮导入（已实现）**：`tasks.json` 每条仅含 `data.image` / `image_id` / `package_id` / `diagnosis_text`；**无** `predictions`、`mask_ref` 或 prelabel 字段。输入仅为 `task_packages/`。
+
+**SEG**：人工几何写入 `manual_masks/`。首轮导入不再做 prelabel polygon 预填。
+
+**DET / CAP**：首轮导入无预填框/文本。〔现状〕导出解析侧未操作时仍可能回退 prediction（见金标准来源）；人工清空则保留空结果。
+
+**返工预填**：`previous_annotations` = 上一轮**人工**快照；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**，且不得再作为导出金标准的 fallback 源（目标；导出侧改造见 M6）。
 
 **final**：自包含（含 `images/`、`masks/` 与相对路径清单）；未就绪或缺任务则失败，不改写已有 final。
 
 **LS 本地文件**：`--local-root`（默认等于 `--data-root`）须与 Label Studio Local Storage 根一致。详见 [docs/labelstudio_usage.md](docs/labelstudio_usage.md)。
 
-## 预标注与演示
+## Legacy 参考（非 V1 主流程）
 
-预标注统一中间格式见 [docs/formats.md](docs/formats.md)。落点：`data/prelabels/<batch>/{seg,det,cap}/prelabels.json`。
+以下内容保留供对照冻结 V2 / 历史测试，**不是** V1 主流程必做步骤，主 README 不要求「必须准备 prelabels」：
 
-Python 转换 API（CLI `convert` 仍为 stub）：
-
-```python
-from pathlib import Path
-from mma.converters import document_to_ls_tasks
-from mma.formats import load_prelabel_document
-
-doc = load_prelabel_document("data/prelabels/demo_batch/seg/prelabels.json")
-tasks = document_to_ls_tasks(doc, mask_root=Path("data/prelabels/demo_batch/seg"))
-```
-
-假数据端到端演示：`python examples/scripts/run_p2_demo.py`（见 [examples/README.md](examples/README.md)）。
+| 路径 | 说明 |
+|------|------|
+| [docs/formats.md](docs/formats.md) | **Legacy**：预标注统一中间格式与转换约定 |
+| [examples/prelabels/](examples/prelabels/) | **Legacy**：历史样例 `prelabels.json` |
+| [examples/README.md](examples/README.md) | **Legacy**：adapter → prelabel → LS 演示（`run_p2_demo.py`） |
 
 ## 更多文档
 
 | 文档 | 内容 |
 |------|------|
-| [docs/data_layout.md](docs/data_layout.md) | 目录树、落盘与合并语义 |
-| [docs/formats.md](docs/formats.md) | 预标注中间格式与 LS 控件名 |
-| [docs/labelstudio_usage.md](docs/labelstudio_usage.md) | Label Studio 本地导入与标注 |
-| [docs/real_batch_local_test_runbook.md](docs/real_batch_local_test_runbook.md) | real_batch 全链路实测手册 |
+| [docs/data_layout.md](docs/data_layout.md) | 目录树、落盘与合并语义（含 legacy `prelabels/` 说明） |
+| [docs/labelstudio_usage.md](docs/labelstudio_usage.md) | Label Studio 本地导入与标注（首轮 / 返工语义） |
+| [docs/formats.md](docs/formats.md) | **Legacy** 预标注中间格式与 LS 控件名 |
+| [docs/real_batch_local_test_runbook.md](docs/real_batch_local_test_runbook.md) | real_batch 全链路实测手册（仍可能描述当前实现路径） |
 
-开发约定见 `.cursor/rules/`。功能分支开发；提交前本地跑通检查再 `git commit`。
+开发约定见 `.cursor/rules/`（V1 Requirement / Development Tasks / Specifications）。功能分支开发；提交前本地跑通检查再 `git commit`。

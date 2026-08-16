@@ -1,12 +1,15 @@
-# Label Studio 本地使用说明（T3.5）
+# Label Studio 本地使用说明
 
-本文说明如何在**本机 Label Studio**中完成 SEG / DET / CAP 三任务的导入与人工确认。  
+本文说明如何在**本机 Label Studio**中完成 SEG / DET / CAP 三任务的导入与人工标注。  
 协作分发仍通过网盘人工完成；本仓库不提供业务服务端，也不自动上传下载。
+
+**V1 目标**：纯人工金标准——首轮为空任务导入（无模型 / prelabel 预填）；返工预填仅为上一轮**人工历史**。  
+**〔现状〕**：代码仍源自冻结 V2；`ls-import` 仍依赖 `prelabels/` 并写入 LS `predictions`。下文目标与现状并列，**勿将目标当成已交付**。详见仓库根 README / CHANGELOG「Planned」。
 
 相关约定见：
 
 - 目录落盘：[data_layout.md](data_layout.md)
-- 预标注格式与工作台控制名：[formats.md](formats.md)
+- Legacy 预标注格式（非主流程）：[formats.md](formats.md)
 
 ---
 
@@ -17,12 +20,13 @@
 - 用 `mma ls-import` 生成可导入 JSON
 - 配置 Label Studio Local Files，使原图可加载
 - 为 SEG / DET / CAP 分别创建项目并加载对应 Labeling Config
-- 导入任务、人工确认与勾选、导出结果建议落盘位置
+- 导入任务、人工标注与勾选、导出结果建议落盘位置
+- 区分：**首轮空任务（目标）** vs **返工人工历史预填**
 
-**本文不展开（见 README / 其他文档）**
+**本文不展开**
 
-- P4/P5 的命令细节与合并验收（导出后可用 `apply-current` / `export-split` / `rework-import` / `merge`，见本文 §8 与仓库 README）
-- 真实预标注算法 / 大模型调用（不在本阶段范围）
+- 合并验收细节（`merge` 见 README）
+- 真实预标注算法 / 大模型调用（不在 V1 范围；Legacy 见 `formats.md`）
 
 ---
 
@@ -31,9 +35,9 @@
 1. 已按仓库 `README.md` 安装本包（建议 `pip install -e .`，Python 3.12+）。
 2. 本机已安装可用的 Label Studio（开源桌面/本地服务均可；界面文案可能随版本略有差异）。
 3. 运行时数据根下已具备（以 `--data-root data` 为例）：
-   - `data/task_packages/<batch_id>/{seg|det|cap}/images/`（原图）
-   - `data/prelabels/<batch_id>/{seg|det|cap}/prelabels.json`（统一中间格式）
-   - SEG 另需 mask 文件，路径与 `prelabels.json` 中 `mask_ref` 一致（相对该任务 prelabels 目录）
+   - **必需（目标与现状）**：`data/task_packages/<batch_id>/{seg|det|cap}/images/`（原图）
+   - **〔现状〕仍必需**：`data/prelabels/<batch_id>/{seg|det|cap}/prelabels.json`（以及 SEG 的 mask 资源）
+   - **V1 目标**：完成 M4 后**不再**需要 `prelabels/`；本文不要求新人「必须准备预标注」作为目标步骤
 
 ---
 
@@ -66,7 +70,15 @@ mma ls-import --batch demo_batch --task cap --data-root data
 
 即：`d=` 后面是相对 `local_root` 的**正斜杠**路径。图像**不会**复制进 `ls_import/`。
 
-SEG 在导入生成时会默认以 `data/prelabels/<batch>/seg` 为 `mask_root`，将 mask 拆连通域后写入 **polygonlabels** 预填（百分比点）；缺 mask 文件会失败（需先补齐预标注资源）。如需历史 brush RLE 预填，在转换 API 传入 `seg_prefill_mode="brush"`。
+### 3.1 首轮任务内容
+
+| | V1 目标 | 〔现状〕（未宣称已完成） |
+|---|---|---|
+| 输入 | 仅 `task_packages/` | 另需 `prelabels.json`，且 `image_id` 集合与任务包完全一致 |
+| `tasks.json` | 每条仅 `data`（`image`、`image_id`、`package_id`、`diagnosis_text`）；**无** `predictions` | 仍写入 `predictions`（来自 prelabel 转换） |
+| 标注员所见 | 空白控件，从零人工标注 | 可能看到预填几何/文本（半自动行为，非 V1 目标） |
+
+SEG 〔现状〕：生成导入时仍可能以 `data/prelabels/<batch>/seg` 为 `mask_root` 写入 polygonlabels 预填；缺 mask 会失败。此行为**不是** V1 目标，改造见 M4 / M3.1。
 
 ---
 
@@ -74,7 +86,7 @@ SEG 在导入生成时会默认以 `data/prelabels/<batch>/seg` 为 `mask_root`�
 
 1. 打开 Label Studio，进入 **Local Storage**（或 Settings → Cloud Storage → Local files，名称因版本而异）。
 2. 将本地存储根目录设置为与 `mma ls-import` 的 **`local_root` 相同**的绝对路径。  
-   - 若命令使用 `--data-root D:\多任务标注平台\data` 且未指定 `--local-root`，则 Local storage 根应设为 `D:\多任务标注平台\data`。
+   - 若命令使用 `--data-root D:\多任务标注平台V1\data` 且未指定 `--local-root`，则 Local storage 根应设为该 `data` 绝对路径。
 3. 保存并确保存储已启用 / 可同步（按你使用的 LS 版本操作）。
 
 **注意：** Local storage 根若指错（例如指到项目根而 URL 相对的是 `data/`），会出现任务能导入但**原图空白/加载失败**。
@@ -111,10 +123,10 @@ print(cap_config_path())
 1. 打开上述 XML，**全选复制**到 Label Studio 配置编辑器；或按 LS 版本提供的「从文件导入配置」加载。
 2. 保存配置。
 
-控件名已与转换层对齐（勿随意改 `name`）：
+控件名勿随意改 `name`：
 
-| 任务 | 主图 | 可编辑预标注 | 原文 | 勾选 |
-|------|------|--------------|------|------|
+| 任务 | 主图 | 可编辑标注控件 | 原文 | 勾选 |
+|------|------|----------------|------|------|
 | SEG | `image` ← `$image` | `PolygonLabels` `seg_mask` / `lesion`（解析仍兼容历史 Brush RLE） | 只读 `$diagnosis_text` | `human_confirmed`、`needs_rework` |
 | DET | 同上 | `RectangleLabels` `det_bbox` / `object` | 同上 | 同上 |
 | CAP | 同上 | `TextArea` `cap_text` | 同上 | 同上 |
@@ -125,7 +137,9 @@ print(cap_config_path())
 
 1. 在对应任务项目中选择 **Import**。
 2. 导入文件：`data/ls_import/<batch_id>/<task>/tasks.json`。
-3. 确认任务列表出现；打开样本应能看到原图，以及预标注（SEG 多边形 / DET 框 / CAP 文本）。
+3. 确认任务列表出现；打开样本应能看到原图。
+   - **V1 目标**：首轮无预填几何/模型文本，需人工绘制或填写。
+   - **〔现状〕**：若存在 prelabel 转换结果，界面上仍可能出现预填；这不代表 V1 已完成空任务导入。
 
 ---
 
@@ -133,27 +147,29 @@ print(cap_config_path())
 
 ### 7.1 三任务共通
 
-- **原始诊断文本**：只读对照，不要当成 CAP 预标注去改。
-- **人工确认**（`human_confirmed`）：每张必选；选 `yes` 表示本样本已经过人工处理（无论是否改过预标注）。选 `no` 表示未确认，导出分类时进入 **rework**（即使 `needs_rework=no`）。
-- **是否需要返工**（`needs_rework`）：不确定时可选 `yes`；未勾选/选 `no` **单独不足以**进 normal。分类规则见下：`should_rework = (not human_confirmed) or needs_rework`。
+- **原始诊断文本**：只读对照；CAP 请在 `cap_text` 中书写/编辑**人工**文案，不要把原文控件当成可提交结果。
+- **人工确认**（`human_confirmed`）：每张必选；选 `yes` 表示本样本已经过人工处理。选 `no` 表示未确认，导出分类时进入 **rework**（即使 `needs_rework=no`）。
+- **是否需要返工**（`needs_rework`）：不确定时可选 `yes`；未勾选/选 `no` **单独不足以**进 normal。分类规则（**当前已实现**）：`should_rework = (not human_confirmed) or needs_rework`。
+- **空标注 → rework（V1 目标，尚未实现）**：无有效人工载荷（空 result / 缺 mask·bbox·text）也应进 `rework/`；〔现状〕仍主要看勾选，且导出侧可能仍有 prediction fallback。
 - 侧栏 `image_id` / `package_id` 仅供追溯，无需编辑。
 
 ### 7.2 SEG
 
-- 预标注 mask 应叠在**原图**上；工作台为 **PolygonLabels**（`seg_mask` / `lesion`），用**多边形**增删改区域（不是画笔）。
-- 同一张 mask 内多块不连通病灶在预填时会拆成多条同标签 `lesion` 多边形，可分别编辑。
-- `$mask_ref` 仅为路径追溯，不是主展示图。
-- 解析仍兼容历史 Brush RLE 导出；新任务默认 polygon 预填（见 `docs/formats.md`）。
+- 工作台为 **PolygonLabels**（`seg_mask` / `lesion`），用**多边形**增删改区域。
+- **V1 目标**：首轮从空白开始勾画病灶。〔现状〕可能仍有 prelabel 多边形预填。
+- `$mask_ref` 仅为路径追溯（若出现），不是主展示图。
+- 解析仍兼容历史 Brush RLE 导出；新任务工作台为 polygon。
 
 ### 7.3 DET
 
-- 预标注框叠在原图上，可增删改多个框（标签 `object`）。
-- 空框样本可在原图上新画框。
+- 在原图上增删改检测框（标签 `object`）。
+- **V1 目标**：首轮无预填框。〔现状〕可能仍有 prelabel 框。
 
 ### 7.4 CAP
 
-- 在 **预标注文本**（`cap_text`）中修改模型生成文案。
+- 在 **`cap_text`** 中填写/修改人工描述文本。
 - 右侧/侧栏 **原始诊断文本** 保持只读，用于对照。
+- **勿**将模型预标注文案当作 V1 必经步骤（Legacy 演示除外）。
 
 ---
 
@@ -168,7 +184,7 @@ data/ls_export/<batch_id>/<task>/
 
 可选按轮次分子目录，例如 `round_001/`，避免覆盖历史排障材料。
 
-导出后可用 P4 覆盖写入与分类（**二选一**），再生成返工再导入任务：
+导出后可用下列命令（**二选一** apply / export-split），再生成返工再导入任务：
 
 ```bash
 # 推荐：一条命令 = apply-current + 返回/写出 normal、rework（勿再跑 apply-current）
@@ -181,10 +197,19 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.j
 ```
 
 - `apply-current`：**底层** export → merge `current/`（并全量重建 normal/rework / previous_annotations）；SEG 若有 brush/polygon 会写出 `manual_masks/`
-- `export-split`：**高级封装**，内部调用 apply-current，并返回 `normal/`、`rework/` 路径；分类规则：`should_rework = (not human_confirmed) or needs_rework`
+- `export-split`：**高级封装**，内部调用 apply-current，并返回 `normal/`、`rework/` 路径；分类规则（当前）：`should_rework = (not human_confirmed) or needs_rework`
+- **金标准（V1 目标）**：仅人工 annotation；**禁止** prediction fallback。〔现状〕`resolve_effective_result` 仍含 fallback — **未删除**
 - `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）。**优先**读 `rework/previous_annotations/<task>.json`（无需 `--export`）；仅当该快照不存在时才需要 `--export`（旧包兼容）。快照不含原图，导入仍依赖同批 `task_packages` 图像路径
 
-### 8.1 `export-split` / `apply-current` 与导出范围
+### 8.1 返工预填 ≠ 模型预测
+
+| 概念 | 含义 |
+|------|------|
+| `previous_annotations` | 上一轮**人工**结果快照（几何/文本）；业务权威来源 |
+| LS 字段 `predictions` | 返工导入时**可能仍用该字段名**承载人工历史，供工作台预填；**不是** V1 意义上的模型输出 |
+| model / prelabel prediction | V1 金标准路径**禁止**；首轮目标亦无 |
+
+### 8.2 `export-split` / `apply-current` 与导出范围
 
 二者均按 `image_id` **合并**写入 `current/`：导出里出现的样本覆盖；**未出现的样本保留**。日常用 `export-split`；勿对同一 export 再跑另一条。
 
@@ -203,7 +228,8 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.j
 |------|----------|------|
 | 任务有、图不显示 | Local storage 根 ≠ `local_root`；或相对路径层级不对 | 核对 `--data-root` / `--local-root` 与 LS 本地根；确认 `d=` 下路径在磁盘上真实存在 |
 | Windows 路径问题 | 混用反斜杠 | 本流水线生成的 `d=` 已用正斜杠；勿手改成 `\` |
-| SEG 无预填多边形 | 生成导入时缺 mask，或未成功跑通 `ls-import` | 检查 `prelabels/.../masks/` 与 `mask_ref`；重新执行 `mma ls-import --task seg`（默认 polygon 预填） |
+| 〔现状〕`ls-import` 失败 / 缺预填 | 仍依赖 `prelabels/` 或 SEG mask | 在改造完成前补齐 Legacy prelabels；或等待 M4 空任务导入 |
+| 期望首轮无预填但仍看到几何/文本 | 当前实现仍写 predictions | 属 〔现状〕；非 V1 目标已完成 |
 | DET 转换失败 | 任务包缺图或图损坏 | 检查 `task_packages/.../images/{image_id}.jpg` |
 | 导入报控件不匹配 | 项目 XML 与任务类型不一致 | SEG 项目只用 `seg.xml`，勿把 DET 的 `tasks.json` 导进 SEG 项目 |
 | `merge` 仍报 needs_rework，但本轮以为已修完 | 只同步了部分导出，旧返工样本仍留在 `current/` | 全量导出再 `export-split`（或 `apply-current`）；或继续返工轮直到 `current/` 无返工残留 |
@@ -230,6 +256,6 @@ mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.js
 mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.json>] --data-root data
 ```
 
-- [data_layout.md](data_layout.md) — `ls_import` / `ls_export` / `task_packages` / `prelabels`
-- [formats.md](formats.md) — 中间格式与 SEG/DET/CAP 控制名对齐
-- 仓库根 [README.md](../README.md) — 安装与 CLI 总览
+- [data_layout.md](data_layout.md) — `ls_import` / `ls_export` / `task_packages`；Legacy `prelabels`
+- [formats.md](formats.md) — **Legacy** 中间格式与控件名（非 V1 主流程必读）
+- 仓库根 [README.md](../README.md) — V1 定位、安装与 CLI 总览

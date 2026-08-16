@@ -1,8 +1,8 @@
 """Unified CLI entry for the multitask annotation pipeline.
 
-``preprocess``, ``package``, ``ls-import``, ``export-split``,
-``rework-import``, ``apply-current``, and ``merge`` are wired; ``convert``
-remains a stub.
+V1 main flow: ``preprocess``, ``package``, ``ls-import`` (empty tasks from
+task_packages), ``export-split``, ``rework-import``, ``apply-current``,
+``merge``. ``convert`` is a **LEGACY** stub (not part of the V1 main workflow).
 """
 
 from __future__ import annotations
@@ -32,6 +32,21 @@ def _stub(command: str) -> int:
     print(
         f"mma {command}: not implemented yet "
         "(CLI skeleton only; business logic comes in later stages).",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def _run_convert_legacy_stub(_args: argparse.Namespace) -> int:
+    """LEGACY convert entry: not wired; point users at V1 ``ls-import``."""
+
+    print(
+        "mma convert: LEGACY stub — prelabel conversion is not part of the "
+        "V1 main workflow and is not wired in the CLI.\n"
+        "Use `mma ls-import` to build empty Label Studio annotation tasks "
+        "from task_packages.\n"
+        "(Python API mma.converters.document_to_ls_tasks remains available "
+        "for legacy/tests.)",
         file=sys.stderr,
     )
     return 2
@@ -81,7 +96,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     convert = subparsers.add_parser(
         "convert",
-        help="Convert prelabels to Label Studio import format (P2).",
+        help=(
+            "LEGACY: convert prelabels to LS tasks "
+            "(not part of V1 main workflow; stub)."
+        ),
+        description=(
+            "LEGACY stub. Prelabel → Label Studio conversion is not part of "
+            "the V1 manual gold-standard workflow. Use `mma ls-import` instead."
+        ),
     )
     convert.add_argument("--batch", required=True, help="Batch ID")
     convert.add_argument(
@@ -93,7 +115,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     ls_import = subparsers.add_parser(
         "ls-import",
-        help="Build Label Studio import tasks with local-files image URLs (P3).",
+        help=(
+            "Build empty Label Studio annotation tasks from task_packages "
+            "(V1 manual workflow; no predictions)."
+        ),
+        description=(
+            "V1 first-round import: read task_packages only and write empty "
+            "LS tasks (data fields only; no predictions / prelabels)."
+        ),
     )
     ls_import.add_argument("--batch", required=True, help="Batch ID")
     ls_import.add_argument(
@@ -347,6 +376,8 @@ def dispatch(args: argparse.Namespace) -> int:
         return _run_preprocess(args)
     if command == "package":
         return _run_package(args)
+    if command == "convert":
+        return _run_convert_legacy_stub(args)
     if command == "ls-import":
         return _run_ls_import(args)
     if command == "apply-current":
