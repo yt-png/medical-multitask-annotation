@@ -1,5 +1,23 @@
 # Changelog
 
+## V1 — M5.6 common 空标注规则测试锁定（2026-08-16）
+
+### Tests
+
+- `tests/test_models.py`：补 SEG 空白 `mask_ref`、NORMAL 拒 `has_foreground=False`；锁定空标注→rework
+- `tests/test_seg_mask_paths.py`：文档标明 manual 为主路径；`masks/→prelabels` 为历史兼容（清理属 **M5.4**，本任务不改解析行为）
+
+### Docs
+
+- 正式关闭 M5.6；去 prelabels 路径解析仍见 Planned（M5.4）
+
+### Planned（仍未完成）
+
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- **`seg_mask_paths` 去 prelabels**（M5.4）及 models 注释清理（M5.5）
+- 返工语义收紧（M4.3 / M6.4）
+- **M12.1–M12.3**：场景门禁收口
+
 ## V1 — M6.5 exporters 测试场景收口（2026-08-16）
 
 ### Tests
@@ -16,7 +34,7 @@
 
 - **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
 - 返工语义收紧（M4.3 / M6.4）
-- **M5.6 / M12.1–M12.3**：common 规则锁定与场景门禁收口
+- ~~**M5.6 / M12.1–M12.3**：common 规则锁定与场景门禁收口~~ → M5.6 见上一节；**M12.1–M12.3** 仍待做
 
 ## V1 — M6.3 空标注分类验收闭环（2026-08-16）
 

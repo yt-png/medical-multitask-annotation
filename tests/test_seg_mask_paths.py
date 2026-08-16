@@ -1,4 +1,9 @@
-"""Tests for common SEG current mask_ref path resolution."""
+"""Tests for common SEG current mask_ref path resolution.
+
+V1 primary path: ``manual_masks/...`` under ``results/<batch>/seg/``.
+``masks/...`` → ``prelabels/...`` remains historical compatibility until M5.4
+(do not treat as V1 gold-standard layout).
+"""
 
 from __future__ import annotations
 
@@ -14,6 +19,8 @@ from mma.common.seg_mask_paths import (
 
 
 def test_manual_masks_resolves_under_results(tmp_path: Path) -> None:
+    """V1 primary: human manual mask under results/.../manual_masks/."""
+
     resolved = resolve_current_seg_mask_path(
         f"{MANUAL_MASK_REL_DIR}/img1_manual.png",
         batch_id="batch1",
@@ -28,6 +35,8 @@ def test_manual_masks_resolves_under_results(tmp_path: Path) -> None:
 
 
 def test_prelabel_masks_resolves_under_prelabels(tmp_path: Path) -> None:
+    """Historical compatibility: non-manual refs still resolve under prelabels (M5.4)."""
+
     resolved = resolve_current_seg_mask_path(
         "masks/img1.png",
         batch_id="batch1",

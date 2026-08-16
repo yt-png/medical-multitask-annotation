@@ -1,4 +1,8 @@
-"""Tests for core data contracts (T0.2). No real image/Excel I/O."""
+"""Tests for core data contracts (T0.2). No real image/Excel I/O.
+
+Includes M5.6 lock-in for empty / missing task payload → rework
+(``has_effective_task_payload`` / ``should_rework_result`` / ResultBundle).
+"""
 
 from __future__ import annotations
 
@@ -191,6 +195,15 @@ def test_has_effective_task_payload_seg_has_foreground() -> None:
     )
 
 
+def test_has_effective_task_payload_seg_whitespace_mask_ref() -> None:
+    from mma.common.models import has_effective_task_payload
+
+    assert (
+        has_effective_task_payload(TaskType.SEG, SegAnnotation(mask_ref="  "))
+        is False
+    )
+
+
 def test_should_rework_result_or_empty_payload() -> None:
     from mma.common.models import should_rework_result
 
@@ -379,6 +392,25 @@ def test_normal_bundle_rejects_empty_payload_item() -> None:
         ResultBundle(
             bundle_kind=BundleKind.NORMAL,
             task_type=TaskType.DET,
+            items=(item,),
+        )
+
+
+def test_normal_bundle_rejects_empty_seg_has_foreground_false() -> None:
+    item = TaskAnnotationResult(
+        image_id="img-1",
+        task_type=TaskType.SEG,
+        annotation=SegAnnotation(
+            mask_ref="manual_masks/img-1_manual.png",
+            has_foreground=False,
+        ),
+        human_confirmed=True,
+        needs_rework=False,
+    )
+    with pytest.raises(ValueError, match="NORMAL bundle"):
+        ResultBundle(
+            bundle_kind=BundleKind.NORMAL,
+            task_type=TaskType.SEG,
             items=(item,),
         )
 
