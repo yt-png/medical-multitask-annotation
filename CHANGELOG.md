@@ -1,5 +1,28 @@
 # Changelog
 
+## V1 — M6.2 parse 只消费人工 effective（2026-08-16）
+
+### Changed
+
+- `exporters/parse_ls_export.py`：SEG/DET/CAP 只消费 annotation-only `EffectiveLsResult`；删除 `prediction_fallback` / `data.mask_ref` 金标准回退
+- CAP 缺 `cap_text`（confirm-only）→ 空 caption；SEG 无几何 → 写空 `manual_masks/`（须 `seg_manual_mask_dir`）；空 mask 尺寸来自控件 `original_*` 或 `image_metadata_by_id`
+- `apply_current_from_export`：SEG 同步传入图像 metadata（供空 mask 定尺寸）
+- `extract_ls_raw_results`：文档与 annotation-only 对齐
+
+### Tests
+
+- `tests/test_parse_ls_export.py`：去掉 CAP/DET/SEG prediction / mask_ref 回填用例，改为 V1 空结果 / 无 predictions 可解析
+
+### Docs
+
+- `README.md`：parse〔现状〕与 M6.1/M6.2 对齐
+
+### Planned（仍未完成）
+
+- **空标注 / 缺结果 → `rework/`**（M5.1 / M6.3）
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- 返工语义收紧（M4.3 / M6.4）
+
 ## V1 — M6.1 去 prediction_fallback（2026-08-16）
 
 ### Changed
@@ -18,7 +41,7 @@
 
 ### Planned（仍未完成）
 
-- **M6.2**：`parse_ls_export` 去掉对旧 `prediction_fallback` 源分支 / SEG `mask_ref` 收口
+- ~~**M6.2**：`parse_ls_export` 去掉对旧 `prediction_fallback` 源分支 / SEG `mask_ref` 收口~~ → 见上一节（已落地）
 - **空标注 / 缺结果 → `rework/`**（M5.1 / M6.3）
 - **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
 - 返工语义收紧（M4.3 / M6.4）

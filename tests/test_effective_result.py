@@ -338,6 +338,15 @@ def test_legacy_rework_raw_confirm_only_no_prelabel_geometry(tmp_path: Path) -> 
                     "img-det": ImageMetadata(width=100, height=100)
                 },
             )
+        elif task == "seg":
+            results = parse_ls_export_data(
+                [export_task],
+                task_type=task_type,
+                seg_manual_mask_dir=tmp_path / "manual_masks",
+                image_metadata_by_id={
+                    "img-seg": ImageMetadata(width=10, height=10)
+                },
+            )
         else:
             results = parse_ls_export_data([export_task], task_type=task_type)
 

@@ -13,7 +13,7 @@
 | 空标注 | 可能被 prediction 回填 | 空 / 缺结果 → `rework/` |
 | prelabel 能力 | 主流程 | **隔离为 legacy**（历史参考，非主流程必做） |
 
-> **实现状态**：首轮 **空任务 `ls-import` 已落地**（M4.1 / M4.2）；**M6.1 已去掉** `resolve_effective_result` 的 `prediction_fallback`（有效结果仅人工 annotation）。下列项**仍未完成**：M6.2 parse 收口、空标注→rework、adapters/formats legacy 隔离等（见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`）。与尚未交付行为不一致处仍标 **〔现状〕**。
+> **实现状态**：首轮 **空任务 `ls-import` 已落地**（M4.1 / M4.2）；**M6.1/M6.2 已落地**：有效结果与 parse 金标准仅人工 annotation（无 `prediction_fallback` / 不以 `data.mask_ref` 或 pred 填结果）。下列项**仍未完成**：空标注→rework、adapters/formats legacy 隔离等（见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`）。与尚未交付行为不一致处仍标 **〔现状〕**。
 
 ## 流水线一览（V1）
 
@@ -97,15 +97,15 @@ mma merge --batch demo_batch --data-root data
 
 **空标注 → rework（V1 目标，尚未实现）**：无有效人工载荷（空 result / 缺 mask·bbox·text）也应进入 `rework/`。〔现状〕分类仍主要看勾选。
 
-**金标准来源（M6.1 已落地）**：`resolve_effective_result` 有效结果仅来自人工 `annotation.result`；已删除 `prediction_fallback`。〔现状〕`parse_ls_export` 对旧 `empty` / `mask_ref` 等分支的收口见 M6.2。
+**金标准来源（M6.1 / M6.2 已落地）**：`resolve_effective_result` 与 `parse_ls_export` 有效结果仅来自人工 `annotation`；已删除 `prediction_fallback`；SEG 不再用 `data.mask_ref` / pred 几何作金标准（空/无几何写 `manual_masks/`）。
 
 **首轮导入（已实现）**：`tasks.json` 每条仅含 `data.image` / `image_id` / `package_id` / `diagnosis_text`；**无** `predictions`、`mask_ref` 或 prelabel 字段。输入仅为 `task_packages/`。
 
-**SEG**：人工几何写入 `manual_masks/`。首轮导入不再做 prelabel polygon 预填。
+**SEG**：人工几何或空/confirm-only 写入 `manual_masks/`；须提供 `seg_manual_mask_dir`。首轮导入不再做 prelabel 预填。
 
-**DET / CAP**：首轮导入无预填框/文本；导出 effective 不再回填 prediction（M6.1）；人工清空则保留空结果。
+**DET / CAP**：首轮导入无预填框/文本；导出不再回填 prediction；人工清空或 confirm-only → 空框 / 空文案。
 
-**返工预填**：`previous_annotations` = 上一轮**人工**快照；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**；导出金标准**不再**将该槽位作 fallback（M6.1）；parse/返工语义收紧见 M6.2 / M6.4。
+**返工预填**：`previous_annotations` = 上一轮**人工**快照；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**；导出金标准不再将该槽位作 fallback（M6.1/M6.2）；返工语义文档收紧见 M6.4。
 
 **final**：自包含（含 `images/`、`masks/` 与相对路径清单）；未就绪或缺任务则失败，不改写已有 final。
 

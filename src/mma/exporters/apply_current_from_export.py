@@ -77,11 +77,12 @@ def apply_current_from_export(
         raise FileNotFoundError(f"LS export not found: {path}")
 
     metadata: dict[str, ImageMetadata] | None = None
-    if task_type is TaskType.DET:
+    if task_type is TaskType.DET or task_type is TaskType.SEG:
         image_ids = _peek_export_image_ids(path)
-        metadata = _det_image_metadata_by_id(
+        metadata = _task_image_metadata_by_id(
             cleaned,
             image_ids,
+            task_type=task_type,
             data_root=root,
         )
 
@@ -143,20 +144,34 @@ def _peek_export_image_ids(export_path: Path) -> list[str]:
     return image_ids
 
 
-def _det_image_metadata_by_id(
+def _task_image_metadata_by_id(
     batch_id: str,
     image_ids: list[str],
     *,
+    task_type: TaskType,
     data_root: Path,
 ) -> dict[str, ImageMetadata]:
+    """Load image sizes from task-package files.
+
+    DET requires every ``image_id`` to resolve. SEG treats missing package
+    images as skippable (empty-mask sizing can use annotation ``original_*``
+    or fail later with a clear size error).
+    """
+
+    task_key = task_type.value.lower()
     meta: dict[str, ImageMetadata] = {}
     for image_id in image_ids:
-        image_path = resolve_task_image_path(
-            batch_id,
-            "det",
-            image_id,
-            data_root=data_root,
-        )
+        try:
+            image_path = resolve_task_image_path(
+                batch_id,
+                task_key,
+                image_id,
+                data_root=data_root,
+            )
+        except ValueError:
+            if task_type is TaskType.SEG:
+                continue
+            raise
         try:
             with Image.open(image_path) as img:
                 width, height = img.size

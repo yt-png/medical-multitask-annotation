@@ -208,7 +208,7 @@ def test_cap_human_empty_clears_prediction() -> None:
     assert results[0].annotation.caption == ""
 
 
-def test_cap_missing_textarea_falls_back_to_prediction() -> None:
+def test_cap_missing_textarea_yields_empty() -> None:
     task = _cap_task(image_id="img-fallback", caption="ignored")
     task["annotations"][0]["result"] = [
         entry
@@ -220,23 +220,22 @@ def test_cap_missing_textarea_falls_back_to_prediction() -> None:
         {"result": [_cap_prediction_result("A small nodule")]},
     ]
     results = parse_ls_export_data([task], task_type=TaskType.CAP)
-    assert results[0].annotation.caption == "A small nodule"
+    assert results[0].annotation.caption == ""
 
 
-def test_cap_missing_textarea_and_prediction_raises() -> None:
+def test_cap_missing_textarea_without_predictions_yields_empty() -> None:
     task = _cap_task(image_id="img-missing", caption="x")
     task["annotations"][0]["result"] = [
         entry
         for entry in task["annotations"][0]["result"]
         if entry.get("from_name") != "cap_text"
     ]
-    task["predictions"] = [{"result": []}]
-    with pytest.raises(ValueError, match="missing 'cap_text'"):
-        parse_ls_export_data([task], task_type=TaskType.CAP)
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].annotation.caption == ""
 
 
-def test_cap_confirm_only_falls_back_to_prediction() -> None:
-    """Confirm-only: choices only, no prediction link → use prediction caption."""
+def test_cap_confirm_only_yields_empty_caption() -> None:
+    """Confirm-only: choices only → empty caption (no prediction fill)."""
 
     task = _cap_task(image_id="img-cap-confirm", caption="ignored")
     task["annotations"][0]["result"] = [
@@ -249,7 +248,7 @@ def test_cap_confirm_only_falls_back_to_prediction() -> None:
         {"result": [_cap_prediction_result("肺炎")]},
     ]
     results = parse_ls_export_data([task], task_type=TaskType.CAP)
-    assert results[0].annotation.caption == "肺炎"
+    assert results[0].annotation.caption == ""
 
 
 def test_cap_human_cleared_does_not_fall_back_to_prediction() -> None:
@@ -345,8 +344,8 @@ def _det_prediction_box(
     }
 
 
-def test_parse_det_unoperated_falls_back_to_predictions() -> None:
-    """Case1: no det_bbox in annotation, prediction link absent → keep predictions."""
+def test_parse_det_confirm_only_empty_boxes() -> None:
+    """No det_bbox in annotation → empty boxes (predictions ignored)."""
 
     task = _det_task(image_id="img-det-fb", boxes_pct=[])
     task["predictions"] = [
@@ -370,16 +369,11 @@ def test_parse_det_unoperated_falls_back_to_predictions() -> None:
     )
     annotation = results[0].annotation
     assert isinstance(annotation, DetAnnotation)
-    assert len(annotation.bboxes) == 1
-    box = annotation.bboxes[0]
-    assert box.x == pytest.approx(10.0)
-    assert box.y == pytest.approx(20.0)
-    assert box.width == pytest.approx(5.0)
-    assert box.height == pytest.approx(8.0)
+    assert annotation.bboxes == ()
 
 
-def test_parse_det_falls_back_to_latest_prediction_only() -> None:
-    """Multiple predictions are version history: use latest DET boxes only."""
+def test_parse_det_ignores_prediction_history() -> None:
+    """Multiple predictions must not fill DET boxes when annotation has none."""
 
     task = _det_task(image_id="img-det-latest", boxes_pct=[])
     task["predictions"] = [
@@ -402,14 +396,7 @@ def test_parse_det_falls_back_to_latest_prediction_only() -> None:
         task_type=TaskType.DET,
         image_metadata_by_id=meta,
     )
-    annotation = results[0].annotation
-    assert isinstance(annotation, DetAnnotation)
-    assert len(annotation.bboxes) == 1
-    box = annotation.bboxes[0]
-    assert box.x == pytest.approx(30.0)
-    assert box.y == pytest.approx(40.0)
-    assert box.width == pytest.approx(6.0)
-    assert box.height == pytest.approx(7.0)
+    assert results[0].annotation.bboxes == ()
 
 
 def test_parse_det_annotation_boxes_preferred_over_predictions() -> None:
@@ -476,7 +463,7 @@ def test_parse_det_cleared_after_accept_yields_empty_boxes() -> None:
     assert annotation.bboxes == ()
 
 
-def test_parse_seg_without_manual_dir_keeps_data_mask_ref() -> None:
+def test_parse_seg_without_manual_dir_raises() -> None:
     data = [
         _seg_task(
             image_id="img-seg-1",
@@ -484,15 +471,14 @@ def test_parse_seg_without_manual_dir_keeps_data_mask_ref() -> None:
             include_brush=True,
         )
     ]
-    results = parse_ls_export_data(data, task_type=TaskType.SEG)
-    annotation = results[0].annotation
-    assert isinstance(annotation, SegAnnotation)
-    assert annotation.mask_ref == "masks/img-seg-1.png"
-    assert "rle" not in annotation.mask_ref
+    with pytest.raises(ValueError, match="seg_manual_mask_dir"):
+        parse_ls_export_data(data, task_type=TaskType.SEG)
 
 
-def test_parse_seg_no_brush_keeps_data_mask_ref(tmp_path: Path) -> None:
-    """Case 1: prediction/prelabel present, no annotation SEG operation → fallback."""
+def test_parse_seg_confirm_only_writes_empty_manual(tmp_path: Path) -> None:
+    """No SEG geometry: write empty manual mask; ignore predictions / data.mask_ref."""
+
+    from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref
 
     data = [
         _seg_task(
@@ -501,7 +487,6 @@ def test_parse_seg_no_brush_keeps_data_mask_ref(tmp_path: Path) -> None:
             include_brush=False,
         )
     ]
-    # Attach predictions (prelabel brushes) without linking annotation.prediction
     data[0]["predictions"] = [
         {
             "id": 10,
@@ -521,17 +506,25 @@ def test_parse_seg_no_brush_keeps_data_mask_ref(tmp_path: Path) -> None:
             ],
         }
     ]
+    mask_dir = tmp_path / "manual_masks"
     results = parse_ls_export_data(
         data,
         task_type=TaskType.SEG,
-        seg_manual_mask_dir=tmp_path / "manual_masks",
+        seg_manual_mask_dir=mask_dir,
+        image_metadata_by_id={
+            "img-seg-nb": ImageMetadata(width=2, height=2)
+        },
     )
-    assert results[0].annotation.mask_ref == "masks/prelabel.png"
-    assert not (tmp_path / "manual_masks").exists()
+    assert results[0].annotation.mask_ref == manual_mask_ref("img-seg-nb")
+    loaded, width, height = load_foreground_mask(
+        mask_dir / "img-seg-nb_manual.png"
+    )
+    assert (width, height) == (2, 2)
+    assert loaded == [[0, 0], [0, 0]]
 
 
 def test_parse_seg_cleared_brushes_writes_empty_mask(tmp_path: Path) -> None:
-    """Case 2: accepted prediction then deleted all brushes → empty human mask."""
+    """Accepted prediction then deleted all brushes → empty human mask."""
 
     from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref
 
@@ -565,6 +558,9 @@ def test_parse_seg_cleared_brushes_writes_empty_mask(tmp_path: Path) -> None:
         [task],
         task_type=TaskType.SEG,
         seg_manual_mask_dir=mask_dir,
+        image_metadata_by_id={
+            "img-cleared": ImageMetadata(width=3, height=2)
+        },
     )
     annotation = results[0].annotation
     assert isinstance(annotation, SegAnnotation)
@@ -823,11 +819,67 @@ def test_task_type_control_mismatch_raises() -> None:
         parse_ls_export_data(data, task_type=TaskType.DET)
 
 
-def test_seg_missing_mask_ref_raises() -> None:
-    task = _seg_task(image_id="img-s", mask_ref="masks/x.png")
+def test_parse_seg_no_mask_ref_ok_with_manual_dir(tmp_path: Path) -> None:
+    """V1: missing data.mask_ref is fine when manual dir + metadata are provided."""
+
+    from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref
+
+    task = _seg_task(
+        image_id="img-s",
+        mask_ref="masks/x.png",
+        include_brush=False,
+    )
     task["data"].pop("mask_ref")
-    with pytest.raises(ValueError, match="mask_ref"):
-        parse_ls_export_data([task], task_type=TaskType.SEG)
+    mask_dir = tmp_path / "manual_masks"
+    results = parse_ls_export_data(
+        [task],
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=mask_dir,
+        image_metadata_by_id={"img-s": ImageMetadata(width=2, height=2)},
+    )
+    assert results[0].annotation.mask_ref == manual_mask_ref("img-s")
+    loaded, width, height = load_foreground_mask(mask_dir / "img-s_manual.png")
+    assert (width, height) == (2, 2)
+    assert loaded == [[0, 0], [0, 0]]
+
+
+def test_parse_without_predictions_key_ok_for_cap_det_seg(tmp_path: Path) -> None:
+    """No predictions key: CAP/DET/SEG still parse (V1 empty-task exports)."""
+
+    from mma.converters.seg_brush import manual_mask_ref
+
+    cap = _cap_task(image_id="img-np-cap", caption="hello")
+    assert "predictions" not in cap
+    cap_results = parse_ls_export_data([cap], task_type=TaskType.CAP)
+    assert cap_results[0].annotation.caption == "hello"
+
+    det = _det_task(image_id="img-np-det", boxes_pct=[(10.0, 20.0, 5.0, 5.0)])
+    assert "predictions" not in det
+    det_results = parse_ls_export_data(
+        [det],
+        task_type=TaskType.DET,
+        image_metadata_by_id={
+            "img-np-det": ImageMetadata(width=100, height=100)
+        },
+    )
+    assert len(det_results[0].annotation.bboxes) == 1
+
+    seg = _seg_task(
+        image_id="img-np-seg",
+        mask_ref="masks/x.png",
+        include_brush=False,
+    )
+    seg["data"].pop("mask_ref")
+    assert "predictions" not in seg
+    seg_results = parse_ls_export_data(
+        [seg],
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=tmp_path / "manual_masks",
+        image_metadata_by_id={
+            "img-np-seg": ImageMetadata(width=2, height=2)
+        },
+    )
+    assert seg_results[0].annotation.mask_ref == manual_mask_ref("img-np-seg")
 
 
 def test_parse_ls_export_reads_file(tmp_path: Path) -> None:
@@ -880,7 +932,7 @@ def test_cancelled_annotation_skipped_for_newer() -> None:
     not (_LS_EXPORT_ROOT / "cap").exists(),
     reason="demo_batch LS export not present under data/",
 )
-def test_real_demo_exports_smoke() -> None:
+def test_real_demo_exports_smoke(tmp_path: Path) -> None:
     cap_files = list((_LS_EXPORT_ROOT / "cap").glob("*.json"))
     det_files = list((_LS_EXPORT_ROOT / "det").glob("*.json"))
     seg_files = list((_LS_EXPORT_ROOT / "seg").glob("*.json"))
@@ -912,9 +964,19 @@ def test_real_demo_exports_smoke() -> None:
     assert len(det_by_id["demo_batch__000001"].annotation.bboxes) == 2
     assert det_by_id["demo_batch__000002"].annotation.bboxes == ()
 
-    seg = parse_ls_export(seg_files[0], task_type=TaskType.SEG)
+    seg = parse_ls_export(
+        seg_files[0],
+        task_type=TaskType.SEG,
+        seg_manual_mask_dir=tmp_path / "manual_masks",
+        image_metadata_by_id={
+            "demo_batch__000001": ImageMetadata(width=1, height=1),
+            "demo_batch__000002": ImageMetadata(width=1, height=1),
+        },
+    )
     assert len(seg) == 2
     seg_by_id = {r.image_id: r for r in seg}
+    from mma.converters.seg_brush import manual_mask_ref
+
     assert seg_by_id["demo_batch__000001"].annotation.mask_ref == (
-        "masks/demo_batch__000001.png"
+        manual_mask_ref("demo_batch__000001")
     )

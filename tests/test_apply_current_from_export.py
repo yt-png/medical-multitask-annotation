@@ -167,9 +167,23 @@ def _write_export(path: Path, tasks: list[dict]) -> Path:
 
 
 def _write_det_image(data_root: Path, batch_id: str, image_id: str, size: tuple[int, int]) -> None:
-    images = data_root / "task_packages" / batch_id / "det" / "images"
+    _write_task_image(data_root, batch_id, "det", image_id, size)
+
+
+def _write_task_image(
+    data_root: Path,
+    batch_id: str,
+    task: str,
+    image_id: str,
+    size: tuple[int, int],
+) -> None:
+    images = data_root / "task_packages" / batch_id / task / "images"
     images.mkdir(parents=True, exist_ok=True)
     Image.new("RGB", size, color=(10, 20, 30)).save(images / f"{image_id}.jpg")
+
+
+def _write_seg_image(data_root: Path, batch_id: str, image_id: str, size: tuple[int, int]) -> None:
+    _write_task_image(data_root, batch_id, "seg", image_id, size)
 
 
 def test_cap_and_seg_write_current(tmp_path: Path) -> None:
@@ -251,7 +265,10 @@ def test_seg_brush_writes_manual_mask_ref(tmp_path: Path) -> None:
     assert decoded == binary
 
 
-def test_seg_without_brush_keeps_prelabel_mask_ref(tmp_path: Path) -> None:
+def test_seg_without_brush_writes_empty_manual_mask(tmp_path: Path) -> None:
+    """No SEG geometry → empty manual mask (not data.mask_ref)."""
+
+    _write_seg_image(tmp_path, "batch1", "img-nb", (2, 2))
     export = _write_export(
         tmp_path / "seg.json",
         [
@@ -269,9 +286,14 @@ def test_seg_without_brush_keeps_prelabel_mask_ref(tmp_path: Path) -> None:
         data_root=tmp_path,
     )
     loaded = load_current("batch1", TaskType.SEG, data_root=tmp_path)
-    assert loaded[0].annotation.mask_ref == "masks/keep.png"
-    mask_dir = results_manual_masks_dir("batch1", data_root=tmp_path)
-    assert not mask_dir.exists() or list(mask_dir.glob("*")) == []
+    assert loaded[0].annotation.mask_ref == manual_mask_ref("img-nb")
+    out = results_manual_masks_dir("batch1", data_root=tmp_path) / (
+        "img-nb_manual.png"
+    )
+    assert out.is_file()
+    decoded, w, h = load_foreground_mask(out)
+    assert (w, h) == (2, 2)
+    assert decoded == [[0, 0], [0, 0]]
 
 
 def test_det_uses_task_package_image_size(tmp_path: Path) -> None:

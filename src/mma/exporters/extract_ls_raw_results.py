@@ -1,8 +1,8 @@
 """Extract Label Studio effective results by image_id (legacy rework channel).
 
-Uses ``resolve_effective_result`` so confirm-only annotations still carry
-prediction geometry/text for ``rework-import`` when ``previous_annotations``
-is absent. Selection rules align with ``parse_ls_export``.
+Uses ``resolve_effective_result`` (annotation-only effective). Confirm-only
+exports no longer carry prediction geometry/text. Prefer
+``previous_annotations`` for rework prefill.
 """
 
 from __future__ import annotations
@@ -35,9 +35,8 @@ def extract_ls_raw_results_data(
 ) -> dict[str, tuple[dict[str, Any], ...]]:
     """Extract deep-copied **effective** result lists keyed by ``image_id``.
 
-    Effective = annotation task payload when present; otherwise prediction
-    task payload + annotation Choices when confirm-only; intentional clears
-    (``annotation.prediction`` set, no task payload) do not fall back.
+    Effective = annotation-only ``resolve_effective_result.effective_result``
+    (confirm-only / cleared samples do not include prediction geometry).
     """
 
     if not isinstance(task_type, TaskType):

@@ -3,22 +3,18 @@
 Supports SEG / DET / CAP exports aligned with package Labeling Configs.
 Does not classify rework bundles, overwrite ``current/``, or re-import.
 
-Human vs prediction selection is owned solely by
-``resolve_effective_result`` (confirm-only → prediction_fallback; Accept-then-
-clear → human_cleared / empty task payload). CAP / DET / SEG parsers only
-convert ``EffectiveLsResult`` into annotation objects and must not re-read
-``task["predictions"]`` or ``annotation["prediction"]``.
+Effective payload selection is owned solely by ``resolve_effective_result``
+(annotation-only). CAP / DET / SEG parsers only convert ``EffectiveLsResult``
+into annotation objects and must not re-read ``task["predictions"]`` or use
+``data.mask_ref`` / prediction geometry as the gold-standard source.
 
-SEG: when the effective source is human (annotation geometry or human_cleared),
-write ``manual_masks/`` (brush RLE and/or polygon points; zero geometry → empty
-mask). When source is prediction_fallback / empty (no human SEG operation),
-keep ``data.mask_ref``.
+SEG: geometry or empty/confirm-only / human_cleared → write ``manual_masks/``
+(requires ``seg_manual_mask_dir``). Empty mask size comes from annotation
+control ``original_*`` or ``image_metadata_by_id``.
 
-DET: boxes come from ``effective_result`` (human or latest-task-control
-prediction). Human cleared → empty boxes.
+DET: boxes from ``effective_result`` only (confirm-only / cleared → empty).
 
-CAP: caption from ``effective_result``; human cleared with no ``cap_text`` →
-empty string; missing on both sides → raise.
+CAP: caption from ``effective_result``; missing ``cap_text`` → empty string.
 """
 
 from __future__ import annotations
@@ -38,7 +34,6 @@ from mma.common.models import (
 )
 from mma.converters.to_labelstudio import (
     DATA_KEY_IMAGE_ID,
-    DATA_KEY_MASK_REF,
     DATA_KEY_PACKAGE_ID,
     DEFAULT_LS_RESULT_SPECS,
     ImageMetadata,
@@ -62,12 +57,10 @@ def parse_ls_export(
 ) -> tuple[TaskAnnotationResult, ...]:
     """Load a Label Studio export JSON file and parse task results.
 
-    When ``task_type`` is SEG and ``seg_manual_mask_dir`` is set, brush RLE
-    results are decoded and written as ``{image_id}_manual.png`` under that
-    directory; ``SegAnnotation.mask_ref`` becomes
-    ``manual_masks/{image_id}_manual.png``. If the directory is omitted (unit
-    tests / legacy callers), SEG keeps ``data.mask_ref`` even when brush
-    results are present.
+    When ``task_type`` is SEG, ``seg_manual_mask_dir`` is required so human
+    geometry or empty masks can be written as
+    ``manual_masks/{image_id}_manual.png``. Empty-mask sizing uses annotation
+    ``original_width/height`` or ``image_metadata_by_id``.
 
     ``export_round`` is a traceability field only (does not affect
     classification or merge). Callers such as ``apply-current`` typically
@@ -187,7 +180,6 @@ def _parse_one_task(
         effective,
         task_type=task_type,
         image_id=image_id,
-        task_data=data,
         image_metadata_by_id=image_metadata_by_id,
         seg_manual_mask_dir=seg_manual_mask_dir,
     )
@@ -376,15 +368,14 @@ def _parse_annotation_payload(
     *,
     task_type: TaskType,
     image_id: str,
-    task_data: dict[str, Any],
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
     seg_manual_mask_dir: Path | str | None,
 ) -> SegAnnotation | DetAnnotation | CapAnnotation:
     if task_type is TaskType.SEG:
         return _parse_seg_annotation(
             effective,
-            task_data=task_data,
             image_id=image_id,
+            image_metadata_by_id=image_metadata_by_id,
             seg_manual_mask_dir=seg_manual_mask_dir,
         )
     if task_type is TaskType.DET:
@@ -408,36 +399,26 @@ _SEG_RESULT_TYPES = frozenset({"brushlabels", "polygonlabels"})
 def _parse_seg_annotation(
     effective: EffectiveLsResult,
     *,
-    task_data: dict[str, Any],
     image_id: str,
+    image_metadata_by_id: Mapping[str, ImageMetadata] | None,
     seg_manual_mask_dir: Path | str | None,
 ) -> SegAnnotation:
-    """Build SEG payload from ``EffectiveLsResult`` only.
+    """Build SEG payload from annotation-only ``EffectiveLsResult``.
 
-    - ``human_cleared`` or annotation ``seg_mask`` controls → human path
-      (geometry → manual mask; zero geometry → empty manual mask)
-    - ``prediction_fallback`` / ``empty`` → ``data.mask_ref`` (do not treat
-      prediction geometry as a human edit)
-
-    Does not read ``task["predictions"]`` or ``annotation["prediction"]``.
+    Writes ``manual_masks/`` for human geometry or empty/confirm-only /
+    human_cleared samples. Does not use ``data.mask_ref`` or prediction
+    geometry as the gold-standard mask. Requires ``seg_manual_mask_dir``.
     """
 
     from mma.converters.seg_brush import write_empty_manual_mask
     from mma.converters.seg_polygon import write_manual_mask_from_seg_geometry
 
-    fallback_ref = task_data.get(DATA_KEY_MASK_REF)
-    if not isinstance(fallback_ref, str) or not fallback_ref.strip():
+    if seg_manual_mask_dir is None:
         raise ValueError(
-            f"SEG requires non-empty data.{DATA_KEY_MASK_REF} "
+            "SEG parse requires seg_manual_mask_dir "
             f"(image_id={image_id!r})"
         )
-    fallback_ref = fallback_ref.strip()
 
-    # Confirm-only / no human SEG operation: keep prelabel file ref.
-    if effective.source in ("prediction_fallback", "empty") and not effective.human_cleared:
-        return SegAnnotation(mask_ref=fallback_ref)
-
-    # Human path: geometry from effective_result (annotation side).
     control_entries = _collect_seg_control_entries(
         list(effective.effective_result),
         image_id=image_id,
@@ -453,10 +434,6 @@ def _parse_seg_annotation(
         if _seg_entry_has_nonempty_points(entry)
     ]
 
-    if seg_manual_mask_dir is None:
-        # Human SEG intent detected but no output dir: keep legacy fallback.
-        return SegAnnotation(mask_ref=fallback_ref)
-
     if brush_entries or polygon_entries:
         mask_ref = write_manual_mask_from_seg_geometry(
             image_id=image_id,
@@ -468,8 +445,8 @@ def _parse_seg_annotation(
 
     width, height = _resolve_empty_mask_size(
         control_entries,
-        prediction_result=effective.prediction_result,
         image_id=image_id,
+        image_metadata_by_id=image_metadata_by_id,
     )
     mask_ref = write_empty_manual_mask(
         image_id=image_id,
@@ -623,13 +600,13 @@ def _collect_seg_brush_entries(
 def _resolve_empty_mask_size(
     control_entries: Sequence[Mapping[str, Any]],
     *,
-    prediction_result: Sequence[Mapping[str, Any]],
     image_id: str,
+    image_metadata_by_id: Mapping[str, ImageMetadata] | None,
 ) -> tuple[int, int]:
     """Resolve width/height for an empty human mask.
 
-    Uses sizes on SEG control entries first, then the already-resolved
-    ``EffectiveLsResult.prediction_result`` (not raw ``task["predictions"]``).
+    Uses sizes on SEG control entries first, then ``image_metadata_by_id``.
+    Does not read prediction results.
     """
 
     for entry in control_entries:
@@ -637,18 +614,38 @@ def _resolve_empty_mask_size(
         if size is not None:
             return size
 
-    seg_from_name = DEFAULT_LS_RESULT_SPECS[TaskType.SEG]["from_name"]
-    for entry in prediction_result:
-        if entry.get("from_name") != seg_from_name:
-            continue
-        size = _try_entry_original_size(entry)
-        if size is not None:
-            return size
+    meta_size = _seg_size_from_image_metadata(
+        image_id, image_metadata_by_id
+    )
+    if meta_size is not None:
+        return meta_size
 
     raise ValueError(
         f"cannot determine empty SEG mask size (image_id={image_id!r}); "
-        "need original_width/original_height on a seg_mask entry or prediction"
+        "need original_width/original_height on a seg_mask entry or "
+        "image_metadata_by_id"
     )
+
+
+def _seg_size_from_image_metadata(
+    image_id: str,
+    image_metadata_by_id: Mapping[str, ImageMetadata] | None,
+) -> tuple[int, int] | None:
+    if image_metadata_by_id is None:
+        return None
+    metadata = image_metadata_by_id.get(image_id)
+    if metadata is None:
+        return None
+    if not isinstance(metadata, ImageMetadata):
+        raise ValueError(
+            f"image_metadata for {image_id!r} must be ImageMetadata, "
+            f"got {type(metadata).__name__}"
+        )
+    width = int(metadata.width)
+    height = int(metadata.height)
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
 
 
 def _try_entry_original_size(
@@ -670,11 +667,10 @@ def _parse_det_annotation(
     image_id: str,
     image_metadata_by_id: Mapping[str, ImageMetadata] | None,
 ) -> DetAnnotation:
-    """Build DET payload from ``EffectiveLsResult`` only.
+    """Build DET payload from annotation-only ``EffectiveLsResult``.
 
-    Boxes are taken from ``effective.effective_result`` (already resolved by
-    ``resolve_effective_result``: human boxes, latest-task-control prediction,
-    or empty after human clear). Does not read ``task["predictions"]``.
+    Boxes come from ``effective.effective_result`` only (confirm-only /
+    human-cleared → empty). Does not read ``task["predictions"]``.
     """
 
     entries = _collect_det_bbox_entries(
@@ -829,10 +825,10 @@ def _parse_cap_annotation(
     *,
     image_id: str,
 ) -> CapAnnotation:
-    """Build CAP payload from ``EffectiveLsResult`` only.
+    """Build CAP payload from annotation-only ``EffectiveLsResult``.
 
-    Caption is taken from ``effective.effective_result``. Human cleared with
-    no ``cap_text`` yields an empty caption (no prediction re-read).
+    Caption is taken from ``effective.effective_result``. Missing ``cap_text``
+    (confirm-only or human-cleared) yields an empty caption.
     """
 
     entries = _collect_cap_text_entries(
@@ -851,13 +847,7 @@ def _parse_cap_annotation(
         )
         return CapAnnotation(caption=caption)
 
-    if effective.human_cleared:
-        return CapAnnotation(caption="")
-
-    raise ValueError(
-        f"CAP missing {DEFAULT_LS_RESULT_SPECS[TaskType.CAP]['from_name']!r} "
-        f"textarea result (image_id={image_id!r})"
-    )
+    return CapAnnotation(caption="")
 
 
 def _normalize_cap_text(
