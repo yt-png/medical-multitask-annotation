@@ -1,5 +1,23 @@
 # Changelog
 
+## V1 — M12.3 场景门禁：无 prelabels / 无 prediction 主流程（2026-08-16）
+
+### Tests
+
+- 新增 `tests/test_m12_3_no_prelabel_main_path.py`：无 `prelabels/` 下 CAP/DET/SEG 空 `ls-import`；无 `predictions` 键 export-split 三任务可进 `normal/`
+- Sprint A2 场景门禁 M12.1–M12.3 齐套
+
+### Docs
+
+- 正式关闭 M12.3
+
+### Planned（仍未完成）
+
+- **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
+- **`seg_mask_paths` 去 prelabels**（M5.4）及 models 注释清理（M5.5）
+- 返工语义收紧（M4.3 / M6.4）
+- **M12.4–M12.6**：独立运行 / 返工闭环 / 冻结门禁
+
 ## V1 — M12.2 场景门禁：空标注 → rework/（2026-08-16）
 
 ### Tests
@@ -8,14 +26,14 @@
 
 ### Docs
 
-- 正式关闭 M12.2；M12.3 仍待做
+- 正式关闭 M12.2；~~M12.3 仍待做~~ → 见上一节
 
 ### Planned（仍未完成）
 
 - **adapters / formats legacy 隔离**（M1 / M2 / M5.3）
 - **`seg_mask_paths` 去 prelabels**（M5.4）及 models 注释清理（M5.5）
 - 返工语义收紧（M4.3 / M6.4）
-- **M12.3**：无 prelabels/prediction 主流程门禁
+- ~~**M12.3**：无 prelabels/prediction 主流程门禁~~ → 见上一节
 
 ## V1 — M12.1 场景门禁：正常人工 → normal/（2026-08-16）
 
