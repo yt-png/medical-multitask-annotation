@@ -403,37 +403,19 @@ deploy/v1/
 
 # 9\. 数据处理者包
 
-负责：
+负责（两条路径）：
 
 ```Plain Text
-数据准备
+【协作主路径】
+数据准备 → 任务生成 → 网盘分发 task_packages
+  → 收集回传（rework 质检归档 / 完成态 current）→ 最终合并
 
-↓
-
-任务生成
-
-↓
-
-LS导入
-
-↓
-
-结果下载
-
-↓
-
-质量检查
-
-↓
-
-返工处理
-
-↓
-
-最终合并
+【本机全流程测试】
+preprocess → package → ls-import → export-split
+  →（按需）rework-import → … → merge
 ```
 
-包含：
+包含（完整，不可因角色分工裁掉；主要用于本机测试，协作时部分步骤可由标注员日常执行）：
 
 - preprocess
 
@@ -457,29 +439,31 @@ LS导入
 
 - SEG Label Studio配置；
 
-- SEG导入命令；
+- 裁剪 CLI 入口：本任务 `ls-import`、`export-split`、`rework-import`；
 
-- SEG导出说明。
+- 本任务操作说明：LS 环境、导入/标注/导出、目录分类、双模式网盘回传、换人交接。
 
 禁止包含：
 
-- 数据预处理；
+- preprocess；
+
+- package；
 
 - merge；
 
-- 其他任务配置。
+- 其他任务配置与他任务子命令。
 
 ---
 
 ## DET标注员
 
-同SEG原则。
+同SEG原则（仅 DET 配置与本任务三命令）。
 
 ---
 
 ## CAP标注员
 
-同SEG原则。
+同SEG原则（仅 CAP 配置与本任务三命令）。
 
 ---
 

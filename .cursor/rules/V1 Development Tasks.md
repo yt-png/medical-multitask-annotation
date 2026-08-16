@@ -265,7 +265,7 @@ Phase D  交付工程化（含 deploy 提前穿插）
 |ID|修改目标|涉及模块|修改原因|验收标准|
 |---|---|---|---|---|
 |**M9\.1**|复核 seg/det/cap XML：无 prediction 导入时可用|`labelstudio/configs/*.xml`|空任务导入兼容|配置测试通过；文档说明首轮无 pred|
-|**M9\.2**|配置按角色进入 `deploy/v1/annotator_*`（与 M11 联动）|configs \+ deploy|标注员包最小化|每包仅本任务配置|
+|**M9\.2**|配置按角色进入 `deploy/v1/annotator_*`（与 M11 联动）；随包提供本任务允许的 CLI 入口|configs \+ deploy|标注员包最小化且可本机闭环|每包仅本任务配置；另含本任务 `ls-import` / `export-split` / `rework-import` 裁剪入口（与 M11 一致）|
 |**M9\.3**|回归 `tests/test_labelstudio_*_config.py`|`tests/`|防回归|全绿|
 
 
@@ -296,11 +296,11 @@ Phase D  交付工程化（含 deploy 提前穿插）
 
 |ID|修改目标|涉及模块|修改原因|验收标准|
 |---|---|---|---|---|
-|**M11\.1**|新建 `deploy/v1/data_processor/`：含 preprocess/package/ls\-import/export\-split/rework\-import/merge 所需说明与入口约定；**README \+ 环境 \+ 命令 \+ 数据目录约定**|`deploy/v1/data_processor/`|V1 最终交付依赖角色部署|目录存在；四类文档要素齐全；可独立按 README 操作|
-|**M11\.2**|`annotator_seg/`：仅 SEG LS 配置 \+ 导入/导出说明；禁止 preprocess/merge/他任务|`deploy/v1/annotator_seg/`|角色隔离|包内无他任务与数据处理者能力|
-|**M11\.3**|`annotator_det/`：同 SEG 原则|`deploy/v1/annotator_det/`|同上|同上|
-|**M11\.4**|`annotator_cap/`：同 SEG 原则|`deploy/v1/annotator_cap/`|同上|同上|
-|**M11\.5**|根级 `deploy/v1/README.md`（可选但推荐）：四角色关系与分发方式|`deploy/v1/`|交付可读性|指向四子包|
+|**M11\.1**|新建 `deploy/v1/data_processor/`：完整 CLI（preprocess/package/ls\-import/export\-split/rework\-import/merge）入口与说明；**README 区分协作主路径与本机全流程测试**；环境 \+ 命令 \+ 数据目录约定|`deploy/v1/data_processor/`|协作交付 \+ 处理者本机测试须可跑通全流程|目录存在；四类文档要素齐全；单包可按测试路径跑通说明操作|
+|**M11\.2**|`annotator_seg/`：SEG LS 配置 \+ 裁剪入口（ls\-import/export\-split/rework\-import）\+ 本机闭环与双模式回传说明；禁止 preprocess/package/merge/他任务|`deploy/v1/annotator_seg/`|角色隔离|包内无他任务；无 preprocess/package/merge|
+|**M11\.3**|`annotator_det/`：同 SEG 原则（仅 DET）|`deploy/v1/annotator_det/`|同上|同上|
+|**M11\.4**|`annotator_cap/`：同 SEG 原则（仅 CAP）|`deploy/v1/annotator_cap/`|同上|同上|
+|**M11\.5**|根级 `deploy/v1/README.md`（可选但推荐）：四角色关系；分发仅 task_packages；回传 rework/ vs 完成态 current/（SEG+manual_masks）；换人交接三件套；处理者本机全流程测试见 data_processor README|`deploy/v1/`|交付可读性|指向四子包并写清进出约定|
 
 
 

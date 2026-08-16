@@ -183,7 +183,9 @@ rework/
 
 # 五、端到端业务流程
 
-完整 V1 流程：
+## 5.1 协作主路径
+
+完整 V1 协作流程：
 
 ```Plain Text
 数据预处理
@@ -194,58 +196,58 @@ rework/
 
 ↓
 
-任务分发
+网盘只分发 task_packages/<batch>/<task>/
 
 ↓
 
-标注员下载任务
+标注员本机 ls-import
 
 ↓
 
-Label Studio 导入原始图片
+配置 Label Studio → 导入 → 工作台人工标注 → 导出
 
 ↓
 
-人工完成标注
+标注员本机 export-split
 
 ↓
 
-导出结果
+若存在 rework 样本：rework-import → 再导入 LS → …（标注员本机闭环至 rework 为空）
 
 ↓
 
-判断 normal / rework
+网盘回传：
+  · 进行中 / 换人交接：仅 results/<batch>/<task>/rework/
+  · 本任务完成：current/（SEG 另含 manual_masks/）
 
 ↓
 
-上传结果
+数据处理者收齐三任务「已无需返工」的最新 current/
 
 ↓
 
-数据处理者检查
-
-↓
-
-存在 rework:
-
-重新生成返工任务
-
-↓
-
-再次导出
-
-↓
-
-直到全部通过
-
-↓
-
-SEG + DET + CAP结果合并
+SEG + DET + CAP 结果合并
 
 ↓
 
 生成最终金标准数据
 ```
+
+回传约定：
+
+- 完成包：merge 以标注员回传的 `current/` 为准；`normal/` 不要求回传；SEG 完成包 = `current/` + `manual_masks/`。
+- `rework/` 回传用于换人交接或质检归档；协作主路径下数据处理者不介入标注员中间轮次返工编排。
+
+## 5.2 本机全流程测试（数据处理者）
+
+数据处理者可在本机独立跑通整套项目完整运行流程（不依赖三名标注员在场），用于测试 / 验收 / 纠错：
+
+```Plain Text
+preprocess → package → ls-import → export-split
+  →（按需）rework-import → … → merge
+```
+
+本路径与协作主路径并行存在，**不替代**标注员职责。
 
 ---
 
@@ -255,21 +257,19 @@ V1 共包含四类角色。
 
 ## 数据处理者
 
-负责：
+### 协作主路径
 
 - 数据预处理；
-
 - 任务包生成；
+- 网盘分发（仅 `task_packages/<batch>/<task>/`）；
+- 收集回传：`rework/` 仅质检归档；完成态收集三任务 `current/`（SEG 含随附 `manual_masks/`）；
+- 三任务 current 就绪后最终合并（merge）。
 
-- Label Studio任务创建；
+### 本机全流程测试
 
-- 标注结果收集；
-
-- normal/rework判断；
-
-- 返工流程管理；
-
-- 最终数据合并。
+- 须能在本地执行整套项目完整运行流程（含：`preprocess`、`package`、`ls-import`、`export-split`、`rework-import`、`merge`）；
+- 用于测试 / 验收 / 纠错；可单人模拟标注前后数据步骤。
+- 协作主路径中部分步骤由标注员日常执行，但数据处理者包**不得因此删减**上述完整 CLI 能力。
 
 ---
 
@@ -277,13 +277,17 @@ V1 共包含四类角色。
 
 负责：
 
-- 下载SEG任务包；
+- 下载 SEG `task_packages/`；
+- 本机执行本任务 `ls-import`；
+- 配置 Label Studio、导入、人工分割标注、导出；
+- 本机 `export-split`；仅当存在 rework 样本时再执行 `rework-import`，本机闭环直至 rework 为空；
+- 网盘回传：`rework/`（交接/未完成）或完成态 `current/` + `manual_masks/`；
+- 换人须交接：`current/` + `rework/` + 任务包。
 
-- Label Studio人工分割标注；
+禁止：
 
-- 导出SEG结果；
-
-- 处理SEG返工任务。
+- `preprocess`、`package`、`merge`；
+- 其他任务（DET/CAP）配置与数据。
 
 ---
 
@@ -291,13 +295,17 @@ V1 共包含四类角色。
 
 负责：
 
-- 下载DET任务包；
+- 下载 DET `task_packages/`；
+- 本机执行本任务 `ls-import`；
+- 配置 Label Studio、导入、目标检测标注、导出；
+- 本机 `export-split`；仅当存在 rework 样本时再执行 `rework-import`，本机闭环直至 rework 为空；
+- 网盘回传：`rework/`（交接/未完成）或完成态 `current/`；
+- 换人须交接：`current/` + `rework/` + 任务包。
 
-- Label Studio目标检测标注；
+禁止：
 
-- 导出DET结果；
-
-- 处理DET返工任务。
+- `preprocess`、`package`、`merge`；
+- 其他任务（SEG/CAP）配置与数据。
 
 ---
 
@@ -305,13 +313,17 @@ V1 共包含四类角色。
 
 负责：
 
-- 下载CAP任务包；
+- 下载 CAP `task_packages/`；
+- 本机执行本任务 `ls-import`；
+- 配置 Label Studio、导入、文本描述标注、导出；
+- 本机 `export-split`；仅当存在 rework 样本时再执行 `rework-import`，本机闭环直至 rework 为空；
+- 网盘回传：`rework/`（交接/未完成）或完成态 `current/`；
+- 换人须交接：`current/` + `rework/` + 任务包。
 
-- Label Studio文本描述标注；
+禁止：
 
-- 导出CAP结果；
-
-- 处理CAP返工任务。
+- `preprocess`、`package`、`merge`；
+- 其他任务（SEG/DET）配置与数据。
 
 ---
 
@@ -460,6 +472,11 @@ deploy/v1/
 - 只包含自身需要内容；
 
 - 有独立README和操作说明。
+
+部署边界：
+
+- `data_processor`：须具备完整运行流程所需入口与说明（本机全流程测试可单包跑通）；文档区分协作主路径与本机测试路径。
+- `annotator_seg` / `annotator_det` / `annotator_cap`：裁剪入口，仅暴露本任务允许子命令（`ls-import`、`export-split`、`rework-import`）+ 本任务 LS 配置与操作说明；禁止 `preprocess` / `package` / `merge` 与他任务。
 
 ---
 
