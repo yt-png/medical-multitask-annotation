@@ -4,7 +4,7 @@
 运行时根目录为项目下的 `data/`（已列入 `.gitignore`，不入库）。
 
 **V1 目标**：纯人工金标准；主流程图**不**包含外部写入 `prelabels/` 或模型预标注步骤。  
-**〔现状〕**：代码仍源自冻结 V2 复制，`ls-import` 等路径**仍可能依赖** `prelabels/`；下文对差异处标注 〔现状〕 / Legacy。未完成项见仓库根 `CHANGELOG.md`「Planned」与 `.cursor/rules/V1 Development Tasks.md`。
+**主路径现状（Sprint A/B/C）**：`ls-import` 仅读 `task_packages/`（无 `prelabels/`）；金标准仅人工 annotation（无 prediction fallback）；返工预填源为 `previous_annotations`（人工历史）。`prelabels/` 仅 Legacy。未完成项见仓库根 `CHANGELOG.md`「Planned」与 `.cursor/rules/V1 Development Tasks.md`。
 
 默认数据根、Excel 列名等**不由** `configs/default.yaml` 加载，而由 `common/paths.py`、`common/io.py` 与 CLI 参数约定（配置内嵌）。
 
@@ -73,8 +73,8 @@ data/
     └── manifest.json           # 相对路径索引；不依赖 raw/processed/prelabels
 ```
 
-主流程目录（V1 目标）：`raw` → `processed` → `task_packages` → `ls_import` → `ls_export` → `results` → `final`。  
-`prelabels/` 不在目标主流程图内；〔现状〕实现仍可能读写该树。
+主流程目录（V1）：`raw` → `processed` → `task_packages` → `ls_import` → `ls_export` → `results` → `final`。  
+`prelabels/` 不在主流程图内（Legacy only）。
 ---
 
 ## 4. 各目录职责与建议内容
@@ -114,11 +114,11 @@ data/
 
 | 项目 | 说明 |
 |---|---|
-| V1 地位 | **非**目标运行时必需目录；保留供冻结 V2 对照、历史测试与尚未完成的代码迁移 |
+| V1 地位 | **非**运行时必需目录；保留供冻结 V2 对照与历史测试（Legacy） |
 | 历史职责 | 预标注落点；统一中间格式主文件为 `prelabels.json`（字段见 **Legacy** 文档 `docs/formats.md`） |
 | SEG 资源 | 历史约定可含 `masks/`；`mask_ref` 相对本任务 prelabels 目录根 |
 | 样例 | `examples/prelabels/`（已标 Legacy） |
-| 〔现状〕 | `mma ls-import` **仍读取**本目录；V1 改造（M4 / M5.3）完成后主流程应零依赖 |
+| 主路径 | `mma ls-import` / `rework-import` **不读取**本目录（M4 / M4.3 / M5.3） |
 
 ### 4.5 `ls_import/<batch_id>/{seg,det,cap}/`
 
@@ -129,8 +129,7 @@ data/
 | 图像 | **不复制**；`data.image` 使用 Local Files URL：`/data/local-files/?d=<相对 local_root 的正斜杠路径>` |
 | 默认相对路径 | 相对 `data_root`（常与 LS Local storage 根一致），例如 `task_packages/<batch_id>/seg/images/<image_id>.jpg` |
 | 图像来源 | 优先解析 `task_packages/<batch_id>/<task>/images/{image_id}.jpg\|.jpeg` |
-| 输入（V1 目标） | **仅** `task_packages/`；首轮任务仅含 `data`（`image` / `image_id` / `package_id` / `diagnosis_text`），**无** `predictions` |
-| 输入（〔现状〕） | 仍读 `prelabels/.../prelabels.json`；SEG 仍可能以 prelabels 目录为 `mask_root` 生成 polygon **预填**（属当前实现，非 V1 目标） |
+| 输入（V1） | **仅** `task_packages/`；首轮任务仅含 `data`（`image` / `image_id` / `package_id` / `diagnosis_text`），**无** `predictions`；不读 `prelabels/`（M4 已落地） |
 | CLI | `mma ls-import --batch <id> --task {seg\|det\|cap} [--data-root] [--local-root]` |
 | 消费者 | Label Studio 本地导入与返工再导入；工作台 XML 用包内 `labelstudio/configs/*.xml`（不拷贝到本目录） |
 ### 4.6 `ls_export/<batch_id>/{seg,det,cap}/`
@@ -176,7 +175,7 @@ results/<batch>/<task>/rework/
 
   - 「自包含」指**标注几何/文本快照**可脱离原始 LS export；**不**包含原图。`rework-import` 仍需同批 `task_packages/.../images/`（及 manifest）生成 `data.image` Local Files URL
   - 数据来自 `TaskAnnotationResult.annotation`（**人工历史**），**不依赖** LS export raw；业务上 **`previous_annotations` ≠ 模型 / prelabel prediction**
-  - 返工导入写入 LS 时可能仍使用字段名 `predictions` 承载上述人工历史，仅供工作台预填展示；**不得**再作为导出金标准的 prediction fallback 源（V1 目标；〔现状〕导出侧 fallback 尚未删除）
+  - 返工导入写入 LS 时可能仍使用字段名 `predictions` 承载上述人工历史，仅供工作台预填展示；**不得**再作为导出金标准的 prediction fallback 源（M6.1 已禁止；M4.3 主路径只读本目录）
   - DET：`bboxes[{x,y,width,height}]`（像素；`BBox` 无 label 字段，快照不伪造 label）
   - CAP：`{image_id, caption}`
   - SEG：复制 mask 到 `previous_annotations/masks/`，并用 `build_seg_polygon_results` 写入 `polygons`（空 mask → `polygons: []`）
@@ -204,7 +203,7 @@ results/<batch>/<task>/rework/
   - 本轮有效结果含 **BrushLabels** RLE → 解码写 PNG
   - 本轮有效结果含 **PolygonLabels** → 栅格化写 PNG
   - 有 SEG 操作记录但为空 → 写空 mask PNG
-  - **无** SEG 操作记录 → **不**写 `manual_masks/`；〔现状〕`mask_ref` 仍可能回退 `data.mask_ref` / prelabel；**V1 目标**为仅认人工结果，空/缺 → rework（尚未实现）
+  - **无** SEG 操作记录 → 写空 `manual_masks/`（annotation-only；不再回退 `data.mask_ref` / prelabel）；空/缺有效载荷 → `rework/`（`should_rework_result`）
 - `SegAnnotation.mask_ref` 存相对 `results/<batch_id>/seg/` 的路径：`manual_masks/{image_id}_manual.png`
 - Legacy：历史实现约定不覆盖 `prelabels/.../masks/`（若目录仍存在）
 - **清理**：`apply-current` / `export-split`（SEG）在刷新 `current/` 与 normal/rework 后，按 current 中仍引用的 `manual_masks/` 路径保留文件；删除目录内未被引用的 `*_manual.png`（缺 `current/annotations.json` 时不清理）
@@ -230,7 +229,7 @@ results/<batch>/<task>/rework/
 raw
   → processed
   → task_packages/{seg,det,cap}
-  → ls_import/{seg,det,cap}     # 目标：空任务；〔现状〕仍可能依赖 prelabels/
+  → ls_import/{seg,det,cap}     # 空任务；仅 task_packages/
   → ls_export/{seg,det,cap}/round_XXX
   → results/.../normal|rework
   → results/.../current         # 覆盖写入当前有效版
@@ -264,9 +263,8 @@ raw
 4. **`current/` 为唯一真实数据源**。每次 `apply-current` / `export-split` 在更新 `current/` 后，必须按完整 `current/` **全量重建** `normal/` 与 `rework/`（覆盖写盘，禁止 append 历史子集）。
 5. 因此 `normal/` 始终等于「当前全部 `not should_rework` 样本」（已确认且不需返工）；`rework/` 等于「未达最终确认状态」样本。返工修好的 id 会从 rework 进入 normal，无需手工合并首轮 normal。
 6. `ls_export` 与可选的 `normal|rework/round_XXX/` 快照用于追溯与网盘协作，不替代 `current/` 的权威语义。
-7. 返工再导入必须能展示上一轮**人工**结果：优先使用 `rework/previous_annotations/`（标注快照自包含；**原图仍依赖** `task_packages`）。旧包无该目录时回退 `--export`。〔现状〕旁路仍可能经 `resolve_effective_result`（含 prediction fallback）生成 LS `predictions` 槽位预填；**V1 目标**预填源仅为人工历史，且导出金标准**禁止**再用 prediction fallback（改造见 M4.3 / M6）。
-8. 仅当三任务 `current/` 均无 `should_rework` 残留（全部确认且 `needs_rework == false`），且三路 `image_id` 集合彼此一致并与 `processed` 全量集合相等时，才允许生成 `final/<batch_id>/`。〔目标〕空/缺人工载荷亦计入需返工（尚未实现）。
----
+7. 返工再导入必须能展示上一轮**人工**结果：优先使用 `rework/previous_annotations/`（标注快照自包含；**原图仍依赖** `task_packages`）。旧包无该目录时回退 `--export`（legacy）。`previous_annotations` ≠ 模型 / prelabel prediction；写入 LS 的 `predictions` 槽仅供预填；导出金标准禁止 prediction fallback（M6.1 / M4.3 已落地）。
+8. 仅当三任务 `current/` 均无 `should_rework_result` 残留（已确认、不需返工、且有有效任务载荷），且三路 `image_id` 集合彼此一致并与 `processed` 全量集合相等时，才允许生成 `final/<batch_id>/`。
 
 ## 8. 关键文件约定（最小集）
 
@@ -274,7 +272,7 @@ raw
 |---|---|---|
 | `processed/<batch_id>/` | `manifest.json` | 标准化索引与图文绑定清单（含 `image_id`、`image_path`、`diagnosis_text`）；图像是否复制见 §4.2 |
 | `task_packages/<batch_id>/<task>/` | `manifest.json` | `package_id`、`task_type`、`batch_id`、样本列表 |
-| `prelabels/<batch_id>/<task>/` | `prelabels.json` | **Legacy**；〔现状〕`ls-import` 仍可能依赖；格式见 `docs/formats.md` |
+| `prelabels/<batch_id>/<task>/` | `prelabels.json` | **Legacy**；主路径不读；格式见 `docs/formats.md` |
 | `results/<batch_id>/<task>/current/` | `annotations.json` | 当前有效 `TaskAnnotationResult` 列表 |
 | `final/<batch_id>/` | `manifest.json` | 合并后的多任务记录清单（字段对齐 `MergedMultitaskRecord`）；`image_path`=`images/{image_id}.jpg`；`seg.mask_ref`=`masks/{image_id}.png` |
 | `final/<batch_id>/images/` | `{image_id}.jpg` | merge 时从 processed 源图复制（目标扩展名统一 `.jpg`） |

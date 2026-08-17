@@ -21,12 +21,27 @@ from mma.common.paths import (
     results_rework_dir,
 )
 from mma.exporters.current_annotations import ANNOTATIONS_JSON_NAME
+from mma.exporters import previous_annotations as previous_annotations_mod
 from mma.exporters.previous_annotations import (
+    build_ls_prediction_results_from_previous,
     previous_annotations_json_path,
     write_previous_annotations,
 )
 from mma.exporters.refresh_normal_rework import write_normal_rework_bundles
 from mma.importers import rework_import_from_export
+
+
+def test_module_doc_states_previous_ne_prediction() -> None:
+    """M6.4: module docs nail previous_annotations ≠ model prediction."""
+
+    doc = previous_annotations_mod.__doc__ or ""
+    assert "previous_annotations" in doc
+    assert "≠ prediction" in doc or "!= prediction" in doc
+    assert "human" in doc.lower()
+    build_doc = build_ls_prediction_results_from_previous.__doc__ or ""
+    assert "previous_annotations" in build_doc
+    assert "not model" in build_doc.lower() or "≠ prediction" in build_doc
+    assert "M6.1" in build_doc or "gold" in build_doc.lower() or "fallback" in build_doc.lower()
 
 
 def _write_package(

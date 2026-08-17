@@ -53,7 +53,7 @@ def previous_annotations_dir(
     *,
     data_root: Path | str | None = None,
 ) -> Path:
-    """Return ``.../rework/previous_annotations`` for one task."""
+    """Return ``.../rework/previous_annotations`` (human-history pack root)."""
 
     return (
         results_rework_dir(batch_id, task_type, data_root=data_root)
@@ -67,7 +67,7 @@ def previous_annotations_json_path(
     *,
     data_root: Path | str | None = None,
 ) -> Path:
-    """Return ``.../previous_annotations/<task>.json``."""
+    """Return ``.../previous_annotations/<task>.json`` (human snapshot file)."""
 
     name = f"{task_dir_name(task_type)}.json"
     return previous_annotations_dir(
@@ -83,6 +83,9 @@ def write_previous_annotations(
     data_root: Path | str | None = None,
 ) -> Path:
     """Overwrite ``previous_annotations/<task>.json`` (and SEG masks).
+
+    Snapshot source is human ``TaskAnnotationResult.annotation`` only
+    (``previous_annotations`` ≠ model / prelabel prediction).
 
     Empty ``rework_items`` writes ``[]`` and clears any prior SEG mask copies.
     Returns the JSON path.
@@ -129,9 +132,9 @@ def load_previous_annotations(
     *,
     data_root: Path | str | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Load ``previous_annotations/<task>.json`` keyed by ``image_id``.
+    """Load human-history ``previous_annotations/<task>.json`` by ``image_id``.
 
-    Raises ``FileNotFoundError`` when the JSON file is missing.
+    Does not read ``prelabels/``. Raises ``FileNotFoundError`` when missing.
     """
 
     path = previous_annotations_json_path(
@@ -281,6 +284,7 @@ def _polygons_from_mask_copy(
 
     assert isinstance(item.annotation, SegAnnotation)
     package_id = item.package_id or f"{batch_id}__seg"
+    # PrelabelItem here is legacy encoding reuse only — not reading prelabels/.
     prelabel_item = PrelabelItem(
         schema_version=SCHEMA_VERSION,
         batch_id=batch_id,
@@ -326,7 +330,15 @@ def build_ls_prediction_results_from_previous(
     package_id: str = "rework",
     batch_id: str = "rework",
 ) -> list[dict[str, Any]]:
-    """Convert one previous_annotations entry into LS ``predictions[].result``."""
+    """Build LS ``predictions[].result`` prefill from one human snapshot entry.
+
+    The word ``prediction`` in this name refers to the Label Studio **field
+    slot** used for UI prefill, not model inference. Input is historical
+    human ``previous_annotations`` (``previous_annotations`` ≠ prediction).
+    Output must never be treated as gold-standard fallback by M6.1
+    ``resolve_effective_result``. May reuse legacy ``PrelabelItem`` encoding
+    helpers without reading ``prelabels/``.
+    """
 
     if task_type is TaskType.DET:
         return _previous_det_to_ls(
@@ -401,6 +413,7 @@ def _previous_det_to_ls(
                 f"(image_id={image_id!r})"
             ) from exc
 
+    # PrelabelItem / PrelabelBBox: legacy encoding reuse only (not prelabels/).
     item = PrelabelItem(
         schema_version=SCHEMA_VERSION,
         batch_id=batch_id,
@@ -443,6 +456,7 @@ def _previous_cap_to_ls(
                 "value": {"text": [""]},
             }
         ]
+    # PrelabelItem: legacy encoding reuse only (not reading prelabels/).
     item = PrelabelItem(
         schema_version=SCHEMA_VERSION,
         batch_id=batch_id,
@@ -472,6 +486,7 @@ def _previous_seg_to_ls(
             f"(image_id={image_id!r})"
         )
     mask_file = mask_file.strip().replace("\\", "/")
+    # PrelabelItem: legacy encoding reuse only (not reading prelabels/).
     item = PrelabelItem(
         schema_version=SCHEMA_VERSION,
         batch_id=batch_id,

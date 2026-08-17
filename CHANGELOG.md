@@ -1,5 +1,27 @@
 # Changelog
 
+## V1 — M6.4 previous_annotations 语义文档收口（2026-08-17）
+
+### Changed
+
+- `exporters/previous_annotations.py`：公开 API / `build_ls_prediction_results_from_previous` docstring 钉死「上一轮人工快照」；`previous_annotations` ≠ prediction（LS `predictions` 仅为预填槽）；`PrelabelItem` 标注为 legacy 编码复用、不读 `prelabels/`。
+- `docs/data_layout.md`：清理过时 〔现状〕（ls-import/prelabels、prediction fallback、空载荷 rework）为已落地口径。
+
+### Tests
+
+- `test_previous_annotations.py`：轻量门禁 `test_module_doc_states_previous_ne_prediction`（模块 docstring 含人工快照 ≠ prediction）。
+
+### Docs
+
+- README 实现状态关闭 M6.4；`labelstudio_usage` §8.1 已对齐，未改。
+
+### Planned（仍未完成）
+
+- **M8**：merge 隐式 prelabel 依赖检查
+- **M12.4–M12.5**：独立运行 / 返工闭环门禁
+- **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
 ## V1 — M4.3 返工预填源仅 previous_annotations（2026-08-17）
 
 ### Changed
@@ -20,7 +42,7 @@
 
 ### Planned（仍未完成）
 
-- **M6.4**：`previous_annotations.py` 命名/文档收口
+- ~~**M6.4**~~ → 见文首 M6.4 节
 - **M8**：merge 隐式 prelabel 依赖检查
 - **M12.4–M12.5**：独立运行 / 返工闭环门禁
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
@@ -51,7 +73,7 @@ Sprint B（运行时零依赖 `prelabels/` 主路径；formats / adapters 隔离
 ### Planned（Sprint C / D 及遗留）
 
 - **M2.2 B2**（可选后续）：返工路径彻底脱离 `PrelabelItem` 构造——**未纳入本次 Sprint B 必做**（Phase A 仅 namespace 拆分）
-- **Sprint C**：~~M4.3~~ → 见文首；返工文档收口（M6.4）、merge 隐式依赖检查（M8）、场景门禁 M12.4–M12.5
+- **Sprint C**：~~M4.3~~ / ~~M6.4~~ → 见文首；merge 隐式依赖检查（M8）、场景门禁 M12.4–M12.5
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 
 ## V1 — M3.2–M3.4 converter 语义 + legacy 测试标记（2026-08-17）
