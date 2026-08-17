@@ -1,5 +1,29 @@
 # Changelog
 
+## V1 — M12.4 场景门禁：SEG/DET/CAP 独立运行（2026-08-17）
+
+### Added
+
+- `tests/test_m12_4_independent_tasks.py`：只种本任务包即可 `ls-import`；`export-split` 只写本任务 `results/`；CAP 分类不改写已有 DET `current/`。
+
+### Verified
+
+- **`src/` 运行时未改**（`--task` 子树隔离已具备）；不测 merge 单任务、不测 `rework-import`（M12.5）。
+
+### Tests
+
+- 门禁 **7 passed**（`PYTHONPATH` 指向本仓 `src`）：`tests/test_m12_4_independent_tasks.py`。
+
+### Docs
+
+- README 实现状态关闭 M12.4；Sprint C 余项仅 M12.5。
+
+### Planned（仍未完成）
+
+- **M12.5**：返工闭环 → merge 出 final
+- **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
 ## V1 — M8.3 merge 回归（2026-08-17）
 
 ### Verified
@@ -18,7 +42,8 @@
 
 ### Planned（仍未完成）
 
-- **M12.4–M12.5**：独立运行 / 返工闭环门禁
+- ~~**M12.4**~~ → 见文首 M12.4 节
+- **M12.5**：返工闭环 → merge 出 final
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 - **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
 
@@ -147,7 +172,7 @@ Sprint B（运行时零依赖 `prelabels/` 主路径；formats / adapters 隔离
 ### Planned（Sprint C / D 及遗留）
 
 - **M2.2 B2**（可选后续）：返工路径彻底脱离 `PrelabelItem` 构造——**未纳入本次 Sprint B 必做**（Phase A 仅 namespace 拆分）
-- **Sprint C**：~~M4.3~~ / ~~M6.4~~ / ~~M8.1~~ / ~~M8.2~~ / ~~M8.3~~ → 见文首；场景门禁 M12.4–M12.5
+- **Sprint C**：~~M4.3~~ / ~~M6.4~~ / ~~M8.1~~ / ~~M8.2~~ / ~~M8.3~~ / ~~M12.4~~ → 见文首；场景门禁 M12.5
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 
 ## V1 — M3.2–M3.4 converter 语义 + legacy 测试标记（2026-08-17）
