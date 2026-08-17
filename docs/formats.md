@@ -2,12 +2,12 @@
 
 > **V1 地位：历史参考，不是主流程。**  
 > V1 目标为纯人工金标准：首轮空任务导入，**不要求**准备 `prelabels.json`，也不将 model / prelabel prediction 写入金标准。  
-> 本文档描述冻结 V2 时代的预标注中间格式、转换与 adapter 约定，供对照与尚未完成的 legacy 隔离（见 CHANGELOG「Planned」、任务 M1/M2）。  
-> **〔现状〕**：仓库代码仍可能 `load_prelabel_document` / `ls-import` 读取本格式；这不表示 V1 主流程仍应「必须写 prelabels」。
+> 本文档描述冻结 V2 时代的预标注中间格式、转换与 adapter 约定，供对照。  
+> V1 formats 三分：`task_schema` / `annotation_schema`（runtime）与 `legacy_prelabel`（本页）。
 
-实现代码：`src/mma/formats/intermediate.py`；包内样例：`src/mma/formats/{seg,det,cap}.json`。
+实现代码：`src/mma/formats/legacy_prelabel/intermediate.py`；包内样例：`src/mma/formats/legacy_prelabel/{seg,det,cap}.json`。
 
-相关落盘见 `docs/data_layout.md` §4.4（Legacy）。业务结果契约仍见 `src/mma/common/models.py`。
+相关落盘见 `docs/data_layout.md` §4.4（Legacy）。业务结果契约仍见 `src/mma/common/models.py`（亦可经 `mma.formats.task_schema` / `annotation_schema` re-export）。
 
 ---
 
@@ -37,7 +37,7 @@ V1 目标主流程见仓库 README：`task_packages` → 空 `tasks.json` → �
 |---|---|
 | 运行时（gitignore 的 `data/`；**Legacy / 〔现状〕仍可能被 ls-import 读取**） | `data/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
 | 测试 / 仓库内样例（**Legacy**） | `examples/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
-| 包内 schema 样例 | `src/mma/formats/{seg,det,cap}.json`（内容与文档样例同构） |
+| 包内 schema 样例 | `src/mma/formats/legacy_prelabel/{seg,det,cap}.json`（内容与文档样例同构） |
 
 **主文件名固定为 `prelabels.json`。**
 
@@ -164,7 +164,7 @@ data/prelabels/<batch_id>/seg/
 ## 8. Python API
 
 ```python
-from mma.formats import (
+from mma.formats.legacy_prelabel import (
     load_prelabel_document,
     prelabel_document_from_dict,
     validate_prelabel_document,
@@ -203,7 +203,7 @@ doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 
 ```python
 from mma.converters import ImageMetadata, document_to_ls_tasks
-from mma.formats import load_prelabel_document
+from mma.formats.legacy_prelabel import load_prelabel_document
 
 doc = load_prelabel_document("examples/prelabels/demo_batch/det/prelabels.json")
 tasks = document_to_ls_tasks(
@@ -220,7 +220,7 @@ SEG 叠图预填示例：
 ```python
 from pathlib import Path
 from mma.converters import document_to_ls_tasks
-from mma.formats import load_prelabel_document
+from mma.formats.legacy_prelabel import load_prelabel_document
 
 doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 # mask_root = 含 masks/ 与 prelabels.json 的任务 prelabels 目录
@@ -231,9 +231,11 @@ tasks = document_to_ls_tasks(doc, mask_root=Path("data/prelabels/demo_batch/seg"
 
 ---
 
-## 10. 算法原始输出适配器（T2.3）
+## 10. 算法原始输出适配器（T2.3｜legacy）
 
-实现：`src/mma/adapters/`（`AdapterContext` + 三类 Base/Example）。
+实现：`src/mma/legacy/adapters/`（`AdapterContext` + 三类 Base/Example）。
+
+> **Legacy**：prelabel adapters **不是** V1 runtime 的一部分；`mma` CLI / `importers` / `exporters` / `merge` 不依赖本包。仅供历史参考、demo 与 `pytest -m legacy`。
 
 | 角色 | 说明 |
 |---|---|
@@ -248,7 +250,7 @@ tasks = document_to_ls_tasks(doc, mask_root=Path("data/prelabels/demo_batch/seg"
 - **不**实现真实 SEG/DET/CAP 算法或大模型调用。
 
 ```python
-from mma.adapters import AdapterContext, ExampleSegAdapter
+from mma.legacy.adapters import AdapterContext, ExampleSegAdapter
 from mma.common.models import TaskType
 
 ctx = AdapterContext(

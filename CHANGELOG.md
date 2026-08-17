@@ -1,5 +1,144 @@
 # Changelog
 
+## V1 — Sprint B 完成：清理与隔离（2026-08-17）
+
+### Summary
+
+Sprint B（运行时零依赖 `prelabels/` 主路径；formats / adapters 隔离；CLI / examples / converter 语义收口）**已完成**。详见下列分条（同日落地的 M1–M3 / M5 / M7 / M10）。
+
+### Done（Sprint B）
+
+| 范围 | 内容 |
+|---|---|
+| **M1.1–M1.3** | `adapters` → `mma.legacy.adapters`；legacy 测试隔离；无 runtime shim |
+| **M2.1–M2.4** | `formats` 三分 `task_schema` / `annotation_schema` / `legacy_prelabel`；根包不再导出 Prelabel* |
+| **M5.3–M5.5** | `prelabels_task_dir` deprecated；`seg_mask_paths` 仅 `manual_masks/`（无 prelabels fallback）；models 注释收口 |
+| **M3.2–M3.4** | converter / `previous_annotations` 语义：LS `predictions` ≠ 模型推理；`test_convert` 标 `legacy` |
+| **M3.3 / M10.2** | `mma convert` 明确 V1 不支持 prelabel conversion；`examples/` 默认 preprocess→package→ls-import |
+| **M7.1–M7.3** | 确认 `preprocess` / `packaging` 无 legacy/prelabel 依赖（代码未改；单测全绿） |
+
+### Docs / Tests
+
+- 默认 `pytest` 排除 `legacy` marker；`pytest -m legacy` 仍可跑历史套件。
+- `docs/labelstudio_usage.md`、`docs/formats.md`、`examples/**` 与 V1 主路径对齐。
+
+### Planned（Sprint C / D 及遗留）
+
+- **M2.2 B2**（可选后续）：返工路径彻底脱离 `PrelabelItem` 构造——**未纳入本次 Sprint B 必做**（Phase A 仅 namespace 拆分）
+- **Sprint C**：返工语义收紧（M4.3 / M6.4）、merge 隐式依赖检查（M8）、场景门禁 M12.4–M12.5
+- **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
+
+## V1 — M3.2–M3.4 converter 语义 + legacy 测试标记（2026-08-17）
+
+### Changed
+
+- M3.2 converter semantics clarified: Label Studio ``predictions`` field is not
+  treated as model inference (rework / ``previous_annotations`` = historical
+  human annotation prefill).
+- Module docs updated: ``converters/__init__.py``, ``to_labelstudio.py``,
+  ``seg_brush.py``, ``seg_polygon.py``, ``exporters/previous_annotations.py``.
+
+### Tests
+
+- `tests/test_convert.py`: ``pytestmark = pytest.mark.legacy``（逻辑未改）.
+
+### Docs
+
+- `docs/labelstudio_usage.md`: 修正过时「ls-import 仍依赖 prelabels / prediction fallback」描述.
+
+### Planned（仍未完成）
+
+- ~~**Sprint B**~~ → 见上一节；遗留见 Sprint B「Planned」
+
+## V1 — M7.1–M7.3 preprocess / packaging 无 legacy 依赖（2026-08-17）
+
+### Verified
+
+- `src/mma/preprocess/**`、`src/mma/packaging/**`：无 `prelabel` / `Prelabel` / `prediction` / `adapter` / `legacy_prelabel` 运行时或注释依赖；**代码未改**。
+- 回归：`tests/test_preprocess.py`、`tests/test_packaging.py` 全绿。
+
+### Planned（仍未完成）
+
+- ~~**Sprint B**~~ → 见文首 Sprint B 完成节
+
+## V1 — M3.3 / M10.2 CLI convert + examples 默认 V1（2026-08-17）
+
+### Changed
+
+- `mma convert`：help/stderr 明确 **V1 does not support prelabel conversion**；legacy stub only；推荐 `ls-import`（exit 2 不变）。
+- `examples/README.md`：默认展示 V1（preprocess → package → ls-import）；prelabel/adapter/`run_p2_demo` 收入 Legacy 专节。
+
+### Docs
+
+- `examples/raw/README.md` 补充 `ls-import`；`run_p2_demo.py` / `prelabels/README` 强化 LEGACY 标记。
+
+### Tests
+
+- `tests/test_cli.py`：convert stub/help 断言含 v1 / does not support / ls-import。
+
+### Planned（仍未完成）
+
+- ~~**Sprint B**~~ → 见文首 Sprint B 完成节
+
+## V1 — M5.3–M5.5 paths / seg_mask / models 注释（2026-08-17）
+
+### Changed
+
+- `paths.prelabels_task_dir`: marked **deprecated / legacy-only** (API retained; no runtime warning).
+- `seg_mask_paths.resolve_current_seg_mask_path`: V1 resolves only `manual_masks/` under `results/`; **no** `prelabels/` fallback.
+- `common/models.py`: comments clarify V1 annotation schema vs `formats.legacy_prelabel`.
+
+### Tests
+
+- `test_seg_mask_paths.py`: legacy `masks/` ref rejected; manual path still resolves.
+- Merge/CLI fixtures that previously staged prelabel masks now use `manual_masks/`.
+
+### Docs
+
+- README 实现状态同步.
+
+### Planned（仍未完成）
+
+- ~~**Sprint B**~~ → 见文首 Sprint B 完成节
+
+## V1 — M2.1–M2.4 formats 三分拆分（Phase A｜2026-08-17）
+
+### Changed
+
+- Split `mma.formats` into `task_schema` / `annotation_schema` / `legacy_prelabel` (Prelabel types retained, not deleted).
+- `formats/__init__.py` now exports only V1 schema re-exports from `common.models`; prelabel APIs move to `mma.formats.legacy_prelabel`.
+- Call sites (legacy adapters, converters, `previous_annotations`) import `legacy_prelabel` explicitly (no B2 runtime decoupling).
+
+### Tests
+
+- Prelabel format suite → `tests/legacy/test_formats_prelabel.py` (`pytest -m legacy`).
+- `tests/test_formats.py` covers V1 schema re-exports only.
+
+### Docs
+
+- `formats/legacy_prelabel/README.md`；`docs/formats.md` 路径更新；README 实现状态同步.
+
+### Planned（仍未完成）
+
+- ~~**Sprint B**~~ → 见文首 Sprint B 完成节；可选 B2 见该节 Planned
+
+## V1 — M1.1–M1.3 隔离 prelabel adapters（2026-08-17）
+
+### Changed
+
+- Isolated prelabel adapters under legacy namespace (`src/mma/legacy/adapters/`).
+- Removed adapters from V1 runtime dependency graph（无 shim；CLI / importers / exporters / merge 不引用）.
+- Legacy adapter 单测迁至 `tests/legacy/`；默认 `pytest` 排除 `legacy` marker；`pytest -m legacy` 仍可跑.
+
+### Docs
+
+- `docs/formats.md` §10：路径改为 `mma.legacy.adapters`，标明非 V1 runtime.
+- README：adapters 隔离状态更新.
+
+### Planned（仍未完成）
+
+- ~~**Sprint B**~~ → 见文首 Sprint B 完成节
+
 ## V1 — M12.3 场景门禁：无 prelabels / 无 prediction 主流程（2026-08-16）
 
 ### Tests

@@ -45,7 +45,7 @@ def _seg(
         image_id=image_id,
         task_type=TaskType.SEG,
         annotation=SegAnnotation(
-            mask_ref=mask_ref or f"masks/{image_id}.png"
+            mask_ref=mask_ref or f"manual_masks/{image_id}_manual.png"
         ),
         human_confirmed=True,
         needs_rework=False,
@@ -116,7 +116,7 @@ def _write_ready_currents(
     batch_id: str,
     image_ids: tuple[str, ...] = ("img-b", "img-a"),
     *,
-    write_prelabel_masks: bool = True,
+    write_manual_masks: bool = True,
 ) -> None:
     overwrite_current(
         [_seg(i) for i in image_ids],
@@ -136,9 +136,9 @@ def _write_ready_currents(
         task_type=TaskType.CAP,
         data_root=data_root,
     )
-    if write_prelabel_masks:
+    if write_manual_masks:
         for image_id in image_ids:
-            _write_prelabel_mask(data_root, batch_id, image_id)
+            _write_manual_mask(data_root, batch_id, image_id)
 
 
 def _write_processed(
@@ -342,8 +342,8 @@ def test_case1_manual_mask_materializes_to_final_masks(tmp_path: Path) -> None:
     assert loaded == binary
 
 
-def test_case2_prelabel_mask_materializes_to_final_masks(tmp_path: Path) -> None:
-    """Case2: prelabels masks/{id}.png → final masks/{id}.png."""
+def test_case2_legacy_prelabel_mask_ref_rejected(tmp_path: Path) -> None:
+    """Case2: legacy ``masks/...`` (prelabels) is not a V1 resolve fallback."""
 
     image_id = "a"
     binary = [[0, 1], [1, 1]]
@@ -368,12 +368,8 @@ def test_case2_prelabel_mask_materializes_to_final_masks(tmp_path: Path) -> None
     )
     _write_processed(tmp_path, "batch1", image_ids=(image_id,))
 
-    path = merge_to_final("batch1", data_root=tmp_path)
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["items"][0]["seg"]["mask_ref"] == final_seg_mask_ref(image_id)
-    out = tmp_path / "final" / "batch1" / "masks" / f"{image_id}.png"
-    loaded, _, _ = load_foreground_mask(out)
-    assert loaded == binary
+    with pytest.raises(ValueError, match="manual_masks|not a V1 fallback"):
+        merge_to_final("batch1", data_root=tmp_path)
 
 
 def test_case3_empty_manual_mask_is_copied_not_regenerated(tmp_path: Path) -> None:
@@ -460,10 +456,10 @@ def test_assert_final_seg_mask_contract_rejects_legacy_roots() -> None:
 
 def test_materialize_final_seg_mask_copies_file(tmp_path: Path) -> None:
     image_id = "x"
-    _write_prelabel_mask(tmp_path, "batch1", image_id, binary=[[1, 0], [0, 0]])
+    _write_manual_mask(tmp_path, "batch1", image_id, binary=[[1, 0], [0, 0]])
     out = materialize_final_seg_mask(
         image_id=image_id,
-        seg=SegAnnotation(mask_ref=f"masks/{image_id}.png"),
+        seg=SegAnnotation(mask_ref=f"manual_masks/{image_id}_manual.png"),
         batch_id="batch1",
         data_root=tmp_path,
     )

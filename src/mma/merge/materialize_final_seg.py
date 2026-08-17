@@ -1,8 +1,9 @@
 """Materialize SEG masks into ``final/<batch>/masks/`` (T5.4).
 
-Copies current effective masks (manual or prelabel) into a self-contained
-directory so ``final/.../manifest.json`` uses relative ``masks/{image_id}.png``.
-Does not modify ``prelabels/``, ``manual_masks/``, or ``current/``.
+Copies current effective masks (``manual_masks/...`` under results) into a
+self-contained directory so ``final/.../manifest.json`` uses relative
+``masks/{image_id}.png``. Does not modify ``manual_masks/`` or ``current/``.
+V1 does not read ``prelabels/`` for mask resolution.
 """
 
 from __future__ import annotations

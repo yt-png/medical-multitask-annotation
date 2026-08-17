@@ -22,5 +22,11 @@ mma = "mma.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"mma.formats" = ["*.json"]
+"mma.formats.legacy_prelabel" = ["*.json"]
 "mma.labelstudio.configs" = ["*.xml"]
+
+[tool.pytest.ini_options]
+addopts = "-m \"not legacy\""
+markers = [
+    "legacy: tests for legacy workflows",
+]

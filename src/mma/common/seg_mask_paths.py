@@ -1,6 +1,8 @@
 """Resolve current-stage SEG ``mask_ref`` paths (shared by P4 / P5).
 
-Does not materialize final masks or write previous_annotations copies.
+V1 resolves only under ``results/<batch>/seg/`` (``manual_masks/...``).
+Does not fall back to ``prelabels/``. Does not materialize final masks or
+write previous_annotations copies.
 """
 
 from __future__ import annotations
@@ -10,7 +12,6 @@ from pathlib import Path
 from mma.common.models import TaskType
 from mma.common.paths import (
     default_data_root,
-    prelabels_task_dir,
     results_task_dir,
     validate_batch_id,
 )
@@ -29,7 +30,8 @@ def resolve_current_seg_mask_path(
     """Resolve a ``current/`` SEG ``mask_ref`` to an absolute source file path.
 
     - ``manual_masks/...`` → ``results/<batch>/seg/manual_masks/...``
-    - ``masks/...`` (and other relative refs) → ``prelabels/<batch>/seg/...``
+    - any other relative ref (including legacy ``masks/...`` under prelabels)
+      → ``ValueError`` (no ``prelabels/`` fallback)
     """
 
     cleaned_batch = validate_batch_id(batch_id)
@@ -48,10 +50,12 @@ def resolve_current_seg_mask_path(
         _assert_under_base(path, base.resolve(), mask_ref=ref)
         return path
 
-    base = prelabels_task_dir(cleaned_batch, TaskType.SEG, data_root=root)
-    path = (base / ref).resolve()
-    _assert_under_base(path, base.resolve(), mask_ref=ref)
-    return path
+    raise ValueError(
+        "SEG mask_ref must start with "
+        f"{MANUAL_MASK_REL_DIR!r}/ under results/<batch>/seg/; "
+        "legacy prelabels/masks paths are not a V1 fallback "
+        f"(mask_ref={ref!r})"
+    )
 
 
 def _assert_under_base(path: Path, base: Path, *, mask_ref: str) -> None:

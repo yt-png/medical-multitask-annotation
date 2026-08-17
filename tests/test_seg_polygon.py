@@ -22,7 +22,7 @@ from mma.converters.seg_polygon import (
     polygons_to_binary_mask,
     write_manual_mask_from_polygon_results,
 )
-from mma.formats import PrelabelItem, SCHEMA_VERSION, SegPrelabelPayload
+from mma.formats.legacy_prelabel import PrelabelItem, SCHEMA_VERSION, SegPrelabelPayload
 
 
 def _save_l_mask(path: Path, pixels: list[list[int]]) -> None:

@@ -1,10 +1,21 @@
-"""Tests for prelabel adapters (T2.3): Base constraints + Example adapters."""
+"""Legacy tests for prelabel adapters (T2.3): Base constraints + Example adapters.
+
+Not part of the V1 runtime test suite; run with ``pytest -m legacy``.
+"""
 
 from __future__ import annotations
 
 import pytest
 
-from mma.adapters import (
+from mma.common.models import TaskType
+from mma.converters import ImageMetadata, item_to_ls_task
+from mma.formats.legacy_prelabel import (
+    CapPrelabelPayload,
+    DetPrelabelPayload,
+    SCHEMA_VERSION,
+    SegPrelabelPayload,
+)
+from mma.legacy.adapters import (
     AdapterContext,
     CapPrelabelAdapter,
     DetPrelabelAdapter,
@@ -13,14 +24,8 @@ from mma.adapters import (
     ExampleSegAdapter,
     SegPrelabelAdapter,
 )
-from mma.common.models import TaskType
-from mma.converters import ImageMetadata, item_to_ls_task
-from mma.formats import (
-    CapPrelabelPayload,
-    DetPrelabelPayload,
-    SCHEMA_VERSION,
-    SegPrelabelPayload,
-)
+
+pytestmark = pytest.mark.legacy
 
 
 def _seg_context(**overrides: object) -> AdapterContext:

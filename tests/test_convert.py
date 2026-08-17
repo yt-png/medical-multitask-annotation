@@ -2,6 +2,7 @@
 
 Exercises historical ``mma.converters`` APIs (not V1 first-round ls-import).
 Test logic below is unchanged from the frozen prelabel conversion suite.
+Run with ``pytest -m legacy``.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from mma.converters import (
     document_to_ls_tasks,
     item_to_ls_task,
 )
-from mma.formats import (
+from mma.formats.legacy_prelabel import (
     CapPrelabelPayload,
     DetPrelabelPayload,
     PrelabelBBox,
@@ -33,8 +34,10 @@ from mma.formats import (
     load_prelabel_document,
 )
 
+pytestmark = pytest.mark.legacy
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_FORMATS_DIR = _REPO_ROOT / "src" / "mma" / "formats"
+_FORMATS_DIR = _REPO_ROOT / "src" / "mma" / "formats" / "legacy_prelabel"
 
 
 def _meta_map_for_document(

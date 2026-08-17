@@ -176,6 +176,9 @@ def test_valid_task_accepted_then_legacy_convert_stub(
     assert code == 2
     err = capsys.readouterr().err.lower()
     assert "legacy" in err
+    assert "v1" in err
+    assert "does not support" in err or "unsupported" in err
+    assert "prelabel" in err
     assert "ls-import" in err
     assert "convert" in err
 
@@ -185,6 +188,8 @@ def test_stub_for_convert(capsys: pytest.CaptureFixture[str]) -> None:
     assert code == 2
     err = capsys.readouterr().err.lower()
     assert "legacy" in err
+    assert "v1" in err
+    assert "does not support" in err or "unsupported" in err
     assert "ls-import" in err
     assert "convert" in err
 
@@ -195,6 +200,8 @@ def test_convert_help_marks_legacy() -> None:
     text = convert_parser.format_help().lower()
     assert "legacy" in text
     assert "v1" in text
+    assert "does not support" in text or "unsupported" in text
+    assert "ls-import" in text
 
 
 def test_ls_import_help_describes_empty_task_packages() -> None:
@@ -649,7 +656,7 @@ def _write_merge_ready_fixture(data_root: Path, batch_id: str = "batch_merge") -
         return TaskAnnotationResult(
             image_id=image_id,
             task_type=TaskType.SEG,
-            annotation=SegAnnotation(mask_ref=f"masks/{image_id}.png"),
+            annotation=SegAnnotation(mask_ref=f"manual_masks/{image_id}_manual.png"),
             human_confirmed=True,
             needs_rework=False,
         )
@@ -694,7 +701,12 @@ def _write_merge_ready_fixture(data_root: Path, batch_id: str = "batch_merge") -
         data_root=data_root,
     )
     save_binary_mask_png(
-        data_root / "prelabels" / batch_id / "seg" / "masks" / f"{image_id}.png",
+        data_root
+        / "results"
+        / batch_id
+        / "seg"
+        / "manual_masks"
+        / f"{image_id}_manual.png",
         [[0, 1], [1, 0]],
     )
     images_dir = data_root / "raw" / batch_id / "images"

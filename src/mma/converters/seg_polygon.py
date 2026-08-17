@@ -1,10 +1,14 @@
 """SEG mask ↔ Label Studio polygonlabels (percent points).
 
+Geometry encoding only: mask file ↔ LS polygon ``points``.
+Encode input may be a **previous human** mask (rework /
+``previous_annotations``), not a model prediction.
+
 Decode: LS ``points`` (%) → ``numpy.uint8`` mask → PNG.
 Encode: mask file → connected components → contour → approxPolyDP →
-percent points → LS polygon predictions.
+percent points → LS polygonlabels entries.
 Does not remove brush RLE support (``seg_brush``); this module is the default
-prefill / decode path for new SEG tasks.
+prefill / decode path for SEG geometry.
 """
 
 from __future__ import annotations
@@ -27,7 +31,7 @@ from mma.converters.to_labelstudio import (
     DEFAULT_LS_RESULT_SPECS,
     ImageMetadata,
 )
-from mma.formats.intermediate import PrelabelItem, SegPrelabelPayload
+from mma.formats.legacy_prelabel.intermediate import PrelabelItem, SegPrelabelPayload
 
 # Relative epsilon for approxPolyDP: fraction of contour perimeter.
 DEFAULT_APPROX_EPSILON_RATIO = 0.002

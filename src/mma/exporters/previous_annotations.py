@@ -1,5 +1,11 @@
 """Write / read self-contained rework ``previous_annotations/`` snapshots.
 
+Output is a **human annotation snapshot** (from
+``TaskAnnotationResult.annotation``), **not** a model prediction.
+Business rule: ``previous_annotations`` ≠ prediction. When rework-import
+maps this snapshot into a Label Studio ``predictions`` field, that field is
+only a UI prefill slot for historical human results.
+
 Built from ``TaskAnnotationResult.annotation`` only (no LS export dependency).
 Layout::
 
@@ -31,7 +37,7 @@ from mma.common.paths import (
 )
 from mma.common.seg_mask_paths import resolve_current_seg_mask_path
 from mma.converters.to_labelstudio import DEFAULT_LS_RESULT_SPECS
-from mma.formats.intermediate import (
+from mma.formats.legacy_prelabel.intermediate import (
     SCHEMA_VERSION,
     PrelabelItem,
     SegPrelabelPayload,
@@ -359,7 +365,7 @@ def _previous_det_to_ls(
     batch_id: str,
 ) -> list[dict[str, Any]]:
     from mma.converters.to_labelstudio import ImageMetadata, _build_det_results
-    from mma.formats.intermediate import DetPrelabelPayload, PrelabelBBox
+    from mma.formats.legacy_prelabel.intermediate import DetPrelabelPayload, PrelabelBBox
 
     if image_width is None or image_height is None:
         raise ValueError(
@@ -418,7 +424,7 @@ def _previous_cap_to_ls(
     batch_id: str,
 ) -> list[dict[str, Any]]:
     from mma.converters.to_labelstudio import _build_cap_results
-    from mma.formats.intermediate import CapPrelabelPayload
+    from mma.formats.legacy_prelabel.intermediate import CapPrelabelPayload
 
     caption = entry.get("caption")
     if not isinstance(caption, str):

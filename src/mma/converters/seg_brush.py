@@ -1,8 +1,12 @@
 """SEG mask ↔ Label Studio brush RLE (T3.1b + export persist).
 
-Encode: mask file → LS brush predictions (import prefill).
-Decode: LS brush RLE → binary mask / PNG (export → current/final).
-Does not change the P2 ``SegPrelabelPayload`` contract (one mask file per image).
+Geometry encoding only: mask file ↔ LS brush RLE / binary PNG.
+Encode input may be a **previous human** mask (rework /
+``previous_annotations``), not a model prediction. Decode: LS brush RLE →
+binary mask / PNG (export → current/final).
+
+Does not change the P2 ``SegPrelabelPayload`` contract (one mask file per
+image) for legacy callers.
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ from mma.converters.to_labelstudio import (
     DEFAULT_LS_RESULT_SPECS,
     ImageMetadata,
 )
-from mma.formats.intermediate import PrelabelItem, SegPrelabelPayload
+from mma.formats.legacy_prelabel.intermediate import PrelabelItem, SegPrelabelPayload
 
 # Foreground intensity written into LS RLE channel payload (matches LS converter).
 _FOREGROUND_VALUE = 255

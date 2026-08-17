@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mma.common.models import TaskType
-from mma.formats.intermediate import SCHEMA_VERSION, PrelabelItem, PrelabelPayload
+from mma.formats.legacy_prelabel.intermediate import SCHEMA_VERSION, PrelabelItem, PrelabelPayload
 
 
 def _require_non_empty_str(value: object, field_name: str) -> str:

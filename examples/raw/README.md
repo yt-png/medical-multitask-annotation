@@ -26,12 +26,16 @@ pairs = pair_images_with_excel(
 )
 ```
 
-### 生成 processed（T1.3）与任务包（T1.5）
+### 生成 processed、任务包与 LS 空任务导入
 
 ```bash
 mma preprocess --batch demo_batch --images examples/raw/demo_batch/images --excel examples/raw/demo_batch/diagnoses.xlsx --data-root data
 mma package --batch demo_batch --data-root data
+mma ls-import --batch demo_batch --task seg --data-root data
+mma ls-import --batch demo_batch --task det --data-root data
+mma ls-import --batch demo_batch --task cap --data-root data
 ```
 
 - processed：`data/processed/demo_batch/manifest.json`（不复制图像）
 - 任务包：`data/task_packages/demo_batch/{seg,det,cap}/`（含 `images/` 与 `manifest.json`）
+- LS 导入：`data/ls_import/demo_batch/{seg,det,cap}/tasks.json`（空任务；**task_packages 是 Label Studio 导入入口**，不依赖 `prelabels/`）

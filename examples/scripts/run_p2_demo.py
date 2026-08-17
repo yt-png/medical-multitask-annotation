@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""P2 demo: fake algorithm raw → Example adapter → LS import JSON.
+"""LEGACY EXAMPLE — not part of V1 runtime.
+
+P2 demo: fake algorithm raw → Example adapter → LS import JSON.
 
 Demonstration only. Not a pipeline framework and not part of ``src/mma``.
+Use ``mma ls-import`` for the V1 empty-task workflow.
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from mma.adapters import (
+from mma.legacy.adapters import (
     AdapterContext,
     ExampleCapAdapter,
     ExampleDetAdapter,
@@ -21,7 +24,7 @@ from mma.adapters import (
 from mma.common.io import write_json
 from mma.common.models import TaskType
 from mma.converters import ImageMetadata, document_to_ls_tasks
-from mma.formats import PrelabelDocument, PrelabelItem, SCHEMA_VERSION
+from mma.formats.legacy_prelabel import PrelabelDocument, PrelabelItem, SCHEMA_VERSION
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DEMO_DIR = _REPO_ROOT / "examples" / "adapter_raw" / "demo_batch"

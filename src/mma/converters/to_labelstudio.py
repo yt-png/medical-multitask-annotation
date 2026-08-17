@@ -1,12 +1,21 @@
-"""LEGACY — convert prelabel intermediate format to Label Studio import JSON.
+"""Label Studio conversion helpers (legacy prelabel + rework geometry).
 
-Historical / reference only: prelabel document → LS tasks (including
-``predictions``). **Not used by V1 first-round** ``mma ls-import`` (empty
-tasks come from ``importers.build_ls_tasks``).
+Roles:
+
+- **Legacy prelabel conversion**: ``PrelabelDocument`` / ``PrelabelItem`` → LS
+  import JSON (including a ``predictions`` key). Historical / reference;
+  **not** used by V1 first-round ``mma ls-import`` (empty tasks come from
+  ``importers.build_ls_tasks``).
+- **Rework prefill**: geometry builders may encode **previous human** masks /
+  boxes / text for rework import display.
+
+**Semantics**: Label Studio field name ``predictions`` ≠ model inference
+output. In rework / ``previous_annotations`` usage it is historical human
+annotation prefill only. Gold-standard export must not treat it as inference.
 
 APIs such as ``document_to_ls_tasks`` / ``item_to_ls_task`` / ``ImageMetadata``
 and ``DEFAULT_LS_RESULT_SPECS`` are retained for legacy tests and callers.
-SEG geometry prefill via ``mask_root`` remains available; default mode is
+SEG geometry via ``mask_root`` remains available; default mode is
 polygonlabels (brush RLE via ``SEG_PREFILL_MODE``). Does not wire the V1 CLI
 main path or define Label Studio XML.
 """
@@ -19,7 +28,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from mma.common.models import TaskType
-from mma.formats.intermediate import (
+from mma.formats.legacy_prelabel.intermediate import (
     CapPrelabelPayload,
     DetPrelabelPayload,
     PrelabelBBox,

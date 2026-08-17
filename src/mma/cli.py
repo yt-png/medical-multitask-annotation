@@ -41,12 +41,12 @@ def _run_convert_legacy_stub(_args: argparse.Namespace) -> int:
     """LEGACY convert entry: not wired; point users at V1 ``ls-import``."""
 
     print(
-        "mma convert: LEGACY stub — prelabel conversion is not part of the "
-        "V1 main workflow and is not wired in the CLI.\n"
-        "Use `mma ls-import` to build empty Label Studio annotation tasks "
-        "from task_packages.\n"
+        "mma convert: LEGACY only — V1 does not support prelabel conversion.\n"
+        "This command is a legacy stub and does not run any conversion.\n"
+        "Use `mma ls-import` to build empty Label Studio tasks from "
+        "task_packages (V1 recommended path).\n"
         "(Python API mma.converters.document_to_ls_tasks remains available "
-        "for legacy/tests.)",
+        "for legacy/tests only.)",
         file=sys.stderr,
     )
     return 2
@@ -97,12 +97,14 @@ def build_parser() -> argparse.ArgumentParser:
     convert = subparsers.add_parser(
         "convert",
         help=(
-            "LEGACY: convert prelabels to LS tasks "
-            "(not part of V1 main workflow; stub)."
+            "LEGACY only: V1 does not support prelabel conversion "
+            "(stub; use ls-import)."
         ),
         description=(
-            "LEGACY stub. Prelabel → Label Studio conversion is not part of "
-            "the V1 manual gold-standard workflow. Use `mma ls-import` instead."
+            "LEGACY only. V1 does not support prelabel conversion. "
+            "This command is a stub and performs no conversion. "
+            "Use `mma ls-import` to build empty Label Studio tasks from "
+            "task_packages."
         ),
     )
     convert.add_argument("--batch", required=True, help="Batch ID")

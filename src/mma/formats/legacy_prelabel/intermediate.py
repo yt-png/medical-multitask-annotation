@@ -1,7 +1,8 @@
-"""Unified SEG/DET/CAP prelabel intermediate format (T2.1).
+"""Unified SEG/DET/CAP prelabel intermediate format (T2.1｜legacy).
 
-This layer shields algorithm-specific outputs before Label Studio conversion.
-It does not modify ``mma.common.models`` business result contracts.
+Historical reference under ``mma.formats.legacy_prelabel``. Not the V1 runtime
+schema. This layer shields algorithm-specific outputs before Label Studio
+conversion. It does not modify ``mma.common.models`` business result contracts.
 
 Association key: ``image_id``. ``image_path`` is optional auxiliary location only
 and is not bound to ``task_packages`` path conventions.

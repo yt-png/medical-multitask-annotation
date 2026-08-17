@@ -1,4 +1,8 @@
-"""End-to-end P2 pipeline test: raw → ExampleAdapter → Document → LS converter."""
+"""End-to-end P2 pipeline test: raw → ExampleAdapter → Document → LS converter.
+
+Legacy integration path (depends on ``mma.legacy.adapters``). Run with
+``pytest -m legacy``.
+"""
 
 from __future__ import annotations
 
@@ -7,12 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from mma.adapters import (
-    AdapterContext,
-    ExampleCapAdapter,
-    ExampleDetAdapter,
-    ExampleSegAdapter,
-)
 from mma.common.models import TaskType
 from mma.converters import (
     DATA_KEY_DIAGNOSIS_TEXT,
@@ -21,12 +19,20 @@ from mma.converters import (
     ImageMetadata,
     document_to_ls_tasks,
 )
-from mma.formats import (
+from mma.formats.legacy_prelabel import (
     CapPrelabelPayload,
     PrelabelDocument,
     SCHEMA_VERSION,
     SegPrelabelPayload,
 )
+from mma.legacy.adapters import (
+    AdapterContext,
+    ExampleCapAdapter,
+    ExampleDetAdapter,
+    ExampleSegAdapter,
+)
+
+pytestmark = pytest.mark.legacy
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DEMO_DIR = _REPO_ROOT / "examples" / "adapter_raw" / "demo_batch"

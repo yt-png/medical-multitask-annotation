@@ -13,7 +13,11 @@
 | 空标注 | 可能被 prediction 回填 | 空 / 缺结果 → `rework/` |
 | prelabel 能力 | 主流程 | **隔离为 legacy**（历史参考，非主流程必做） |
 
-> **实现状态**：首轮 **空任务 `ls-import` 已落地**（M4）；**M6.1–M6.5 / M5.1–M5.2 / M5.6 / M12.1–M12.3**：金标准仅人工 annotation；空标注→`rework/`、正常→`normal/`、无 prelabels/无 prediction 主流程门禁已齐（见 `tests/test_m12_*.py`）。下列项**仍未完成**：adapters/formats legacy 隔离、`seg_mask_paths` 去 prelabels（M5.4）、返工语义收紧（M6.4）等（见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`）。与尚未交付行为不一致处仍标 **〔现状〕**。
+> **实现状态**
+>
+> - **Sprint A（已完成）**：空任务 `ls-import`（M4）；金标准仅人工 annotation、空标注→`rework/`、无 prelabels/prediction 主流程门禁（M6 / M5.1–M5.2 / M5.6 / M12.1–M12.3）。
+> - **Sprint B（已完成｜清理与隔离）**：adapters → `legacy/adapters`（M1）；formats 三分 + `legacy_prelabel`（M2 Phase A）；`seg_mask_paths` 无 prelabels fallback（M5.3–M5.5）；converter 语义「LS `predictions` ≠ 模型推理」（M3.2–M3.4）；CLI `convert` / examples 默认 V1（M3.3 / M10.2）；preprocess/packaging 无 legacy 依赖（M7）。
+> - **仍未完成（Sprint C / D）**：返工语义再收紧（M4.3 / M6.4）；merge 检查（M8）；可选 B2（返工路径脱离 PrelabelItem）；`deploy/v1`（M11）；文档冻结（M0）；M12.4–M12.6。详见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`。与尚未交付行为不一致处仍标 **〔现状〕**。
 
 ## 流水线一览（V1）
 

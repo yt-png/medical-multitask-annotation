@@ -9,9 +9,9 @@ from abc import ABC
 from collections.abc import Mapping
 from typing import Any
 
-from mma.adapters.context import AdapterContext, build_prelabel_item
+from mma.legacy.adapters.context import AdapterContext, build_prelabel_item
 from mma.common.models import TaskType
-from mma.formats.intermediate import DetPrelabelPayload, PrelabelBBox, PrelabelItem
+from mma.formats.legacy_prelabel.intermediate import DetPrelabelPayload, PrelabelBBox, PrelabelItem
 
 
 class DetPrelabelAdapter(ABC):

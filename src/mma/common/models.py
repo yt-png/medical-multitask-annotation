@@ -1,8 +1,10 @@
-"""Core data contracts for the multitask annotation pipeline.
+"""V1 core data contracts for the multitask annotation pipeline.
 
-Prelabel intermediate formats (pixel bbox, mask file refs, etc.) live in
-``mma.formats`` — see ``docs/formats.md``. This module defines business-stage
-field names, types, and light consistency checks only.
+``BBox``, ``*Annotation``, ``TaskAnnotationResult``, and related types here are
+the V1 annotation schema (also re-exported via ``mma.formats.annotation_schema`` /
+``task_schema``). Legacy prelabel intermediate types
+(``PrelabelBBox``, ``PrelabelItem``, …) live only under
+``mma.formats.legacy_prelabel`` — see ``docs/formats.md``.
 """
 
 from __future__ import annotations
@@ -36,10 +38,11 @@ class BatchContext:
 
 @dataclass(frozen=True)
 class BBox:
-    """Axis-aligned box: x, y, width, height.
+    """V1 annotation-schema axis-aligned box: x, y, width, height.
 
-    Coordinate space is not fixed here. Prelabel intermediate DET uses
-    ``mma.formats.PrelabelBBox`` (pixel coordinates); see ``docs/formats.md``.
+    Coordinate space is not fixed on this type. For the legacy prelabel DET
+    pixel box, see ``mma.formats.legacy_prelabel.PrelabelBBox`` /
+    ``docs/formats.md`` (historical; not the V1 gold-standard model).
     """
 
     x: float
@@ -50,7 +53,7 @@ class BBox:
 
 @dataclass(frozen=True)
 class SegAnnotation:
-    """SEG annotation payload; mask stored as a string reference.
+    """V1 SEG annotation payload; mask stored as a string reference.
 
     ``has_foreground`` is True when the manual mask has lesion foreground.
     False means an empty manual mask (no effective SEG payload). Missing
@@ -63,14 +66,14 @@ class SegAnnotation:
 
 @dataclass(frozen=True)
 class DetAnnotation:
-    """DET annotation payload (post-confirmation / merge stage)."""
+    """V1 DET annotation payload (current / merge stage)."""
 
     bboxes: tuple[BBox, ...]
 
 
 @dataclass(frozen=True)
 class CapAnnotation:
-    """CAP annotation payload (post-confirmation / merge stage)."""
+    """V1 CAP annotation payload (current / merge stage)."""
 
     caption: str
 

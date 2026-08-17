@@ -22,7 +22,7 @@ from mma.converters.seg_brush import (
     mask_to_ls_rle,
     union_binary_masks,
 )
-from mma.formats import (
+from mma.formats.legacy_prelabel import (
     PrelabelDocument,
     PrelabelItem,
     SCHEMA_VERSION,

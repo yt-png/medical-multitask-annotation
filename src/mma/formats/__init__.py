@@ -1,39 +1,43 @@
-"""Unified prelabel intermediate formats (P2 / T2.1)."""
+"""Formats namespace: V1 task / annotation schema (re-exports).
 
-from mma.formats.intermediate import (
-    SCHEMA_VERSION,
-    CapPrelabelPayload,
-    DetPrelabelPayload,
-    PrelabelBBox,
-    PrelabelDocument,
-    PrelabelItem,
-    PrelabelPayload,
-    SegPrelabelPayload,
-    assert_payload_matches_task,
-    load_prelabel_document,
-    prelabel_document_from_dict,
-    prelabel_document_to_dict,
-    prelabel_item_from_dict,
-    prelabel_item_to_dict,
-    validate_prelabel_document,
-    validate_prelabel_item,
+Prelabel intermediate types live under ``mma.formats.legacy_prelabel`` and are
+**not** re-exported here.
+"""
+
+from mma.formats.annotation_schema import (
+    AnnotationPayload,
+    BBox,
+    CapAnnotation,
+    DetAnnotation,
+    MergedMultitaskRecord,
+    ResultBundle,
+    SegAnnotation,
+    TaskAnnotationResult,
+)
+from mma.formats.task_schema import (
+    BatchContext,
+    BundleKind,
+    ImageRecord,
+    ImageTextPair,
+    SampleItem,
+    TaskPackage,
+    TaskType,
 )
 
 __all__ = [
-    "SCHEMA_VERSION",
-    "CapPrelabelPayload",
-    "DetPrelabelPayload",
-    "PrelabelBBox",
-    "PrelabelDocument",
-    "PrelabelItem",
-    "PrelabelPayload",
-    "SegPrelabelPayload",
-    "assert_payload_matches_task",
-    "load_prelabel_document",
-    "prelabel_document_from_dict",
-    "prelabel_document_to_dict",
-    "prelabel_item_from_dict",
-    "prelabel_item_to_dict",
-    "validate_prelabel_document",
-    "validate_prelabel_item",
+    "AnnotationPayload",
+    "BBox",
+    "BatchContext",
+    "BundleKind",
+    "CapAnnotation",
+    "DetAnnotation",
+    "ImageRecord",
+    "ImageTextPair",
+    "MergedMultitaskRecord",
+    "ResultBundle",
+    "SampleItem",
+    "SegAnnotation",
+    "TaskAnnotationResult",
+    "TaskPackage",
+    "TaskType",
 ]

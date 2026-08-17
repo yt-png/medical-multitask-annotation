@@ -1,9 +1,14 @@
-"""LEGACY converters: prelabel intermediate → downstream import formats.
+"""Converters for Label Studio geometry / import helpers.
 
-Historical / reference only. **Not used by V1 first-round** ``ls-import``
-(empty tasks are built in ``importers.build_ls_tasks``). Public APIs such as
-``document_to_ls_tasks``, ``item_to_ls_task``, ``ImageMetadata``, and
-``DEFAULT_LS_RESULT_SPECS`` remain available for legacy tests and callers.
+May emit a Label Studio ``predictions`` field. In **previous_annotations /
+rework** flows that field carries **historical human annotation prefill**,
+not a model prediction.
+
+Also retains **LEGACY** prelabel intermediate → LS import APIs (not used by
+V1 first-round ``ls-import``; empty tasks come from ``importers.build_ls_tasks``).
+Public APIs such as ``document_to_ls_tasks``, ``item_to_ls_task``,
+``ImageMetadata``, and ``DEFAULT_LS_RESULT_SPECS`` remain for legacy tests
+and rework geometry encoding callers.
 """
 
 from mma.converters.seg_brush import build_seg_brush_results
