@@ -1,5 +1,29 @@
 # Changelog
 
+## V1 — M8.1 三任务 merge + final 自包含核实（2026-08-17）
+
+### Verified
+
+- 保持现有 `merge/**`：`validate_ready` → `merge_multitask` → `merge_to_final`（复制 `images/{image_id}.jpg`、物化 `masks/{image_id}.png`、相对路径 `manifest.json`）。
+- **代码未改**（三任务 current 合并与 final 自包含已具备）。
+- 冒烟：**28 passed**（`PYTHONPATH` 指向本仓 `src`）：`tests/test_merge_to_final.py`（16）、`tests/test_merge_multitask.py`（10）、`tests/test_cli.py::test_merge_success` / `test_merge_failure_not_ready`。
+
+### Tests
+
+- 冒烟 28 passed：见上文 Verified。
+
+### Docs
+
+- README 实现状态关闭 M8.1；M8.2 / M8.3 仍待做。
+
+### Planned（仍未完成）
+
+- **M8.2**：检查 `validate_ready` / merge 无「必须有 prelabel」隐含条件
+- **M8.3**：回归 `test_merge_*.py`、`test_validate_ready.py`
+- **M12.4–M12.5**：独立运行 / 返工闭环门禁
+- **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
 ## V1 — M6.4 previous_annotations 语义文档收口（2026-08-17）
 
 ### Changed
@@ -17,7 +41,9 @@
 
 ### Planned（仍未完成）
 
-- **M8**：merge 隐式 prelabel 依赖检查
+- ~~**M8.1**~~ → 见文首 M8.1 节
+- **M8.2**：merge 隐式 prelabel 依赖检查
+- **M8.3**：`test_merge_*` / `test_validate_ready` 回归
 - **M12.4–M12.5**：独立运行 / 返工闭环门禁
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 - **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
@@ -73,7 +99,7 @@ Sprint B（运行时零依赖 `prelabels/` 主路径；formats / adapters 隔离
 ### Planned（Sprint C / D 及遗留）
 
 - **M2.2 B2**（可选后续）：返工路径彻底脱离 `PrelabelItem` 构造——**未纳入本次 Sprint B 必做**（Phase A 仅 namespace 拆分）
-- **Sprint C**：~~M4.3~~ / ~~M6.4~~ → 见文首；merge 隐式依赖检查（M8）、场景门禁 M12.4–M12.5
+- **Sprint C**：~~M4.3~~ / ~~M6.4~~ / ~~M8.1~~ → 见文首；M8.2 / M8.3、场景门禁 M12.4–M12.5
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 
 ## V1 — M3.2–M3.4 converter 语义 + legacy 测试标记（2026-08-17）
