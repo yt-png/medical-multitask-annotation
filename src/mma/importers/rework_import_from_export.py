@@ -1,7 +1,11 @@
 """Build rework LS import tasks (P4 CLI glue).
 
-Prefers self-contained ``rework/previous_annotations/``; falls back to legacy
-``--export`` raw side-channel when previous snapshots are absent.
+V1 main path: self-contained ``rework/previous_annotations/`` (historical
+human annotation). Falls back to the legacy ``--export`` raw side-channel
+only when that snapshot is absent.
+
+Does not read ``prelabels/``. When previous snapshots exist, ``export_path``
+is ignored for prefill geometry.
 """
 
 from __future__ import annotations
@@ -55,10 +59,11 @@ def rework_import_from_export(
 
     Priority:
     1. If ``rework/previous_annotations/<task>.json`` exists → use it
-       (``export_path`` ignored for prediction geometry).
+       (``export_path`` ignored for prefill geometry). Prefill is human
+       history written into the LS ``predictions`` slot, not model output.
     2. Else require ``export_path`` and use the legacy raw-export path.
 
-    Empty rework side writes an empty JSON array ``[]``.
+    Does not read ``prelabels/``. Empty rework side writes ``[]``.
     """
 
     cleaned = validate_batch_id(batch_id)

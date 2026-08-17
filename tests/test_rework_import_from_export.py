@@ -1,4 +1,10 @@
-"""Tests for rework_import_from_export (P4 rework-import glue)."""
+"""Tests for rework_import_from_export (legacy ``--export`` side-channel).
+
+V1 main path uses ``rework/previous_annotations/`` (see
+``test_previous_annotations.py`` and ``test_build_rework_tasks.py``).
+These cases cover the optional raw-export fallback when that snapshot
+is absent.
+"""
 
 from __future__ import annotations
 

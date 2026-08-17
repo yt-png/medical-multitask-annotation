@@ -1,5 +1,31 @@
 # Changelog
 
+## V1 — M4.3 返工预填源仅 previous_annotations（2026-08-17）
+
+### Changed
+
+- `build_rework_ls_tasks`：默认 `prediction_source` 改为 `"previous"`（V1 主路径）；`raw` 须显式传入（legacy `--export`）。
+- previous 路径 SEG `data.mask_ref` 只用来自快照的 `mask_file`；不再回退 `item.annotation.mask_ref`。
+- 注释 / CLI help：LS `predictions` / `model_version` 为人工历史预填槽；`rework-import` 不读 `prelabels/`。
+
+### Tests
+
+- `test_build_rework_tasks.py`：previous 默认源、CAP/DET 快照预填、忽略 orphan `prelabels.json`、空 CAP 载荷仍出任务、SEG `mask_ref` 仅来自快照；现有 raw 用例显式 `prediction_source="raw"`。
+- `test_effective_result.py`：返工形态 `predictions` + confirm-only annotation → `source="empty"`（M6.1 联调）。
+- `test_cli.py`：`rework-import -h` 含 `previous_annotations` 且声明不读 prelabels。
+
+### Docs
+
+- README 实现状态关闭 M4.3；`docs/labelstudio_usage.md` 补「不读 prelabels/」。
+
+### Planned（仍未完成）
+
+- **M6.4**：`previous_annotations.py` 命名/文档收口
+- **M8**：merge 隐式 prelabel 依赖检查
+- **M12.4–M12.5**：独立运行 / 返工闭环门禁
+- **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
 ## V1 — Sprint B 完成：清理与隔离（2026-08-17）
 
 ### Summary
@@ -25,7 +51,7 @@ Sprint B（运行时零依赖 `prelabels/` 主路径；formats / adapters 隔离
 ### Planned（Sprint C / D 及遗留）
 
 - **M2.2 B2**（可选后续）：返工路径彻底脱离 `PrelabelItem` 构造——**未纳入本次 Sprint B 必做**（Phase A 仅 namespace 拆分）
-- **Sprint C**：返工语义收紧（M4.3 / M6.4）、merge 隐式依赖检查（M8）、场景门禁 M12.4–M12.5
+- **Sprint C**：~~M4.3~~ → 见文首；返工文档收口（M6.4）、merge 隐式依赖检查（M8）、场景门禁 M12.4–M12.5
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 
 ## V1 — M3.2–M3.4 converter 语义 + legacy 测试标记（2026-08-17）

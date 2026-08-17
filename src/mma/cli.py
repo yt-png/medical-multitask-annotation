@@ -175,8 +175,9 @@ def build_parser() -> argparse.ArgumentParser:
     rework_import = subparsers.add_parser(
         "rework-import",
         help=(
-            "Build rework import tasks with previous results (P4). "
-            "Prefers rework/previous_annotations; --export only for legacy packs."
+            "Build rework import tasks from previous_annotations "
+            "(V1 human-history prefill; does not read prelabels). "
+            "--export only for legacy packs."
         ),
     )
     rework_import.add_argument("--batch", required=True, help="Batch ID")
@@ -190,8 +191,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--export",
         default=None,
         help=(
-            "Optional Label Studio export JSON (legacy). "
-            "Not required when rework/previous_annotations/<task>.json exists."
+            "Optional Label Studio export JSON (legacy packs only). "
+            "Not used when rework/previous_annotations/<task>.json exists. "
+            "Does not read prelabels."
         ),
     )
     rework_import.add_argument(

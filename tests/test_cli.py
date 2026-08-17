@@ -216,6 +216,15 @@ def test_ls_import_help_describes_empty_task_packages() -> None:
     assert "require" not in text or "prelabel" not in text
 
 
+def test_rework_import_help_v1_wording() -> None:
+    parser = build_parser()
+    rw_parser = parser._subparsers._group_actions[0].choices["rework-import"]
+    text = rw_parser.format_help().lower()
+    assert "previous_annotations" in text
+    assert "does not read" in text
+    assert "prelabel" in text
+
+
 def test_export_split_requires_export() -> None:
     with pytest.raises(SystemExit) as exc:
         main(["export-split", "--batch", "b1", "--task", "seg"])

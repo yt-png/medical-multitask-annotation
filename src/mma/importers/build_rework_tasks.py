@@ -1,9 +1,15 @@
-"""Build Label Studio rework import tasks (T4.3).
+"""Build Label Studio rework import tasks (T4.3 / M4.3).
 
-Supports two prediction sources:
+V1 prefill source is ``previous_annotations`` (historical **human**
+annotation). The Label Studio ``predictions`` slot (including
+``model_version``) is only a UI prefill field — not model inference.
 
-- ``previous``: self-contained ``rework/previous_annotations/`` (preferred)
-- ``raw``: legacy side-channel from an LS export JSON
+Sources:
+
+- ``previous`` (V1 default): ``rework/previous_annotations/``
+- ``raw`` (legacy): side-channel from an LS export JSON
+
+Does not read ``prelabels/``.
 """
 
 from __future__ import annotations
@@ -50,7 +56,7 @@ def build_rework_ls_tasks(
     *,
     batch_id: str,
     task_type: TaskType,
-    prediction_source: PredictionSource = "raw",
+    prediction_source: PredictionSource = "previous",
     raw_results_by_image_id: Mapping[str, Sequence[Mapping[str, Any]]]
     | None = None,
     data_root: Path | str | None = None,
@@ -60,10 +66,13 @@ def build_rework_ls_tasks(
 
     ``prediction_source``:
 
-    - ``\"previous\"``: load ``rework/previous_annotations/<task>.json`` and
-      build ``predictions`` (DET/SEG/CAP converters reused).
+    - ``\"previous\"`` (default, V1): load
+      ``rework/previous_annotations/<task>.json`` and write the human
+      snapshot into the LS ``predictions`` slot (UI prefill only).
     - ``\"raw\"``: use ``raw_results_by_image_id`` after stripping Choices
-      (legacy export side-channel).
+      (legacy export side-channel). Callers must pass this explicitly.
+
+    Does not read ``prelabels/``. Empty ``rework_results`` returns ``[]``.
     """
 
     if not isinstance(task_type, TaskType):
@@ -180,8 +189,8 @@ def build_rework_ls_tasks(
                         f"{PREVIOUS_ANNOTATIONS_DIRNAME}/"
                         f"{mask_file.strip().replace(chr(92), '/')}"
                     )
-                elif isinstance(item.annotation, SegAnnotation):
-                    data[DATA_KEY_MASK_REF] = item.annotation.mask_ref
+                # No mask_file → omit mask_ref (do not fall back to
+                # item.annotation.mask_ref).
             elif isinstance(item.annotation, SegAnnotation):
                 data[DATA_KEY_MASK_REF] = item.annotation.mask_ref
 

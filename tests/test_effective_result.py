@@ -373,3 +373,28 @@ def test_legacy_rework_raw_confirm_only_no_prelabel_geometry(tmp_path: Path) -> 
             e.get("type") in {"rectanglelabels", "textarea", "polygonlabels"}
             for e in pred
         )
+
+
+def test_rework_shaped_predictions_do_not_become_effective() -> None:
+    """M4.3 × M6.1: rework LS ``predictions`` prefill is not gold standard."""
+
+    task = _task(
+        image_id="img-det",
+        ann_result=[
+            _choice("human_confirmed", "yes"),
+            _choice("needs_rework", "no"),
+        ],
+        predictions=[
+            {
+                "model_version": "mma-rework-prev-1.0",
+                "result": [_det_box(10.0, 20.0)],
+            }
+        ],
+    )
+    effective = resolve_effective_result(
+        task, task_type=TaskType.DET, image_id="img-det"
+    )
+    assert effective.source == "empty"
+    assert all(
+        entry.get("from_name") != "det_bbox" for entry in effective.effective_result
+    )
