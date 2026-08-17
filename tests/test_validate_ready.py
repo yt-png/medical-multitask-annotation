@@ -120,6 +120,16 @@ def test_validate_ready_success(tmp_path: Path) -> None:
     assert not (tmp_path / "final").exists()
 
 
+def test_validate_ready_succeeds_without_prelabels_dir(tmp_path: Path) -> None:
+    """M8.2: merge readiness does not require prelabels/."""
+
+    _write_ready_triple(tmp_path, "batch1")
+    assert not (tmp_path / "prelabels").exists()
+    assert validate_ready("batch1", data_root=tmp_path) is None
+    assert not (tmp_path / "prelabels").exists()
+    assert not (tmp_path / "final").exists()
+
+
 def test_missing_current_file_raises(tmp_path: Path) -> None:
     overwrite_current(
         [_seg("img-a")],

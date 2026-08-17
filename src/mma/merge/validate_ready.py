@@ -29,12 +29,15 @@ def validate_ready(
     1. SEG → DET → CAP ``current/annotations.json`` loadable
        (missing file → ``FileNotFoundError`` from ``load_current``)
     2. No task has an empty item list
-    3. No sample with ``should_rework`` (i.e. all confirmed and not needing rework)
+    3. No sample with ``should_rework_result`` (unconfirmed, needs_rework,
+       or empty/missing task payload)
     4. ``image_id`` sets are identical across the three tasks
     5. That common ``image_id`` set equals ``processed/<batch>/manifest.json``
        (missing processed → ``FileNotFoundError``)
 
-    Returns ``None`` on success; raises ``ValueError`` on logical failures.
+    Readiness does not require ``prelabels/``. Does not merge or write
+    ``final/``. Returns ``None`` on success; raises ``ValueError`` on
+    logical failures.
     """
 
     cleaned = validate_batch_id(batch_id)

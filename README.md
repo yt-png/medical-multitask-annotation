@@ -17,8 +17,8 @@
 >
 > - **Sprint A（已完成）**：空任务 `ls-import`（M4）；金标准仅人工 annotation、空标注→`rework/`、无 prelabels/prediction 主流程门禁（M6 / M5.1–M5.2 / M5.6 / M12.1–M12.3）。
 > - **Sprint B（已完成｜清理与隔离）**：adapters → `legacy/adapters`（M1）；formats 三分 + `legacy_prelabel`（M2 Phase A）；`seg_mask_paths` 无 prelabels fallback（M5.3–M5.5）；converter 语义「LS `predictions` ≠ 模型推理」（M3.2–M3.4）；CLI `convert` / examples 默认 V1（M3.3 / M10.2）；preprocess/packaging 无 legacy 依赖（M7）。
-> - **Sprint C（进行中）**：M4.3 返工预填源仅 `previous_annotations`（已完成）；M6.4 快照语义文档收口（已完成）；M8.1 三任务合并 + final 自包含核实（已完成）；仍待 M8.2 / M8.3 / M12.4–M12.5。
-> - **仍未完成（Sprint C 余项 / D）**：merge 隐式 prelabel 检查（M8.2）、merge 回归（M8.3）；可选 B2（返工路径脱离 PrelabelItem）；`deploy/v1`（M11）；文档冻结（M0）；M12.4–M12.6。详见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`。
+> - **Sprint C（进行中）**：M4.3 返工预填源仅 `previous_annotations`（已完成）；M6.4 快照语义文档收口（已完成）；M8.1 三任务合并 + final 自包含核实（已完成）；M8.2 merge 无必须有 prelabel（已完成）；仍待 M8.3 / M12.4–M12.5。
+> - **仍未完成（Sprint C 余项 / D）**：merge 回归（M8.3）；可选 B2（返工路径脱离 PrelabelItem）；`deploy/v1`（M11）；文档冻结（M0）；M12.4–M12.6。详见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`。
 
 ## 流水线一览（V1）
 

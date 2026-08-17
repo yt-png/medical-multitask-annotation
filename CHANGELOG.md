@@ -1,5 +1,31 @@
 # Changelog
 
+## V1 — M8.2 merge 就绪不依赖 prelabels（2026-08-17）
+
+### Verified
+
+- `merge/` 运行时不读 `prelabels/`；`prelabels` 仅出现在 final mask 契约的**禁止根**校验（非「必须有」）。
+- 就绪语义仅为三路 `current/` + processed + `should_rework_result`。
+
+### Changed
+
+- `validate_ready` docstring：第 3 条改为 `should_rework_result`（含空载荷）；写明不要求 `prelabels/`。
+
+### Tests
+
+- 冒烟 **16 passed**（`PYTHONPATH` 指向本仓 `src`）：`tests/test_validate_ready.py`（15，含 `test_validate_ready_succeeds_without_prelabels_dir`）+ `tests/test_merge_to_final.py::test_case2_legacy_prelabel_mask_ref_rejected`。
+
+### Docs
+
+- README 实现状态关闭 M8.2；M8.3 仍待做。
+
+### Planned（仍未完成）
+
+- **M8.3**：回归 `test_merge_*.py`、`test_validate_ready.py`
+- **M12.4–M12.5**：独立运行 / 返工闭环门禁
+- **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
 ## V1 — M8.1 三任务 merge + final 自包含核实（2026-08-17）
 
 ### Verified
@@ -18,7 +44,7 @@
 
 ### Planned（仍未完成）
 
-- **M8.2**：检查 `validate_ready` / merge 无「必须有 prelabel」隐含条件
+- ~~**M8.2**~~ → 见文首 M8.2 节
 - **M8.3**：回归 `test_merge_*.py`、`test_validate_ready.py`
 - **M12.4–M12.5**：独立运行 / 返工闭环门禁
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
@@ -99,7 +125,7 @@ Sprint B（运行时零依赖 `prelabels/` 主路径；formats / adapters 隔离
 ### Planned（Sprint C / D 及遗留）
 
 - **M2.2 B2**（可选后续）：返工路径彻底脱离 `PrelabelItem` 构造——**未纳入本次 Sprint B 必做**（Phase A 仅 namespace 拆分）
-- **Sprint C**：~~M4.3~~ / ~~M6.4~~ / ~~M8.1~~ → 见文首；M8.2 / M8.3、场景门禁 M12.4–M12.5
+- **Sprint C**：~~M4.3~~ / ~~M6.4~~ / ~~M8.1~~ / ~~M8.2~~ → 见文首；M8.3、场景门禁 M12.4–M12.5
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 
 ## V1 — M3.2–M3.4 converter 语义 + legacy 测试标记（2026-08-17）
