@@ -1,5 +1,28 @@
 # Changelog
 
+## V1 — M12.5 场景门禁：返工闭环 → merge 出 final（2026-08-17）
+
+### Added
+
+- `tests/test_m12_5_rework_loop_to_final.py`：CAP 空标注进 rework 时 merge 失败；`rework-import` 仅 `previous_annotations` → 修好 → merge 出自包含 final。
+
+### Verified
+
+- **`src/` 运行时未改**；DET/SEG 预置就绪，只让 CAP 走闭环；不改 runbook、不测第二轮仍留返工。
+
+### Tests
+
+- 门禁 **2 passed**（`PYTHONPATH` 指向本仓 `src`）：`tests/test_m12_5_rework_loop_to_final.py`。
+
+### Docs
+
+- README 关闭 M12.5；Sprint C 必做项收口。余项为可选 B2 / Sprint D。
+
+### Planned（仍未完成）
+
+- **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
 ## V1 — M12.4 场景门禁：SEG/DET/CAP 独立运行（2026-08-17）
 
 ### Added
@@ -20,7 +43,7 @@
 
 ### Planned（仍未完成）
 
-- **M12.5**：返工闭环 → merge 出 final
+- ~~**M12.5**~~ → 见文首 M12.5 节
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 - **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
 
@@ -172,7 +195,7 @@ Sprint B（运行时零依赖 `prelabels/` 主路径；formats / adapters 隔离
 ### Planned（Sprint C / D 及遗留）
 
 - **M2.2 B2**（可选后续）：返工路径彻底脱离 `PrelabelItem` 构造——**未纳入本次 Sprint B 必做**（Phase A 仅 namespace 拆分）
-- **Sprint C**：~~M4.3~~ / ~~M6.4~~ / ~~M8.1~~ / ~~M8.2~~ / ~~M8.3~~ / ~~M12.4~~ → 见文首；场景门禁 M12.5
+- **Sprint C**：~~M4.3~~ / ~~M6.4~~ / ~~M8.1~~ / ~~M8.2~~ / ~~M8.3~~ / ~~M12.4~~ / ~~M12.5~~ → 见文首
 - **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
 
 ## V1 — M3.2–M3.4 converter 语义 + legacy 测试标记（2026-08-17）
