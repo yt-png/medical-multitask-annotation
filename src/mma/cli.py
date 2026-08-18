@@ -45,8 +45,8 @@ def _run_convert_legacy_stub(_args: argparse.Namespace) -> int:
         "This command is a legacy stub and does not run any conversion.\n"
         "Use `mma ls-import` to build empty Label Studio tasks from "
         "task_packages (V1 recommended path).\n"
-        "(Python API mma.converters.document_to_ls_tasks remains available "
-        "for legacy/tests only.)",
+        "(Python API mma.legacy.converters.document_to_ls_tasks remains "
+        "available for legacy/tests only.)",
         file=sys.stderr,
     )
     return 2

@@ -1233,7 +1233,7 @@ mma -h
 
 ## 6.9 首轮任务里看到预填
 
-**原因：** 导入了 `rework_tasks.json`，或使用了 Legacy `document_to_ls_tasks` / 历史 convert 产物。
+**原因：** 导入了 `rework_tasks.json`，或使用了 Legacy `mma.legacy.converters.document_to_ls_tasks` / 历史 convert 产物。
 
 **解决：** 首轮只导入 `tasks.json`。确认文件无 `predictions` 键。
 

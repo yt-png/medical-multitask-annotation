@@ -1,8 +1,8 @@
 """LEGACY tests: prelabel intermediate → Label Studio import conversion.
 
-Exercises historical ``mma.converters`` APIs (not V1 first-round ls-import).
-Test logic below is unchanged from the frozen prelabel conversion suite.
-Run with ``pytest -m legacy``.
+Exercises historical ``mma.legacy.converters`` APIs (not V1 first-round
+ls-import). Test logic below is unchanged from the frozen prelabel
+conversion suite. Run with ``pytest -m legacy``.
 """
 
 from __future__ import annotations
@@ -18,8 +18,10 @@ from mma.converters import (
     DATA_KEY_IMAGE_ID,
     DATA_KEY_MASK_REF,
     DEFAULT_LS_RESULT_SPECS,
-    MODEL_VERSION,
     ImageMetadata,
+)
+from mma.legacy.converters import (
+    MODEL_VERSION,
     document_to_ls_tasks,
     item_to_ls_task,
 )

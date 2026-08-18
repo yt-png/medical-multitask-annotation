@@ -177,10 +177,12 @@ doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 
 ---
 
-## 9. Label Studio import JSON（T2.2）
+## 9. Label Studio import JSON（T2.2｜legacy）
 
-实现：`src/mma/converters/to_labelstudio.py`。  
-公开 API：`item_to_ls_task` / `document_to_ls_tasks`（**未**接线 `mma convert`）。
+实现：`src/mma/legacy/converters/to_labelstudio.py`（公开入口 `mma.legacy.converters`）。  
+公开 API：`item_to_ls_task` / `document_to_ls_tasks`（**未**接线 `mma convert`；**不是** V1 `mma.converters` 公开面）。
+
+> **Legacy**：prelabel 中间格式 → LS import（含 `predictions`）仅供历史参考与 `pytest -m legacy`。V1 首轮空任务由 `mma.importers.build_ls_import_tasks` / `mma ls-import` 生成。V1 几何类型（`ImageMetadata`、`DEFAULT_LS_RESULT_SPECS`）仍在 `mma.converters`。
 
 ### 9.1 共性
 
@@ -202,7 +204,8 @@ doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
 | CAP | 原文在 `data.diagnosis_text`；预标注在 textarea `value.text` |
 
 ```python
-from mma.converters import ImageMetadata, document_to_ls_tasks
+from mma.converters import ImageMetadata
+from mma.legacy.converters import document_to_ls_tasks
 from mma.formats.legacy_prelabel import load_prelabel_document
 
 doc = load_prelabel_document("examples/prelabels/demo_batch/det/prelabels.json")
@@ -219,7 +222,7 @@ SEG 叠图预填示例：
 
 ```python
 from pathlib import Path
-from mma.converters import document_to_ls_tasks
+from mma.legacy.converters import document_to_ls_tasks
 from mma.formats.legacy_prelabel import load_prelabel_document
 
 doc = load_prelabel_document("examples/prelabels/demo_batch/seg/prelabels.json")
@@ -276,11 +279,11 @@ item = ExampleSegAdapter().adapt_item(
 |---|---|
 | `Image name="image"` / `$image` | 与 T2.2 `data.image`、`DEFAULT_LS_RESULT_SPECS[SEG].to_name` |
 | `PolygonLabels name="seg_mask"` | 与 `from_name=seg_mask`；标签 `lesion`；多边形叠在原图上编辑（新任务默认） |
-| （历史）`BrushLabels` / `brushlabels`+`rle` | 解析层仍兼容；`seg_brush.py` 保留；预填可用 `SEG_PREFILL_MODE="brush"` |
+| （历史）`BrushLabels` / `brushlabels`+`rle` | 解析层仍兼容；`seg_brush.py` 保留；legacy 预填可用 `mma.legacy.converters.SEG_PREFILL_MODE="brush"` |
 | `$diagnosis_text` / `$image_id` 等只读 Text | 与转换 `data.*` 字段名一致；`$mask_ref` 仅路径追溯，**不是**预标注主展示 |
 | `Choices name="human_confirmed"` / `needs_rework` | value 为 `yes`/`no`；对齐契约 `human_confirmed` / `needs_rework` |
 
-预标注叠图写入 `predictions`（连通域拆分）属 **T3.1b**：调用 `item_to_ls_task` / `document_to_ls_tasks` 时传入 `mask_root`；默认 `SEG_PREFILL_MODE="polygon"`（`mma.converters.seg_polygon`），可选 `"brush"`（`mma.converters.seg_brush`）。导出解析同时接受 `polygonlabels.points`（百分比）与历史 `brushlabels.rle`，统一落盘为 `manual_masks/{image_id}_manual.png`。
+预标注叠图写入 `predictions`（连通域拆分）属 **T3.1b／legacy**：调用 `mma.legacy.converters` 的 `item_to_ls_task` / `document_to_ls_tasks` 时传入 `mask_root`；默认 `SEG_PREFILL_MODE="polygon"`（几何在 `mma.converters.seg_polygon`），可选 `"brush"`（`mma.converters.seg_brush`）。导出解析同时接受 `polygonlabels.points`（百分比）与历史 `brushlabels.rle`，统一落盘为 `manual_masks/{image_id}_manual.png`。
 
 返工再导入、`previous_annotations`、legacy `--export` 的 **effective result** 旁路等见 `docs/data_layout.md` / `docs/labelstudio_usage.md`（本文不重复）。
 

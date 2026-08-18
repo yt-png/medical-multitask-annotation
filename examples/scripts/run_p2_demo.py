@@ -23,7 +23,8 @@ from mma.legacy.adapters import (
 )
 from mma.common.io import write_json
 from mma.common.models import TaskType
-from mma.converters import ImageMetadata, document_to_ls_tasks
+from mma.converters import ImageMetadata
+from mma.legacy.converters import document_to_ls_tasks
 from mma.formats.legacy_prelabel import PrelabelDocument, PrelabelItem, SCHEMA_VERSION
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]

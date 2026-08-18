@@ -17,8 +17,8 @@ from mma.converters import (
     DATA_KEY_IMAGE_ID,
     DATA_KEY_MASK_REF,
     ImageMetadata,
-    document_to_ls_tasks,
 )
+from mma.legacy.converters import document_to_ls_tasks
 from mma.formats.legacy_prelabel import (
     CapPrelabelPayload,
     PrelabelDocument,

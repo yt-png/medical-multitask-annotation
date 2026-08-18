@@ -1,5 +1,24 @@
 # Changelog
 
+## V1 — R2 隔离 prelabel→LS 转换 API（2026-08-19）
+
+### Changed
+
+- `mma.converters` 不再导出 `document_to_ls_tasks` / `item_to_ls_task` / `MODEL_VERSION` / `SEG_PREFILL_MODE` / `build_seg_*_results`
+- prelabel 中间格式 → LS import 迁至 `mma.legacy.converters`；V1 converters 仅保留返工/导出几何与字段名
+- `mma convert` stub 文案改为指向 `mma.legacy.converters.document_to_ls_tasks`
+
+### Tests
+
+- 新增 `tests/test_r2_converters_no_prelabel_api.py`：禁止从 `mma.converters` / `to_labelstudio` 旧路径导入；主路径 import 图不含 `mma.legacy.converters`
+- Prelabel SEG 叠图用例迁至 `tests/legacy/test_seg_prelabel_geometry.py`；默认套件保留 mask ↔ LS 几何
+
+### Docs
+
+- `docs/formats.md`：T2.2 公开 API 指向 `mma.legacy.converters`
+- `docs/V1_LOCAL_FULL_CHAIN_TEST_REPORT.md`：路径说明同步
+
+
 ## V1 — R1 缺任务结果补进 rework（2026-08-19）
 
 ### Changed

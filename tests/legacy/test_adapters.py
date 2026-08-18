@@ -8,7 +8,8 @@ from __future__ import annotations
 import pytest
 
 from mma.common.models import TaskType
-from mma.converters import ImageMetadata, item_to_ls_task
+from mma.converters import ImageMetadata
+from mma.legacy.converters import item_to_ls_task
 from mma.formats.legacy_prelabel import (
     CapPrelabelPayload,
     DetPrelabelPayload,
