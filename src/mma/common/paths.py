@@ -147,25 +147,6 @@ def task_package_dir(
     )
 
 
-def prelabels_task_dir(
-    batch_id: str,
-    task: str | TaskType,
-    *,
-    data_root: Path | str | None = None,
-) -> Path:
-    """Return ``{data_root}/prelabels/{batch_id}/{seg|det|cap}``.
-
-    **Deprecated (legacy only).** Kept for historical prelabel layouts and
-    optional legacy tooling. V1 runtime (``ls-import`` / export / merge /
-    ``seg_mask_paths``) must not rely on this path. Prefer
-    ``task_packages_*`` / ``results_*`` helpers for V1 data.
-    """
-
-    cleaned = validate_batch_id(batch_id)
-    root = default_data_root() if data_root is None else Path(data_root)
-    return root / "prelabels" / cleaned / task_dir_name(task)
-
-
 def ls_import_task_dir(
     batch_id: str,
     task: str | TaskType,

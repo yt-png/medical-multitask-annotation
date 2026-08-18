@@ -1,5 +1,11 @@
 # Changelog
 
+## V1 — P8 删除未用 prelabels_task_dir（2026-08-18）
+
+### Changed
+
+- `common/paths.py`：删除未用的 `prelabels_task_dir`（M5.3）；主流程本无调用
+
 ## V1 — P7 README 补 pytest 验证步骤（2026-08-18）
 
 ### Docs
