@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image
-
-from mma.common.io import write_json
 from mma.common.models import TaskType
 from mma.converters import ImageMetadata
 from mma.converters.to_labelstudio import DEFAULT_LS_RESULT_SPECS
@@ -14,7 +11,6 @@ from mma.exporters.effective_result import resolve_effective_result
 from mma.exporters.extract_ls_raw_results import extract_ls_raw_results_data
 from mma.exporters.parse_ls_export import parse_ls_export_data
 from mma.exporters.split_by_rework import split_by_rework
-from mma.importers.build_rework_tasks import build_rework_ls_tasks
 
 
 def _choice(from_name: str, value: str = "yes") -> dict:
@@ -261,44 +257,13 @@ def test_extract_confirm_only_excludes_prediction_geometry() -> None:
     assert any(e.get("from_name") == "human_confirmed" for e in result)
 
 
-def _write_package(
-    data_root: Path,
-    *,
-    batch_id: str,
-    task: str,
-    image_id: str,
-) -> None:
-    package_dir = data_root / "task_packages" / batch_id / task
-    images_dir = package_dir / "images"
-    images_dir.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", (100, 100), color=(1, 2, 3)).save(
-        images_dir / f"{image_id}.jpg"
-    )
-    write_json(
-        package_dir / "manifest.json",
-        {
-            "package_id": f"{batch_id}__{task}",
-            "task_type": task.upper(),
-            "batch_id": batch_id,
-            "samples": [
-                {
-                    "image_id": image_id,
-                    "image_path": f"images/{image_id}.jpg",
-                    "diagnosis_text": "diag",
-                }
-            ],
-        },
-    )
-
-
 def test_legacy_rework_raw_confirm_only_no_prelabel_geometry(tmp_path: Path) -> None:
-    """Legacy raw path: no task-control geometry from predictions in extract/rework.
+    """Predictions must not supply task-control geometry in extract (M6.1).
 
     CAP confirm-only without ``cap_text`` cannot parse after M6.1 (no fallback);
     use human_cleared so parse yields empty caption while pred text is ignored.
     """
 
-    batch_id = "leg_fb"
     cases: list[tuple[str, str, list[dict], list[dict], TaskType, int | None]] = [
         (
             "det",
@@ -326,7 +291,6 @@ def test_legacy_rework_raw_confirm_only_no_prelabel_geometry(tmp_path: Path) -> 
         ),
     ]
     for task, image_id, ann_result, pred_result, task_type, prediction_link in cases:
-        _write_package(tmp_path, batch_id=batch_id, task=task, image_id=image_id)
         export_task = _task(
             image_id=image_id,
             ann_result=ann_result,
@@ -354,25 +318,10 @@ def test_legacy_rework_raw_confirm_only_no_prelabel_geometry(tmp_path: Path) -> 
             results = parse_ls_export_data([export_task], task_type=task_type)
 
         _, rework = split_by_rework(results)
+        assert len(rework) == 1
         raw = extract_ls_raw_results_data([export_task], task_type=task_type)
         control = _task_control(task_type)
         assert all(e.get("from_name") != control for e in raw[image_id])
-
-        tasks = build_rework_ls_tasks(
-            rework,
-            batch_id=batch_id,
-            task_type=task_type,
-            prediction_source="raw",
-            raw_results_by_image_id=raw,
-            data_root=tmp_path,
-        )
-        assert len(tasks) == 1
-        pred = tasks[0]["predictions"][0]["result"]
-        assert all(e.get("from_name") != control for e in pred)
-        assert not any(
-            e.get("type") in {"rectanglelabels", "textarea", "polygonlabels"}
-            for e in pred
-        )
 
 
 def test_rework_shaped_predictions_do_not_become_effective() -> None:

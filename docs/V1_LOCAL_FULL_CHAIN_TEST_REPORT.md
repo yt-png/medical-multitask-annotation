@@ -1225,9 +1225,9 @@ mma -h
 
 ## 6.8 返工导入无图 / 无预填
 
-**原因：** 只拷了 `rework/` 没有 `task_packages` 图像；或 previous_annotations 缺失却没传 `--export`。
+**原因：** 只拷了 `rework/` 没有 `task_packages` 图像；或缺少 `previous_annotations`。
 
-**解决：** 本机保留任务包图像。有快照时不要用错 `--export` 旁路。`--export` 仅旧包无快照时需要（Legacy）。
+**解决：** 本机保留任务包图像。无快照须先 `export-split` / `apply-current`。`rework-import --export` 不用于预填。
 
 ---
 

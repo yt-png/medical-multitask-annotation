@@ -1,5 +1,22 @@
 # Changelog
 
+## V1 — R3 删除返工 raw 预填旁路（2026-08-19）
+
+### Changed
+
+- `build_rework_ls_tasks` 只读 `previous_annotations`；去掉 `prediction_source` / `raw_results_by_image_id`
+- `rework_import_from_export` 删除未调用的 `_build_from_export`；CLI `--export` 仍保留、deprecated、不用于预填
+
+### Tests
+
+- 新增 `tests/test_r3_rework_no_raw_prefill.py`：源码禁词、raw 关键字必须 `TypeError`
+- 删除 `test_build_rework_tasks.py` 中 raw 预填成功用例
+
+### Docs
+
+- SOP §6.8 / `docs/real_batch_local_test_runbook.md` / `docs/formats.md`：去掉「无快照仍可用 `--export` 预填」
+
+
 ## V1 — R2 隔离 prelabel→LS 转换 API（2026-08-19）
 
 ### Changed

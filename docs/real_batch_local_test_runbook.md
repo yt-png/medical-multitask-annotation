@@ -290,7 +290,7 @@ mma export-split --batch real_batch --task cap --export data/ls_export/real_batc
 ### 11.1 生成返工再导入任务
 
 对每个任务（建议三任务都执行；无返工时产出可为 `[]`）。  
-`apply-current` / `export-split` 已写出 `rework/previous_annotations/` 时**无需** `--export`：
+`apply-current` / `export-split` 已写出 `rework/previous_annotations/` 时执行：
 
 ```powershell
 mma rework-import --batch real_batch --task seg --data-root data
@@ -298,8 +298,7 @@ mma rework-import --batch real_batch --task det --data-root data
 mma rework-import --batch real_batch --task cap --data-root data
 ```
 
-旧包无 `previous_annotations` 时仍可传 `--export`（兼容）。  
-注意：`previous_annotations` **不含原图**；本机仍须有 `data/task_packages/real_batch/{seg,det,cap}/images/`（与首轮相同 Local Files 根）。
+注意：`previous_annotations` **不含原图**；本机仍须有 `data/task_packages/real_batch/{seg,det,cap}/images/`（与首轮相同 Local Files 根）。无快照时 `rework-import` 失败，须先 `export-split` / `apply-current`（`--export` 不用于预填）。
 
 **预期**：写出（不覆盖首轮 `tasks.json`）：
 
