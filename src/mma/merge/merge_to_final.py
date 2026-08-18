@@ -1,8 +1,9 @@
 """Orchestrate multitask merge into a self-contained ``final/<batch_id>/`` (T5.4).
 
-Calls ``merge_multitask``, copies images from processed paths into
-``final/.../images/``, materializes SEG masks into ``final/.../masks/``,
-rewrites relative ``image_path`` / ``mask_ref``, then ``write_final_manifest``.
+Calls ``merge_multitask``, copies images from task packages (fallback:
+processed paths) into ``final/.../images/``, materializes SEG masks into
+``final/.../masks/``, rewrites relative ``image_path`` / ``mask_ref``, then
+``write_final_manifest``.
 """
 
 from __future__ import annotations
@@ -11,13 +12,14 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
-from mma.common.models import MergedMultitaskRecord
+from mma.common.models import MergedMultitaskRecord, TaskType
 from mma.common.paths import (
     default_data_root,
     final_images_dir,
     processed_batch_dir,
     validate_batch_id,
 )
+from mma.common.task_image_paths import resolve_task_image_path
 from mma.merge.materialize_final_seg import (
     final_seg_mask_ref,
     materialize_final_seg_masks,
@@ -27,6 +29,11 @@ from mma.merge.write_final import write_final_manifest
 from mma.preprocess.load_processed import load_processed_items
 
 FINAL_IMAGE_REL_DIR = "images"
+_TASK_PACKAGE_LOOKUP_ORDER = (TaskType.SEG, TaskType.DET, TaskType.CAP)
+_PACKAGE_IMAGE_MISS_MARKERS = (
+    "images directory not found",
+    "package image missing",
+)
 
 
 def final_image_path(image_id: str) -> str:
@@ -47,9 +54,11 @@ def merge_to_final(
 
     On failure before write, existing final manifest (if any) is left unchanged.
     Missing processed manifest or missing ``image_id`` in processed raises
-    without writing. Images are copied into ``images/{image_id}.jpg`` and SEG
-    masks into ``masks/{image_id}.png`` before the manifest is written. Manifest
-    paths are relative to the final batch directory (no absolute paths).
+    without writing. Images are copied from task-package ``images/`` (seg then
+    det then cap) with processed ``image_path`` as fallback, into
+    ``images/{image_id}.jpg``. SEG masks go into ``masks/{image_id}.png``
+    before the manifest is written. Manifest paths are relative to the final
+    batch directory (no absolute paths).
     """
 
     cleaned = validate_batch_id(batch_id)
@@ -76,7 +85,7 @@ def _load_processed_image_meta(
     *,
     data_root: Path,
 ) -> dict[str, tuple[str, str]]:
-    """Return ``image_id -> (image_path, diagnosis_text)`` from processed."""
+    """Return ``image_id -> (fallback image_path, diagnosis_text)`` from processed."""
 
     processed_dir = processed_batch_dir(batch_id, data_root=data_root)
     manifest_path = processed_dir / "manifest.json"
@@ -95,6 +104,33 @@ def _load_processed_image_meta(
     return indexed
 
 
+def _try_resolve_task_package_image(
+    batch_id: str,
+    image_id: str,
+    *,
+    data_root: Path,
+) -> Path | None:
+    """Return the first task-package image, or ``None`` if none exist.
+
+    Lookup order is SEG, DET, CAP. Missing directory / missing file is a miss;
+    multiple matches for one task fail closed.
+    """
+
+    for task in _TASK_PACKAGE_LOOKUP_ORDER:
+        try:
+            return resolve_task_image_path(
+                batch_id, task, image_id, data_root=data_root
+            )
+        except ValueError as exc:
+            message = str(exc)
+            if "multiple package images" in message:
+                raise
+            if any(marker in message for marker in _PACKAGE_IMAGE_MISS_MARKERS):
+                continue
+            raise
+    return None
+
+
 def _copy_final_images(
     records: Sequence[MergedMultitaskRecord],
     meta: dict[str, tuple[str, str]],
@@ -104,7 +140,9 @@ def _copy_final_images(
 ) -> tuple[MergedMultitaskRecord, ...]:
     """Copy source images into ``final/.../images/{image_id}.jpg``.
 
-    Target filename is always ``.jpg`` regardless of source suffix.
+    Prefer ``task_packages/<batch>/{seg,det,cap}/images/``; fall back to the
+    processed manifest ``image_path``. Target filename is always ``.jpg``
+    regardless of source suffix.
     """
 
     images_dir = final_images_dir(batch_id, data_root=data_root)
@@ -116,12 +154,17 @@ def _copy_final_images(
                 f"image_id={record.image_id!r} not found in processed manifest"
             )
         source_path_str, diagnosis_text = meta[record.image_id]
-        source = Path(source_path_str)
-        if not source.is_file():
-            raise FileNotFoundError(
-                f"source image not found for image_id={record.image_id!r}: "
-                f"{source}"
-            )
+        source = _try_resolve_task_package_image(
+            batch_id, record.image_id, data_root=data_root
+        )
+        if source is None:
+            source = Path(source_path_str)
+            if not source.is_file():
+                raise FileNotFoundError(
+                    f"source image not found for image_id={record.image_id!r}: "
+                    f"not under task_packages/{batch_id}/{{seg,det,cap}}/images "
+                    f"and processed path is missing: {source}"
+                )
         dest = images_dir / f"{record.image_id}.jpg"
         shutil.copy2(source, dest)
         out.append(

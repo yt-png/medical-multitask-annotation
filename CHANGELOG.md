@@ -1,5 +1,22 @@
 # Changelog
 
+## V1 — R7 merge 拷图优先任务包（2026-08-19）
+
+### Changed
+
+- `merge_to_final` 拷图优先 `task_packages/<batch>/{seg,det,cap}/images/`（顺序 seg→det→cap）；processed manifest 仍作 `image_id` / `diagnosis_text` 索引，其 `image_path` 仅在任务包无图时回退
+- 任务包与 processed 源图都不可用时仍 `FileNotFoundError`；final `image_path` 契约不变（`images/{image_id}.jpg`）
+
+### Tests
+
+- `tests/test_merge_to_final.py`：processed 源文件缺失但 SEG 任务包有图 → merge 成功；两边都没有 → 失败
+
+### Docs
+
+- `deploy/v1/data_processor/README.md`：merge 前须保留 processed 源图或任一任务包图像
+- `docs/data_layout.md` §4.8 / §8：原图来源改为任务包优先、processed 回退
+
+
 ## V1 — R4 M12.5 门禁补 SEG/DET 返工真闭环（2026-08-19）
 
 ### Tests

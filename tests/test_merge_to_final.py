@@ -18,6 +18,7 @@ from mma.common.models import (
     TaskAnnotationResult,
     TaskType,
 )
+from mma.common.paths import task_package_dir
 from mma.converters.seg_brush import (
     load_foreground_mask,
     save_binary_mask_png,
@@ -170,6 +171,21 @@ def _write_processed(
     )
 
 
+def _write_package_image(
+    data_root: Path,
+    batch_id: str,
+    image_id: str,
+    *,
+    task: str = "seg",
+    suffix: str = ".jpg",
+) -> Path:
+    images_dir = task_package_dir(batch_id, task, data_root=data_root) / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    path = images_dir / f"{image_id}{suffix}"
+    Image.new("RGB", (4, 4), color=(40, 50, 60)).save(path)
+    return path
+
+
 def test_write_final_manifest_shape(tmp_path: Path) -> None:
     records = (
         MergedMultitaskRecord(
@@ -297,6 +313,37 @@ def test_merge_to_final_missing_processed_image_id(tmp_path: Path) -> None:
         merge_to_final("batch1", data_root=tmp_path)
     assert "only_in_current" in str(exc.value)
     assert "img-b" in str(exc.value)
+    assert not (tmp_path / "final" / "batch1" / FINAL_MANIFEST_NAME).exists()
+
+
+def test_merge_to_final_copies_from_task_package_when_processed_file_missing(
+    tmp_path: Path,
+) -> None:
+    image_id = "img-a"
+    _write_ready_currents(tmp_path, "batch1", image_ids=(image_id,))
+    _write_processed(tmp_path, "batch1", image_ids=(image_id,))
+    processed_image = tmp_path / "raw" / "batch1" / "images" / f"{image_id}.jpg"
+    processed_image.unlink()
+    _write_package_image(tmp_path, "batch1", image_id, task="seg")
+
+    path = merge_to_final("batch1", data_root=tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["items"][0]["image_path"] == final_image_path(image_id)
+    assert payload["items"][0]["diagnosis_text"] == f"diag-{image_id}"
+    assert (tmp_path / "final" / "batch1" / "images" / f"{image_id}.jpg").is_file()
+
+
+def test_merge_to_final_missing_package_and_processed_image_raises(
+    tmp_path: Path,
+) -> None:
+    image_id = "img-a"
+    _write_ready_currents(tmp_path, "batch1", image_ids=(image_id,))
+    _write_processed(tmp_path, "batch1", image_ids=(image_id,))
+    processed_image = tmp_path / "raw" / "batch1" / "images" / f"{image_id}.jpg"
+    processed_image.unlink()
+
+    with pytest.raises(FileNotFoundError, match="source image not found"):
+        merge_to_final("batch1", data_root=tmp_path)
     assert not (tmp_path / "final" / "batch1" / FINAL_MANIFEST_NAME).exists()
 
 

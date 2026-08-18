@@ -70,3 +70,4 @@ python bin/merge.py --batch <batch> [--data-root data]
 - **不要**准备或分发 `prelabels/`
 - **不要**用 `mma convert`（V1 legacy stub，非主流程）
 - 本包允许完整六命令；标注员包禁止 preprocess / package / merge
+- **merge 前必须保留** processed 源图 **或** 任一任务包 `images/`（拷图优先任务包，processed 路径仅回退）。只收回 `current/`、两边图像都删掉时 merge 会失败
