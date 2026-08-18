@@ -106,6 +106,8 @@ mma ls-import --batch demo_batch --task cap --data-root data
 | DET | `src/mma/labelstudio/configs/det.xml` |
 | CAP | `src/mma/labelstudio/configs/cap.xml` |
 
+标注员角色包内有同步副本（与源文件内容一致，见 M9.2）：`deploy/v1/annotator_{seg,det,cap}/configs/`。权威源仍为 `src/mma/labelstudio/configs/`。
+
 也可用 Python 打印路径后打开：
 
 ```python
@@ -257,4 +259,5 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.j
 
 - [data_layout.md](data_layout.md) — `ls_import` / `ls_export` / `task_packages`；Legacy `prelabels`
 - [formats.md](formats.md) — **Legacy** 中间格式与控件名（非 V1 主流程必读）
+- [deploy/v1/README.md](../deploy/v1/README.md) — 四角色入口（处理者 / SEG / DET / CAP 标注员）
 - 仓库根 [README.md](../README.md) — V1 定位、安装与 CLI 总览

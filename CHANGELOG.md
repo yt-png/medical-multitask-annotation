@@ -1,5 +1,130 @@
 # Changelog
 
+## V1 — M12.6 Final Freeze（2026-08-18）
+
+### Added
+
+- `docs/M12.6_FINAL_FREEZE_REPORT.md`：冻结审计报告（架构 / 数据流 / LS / 部署 / 测试 / 非阻塞项）
+
+### Verified
+
+- **未修改** `src/mma` 核心逻辑、`deploy/v1` 结构、Label Studio XML、测试体系
+- M9 / M11 / M0 已完成；主流程无 prelabels / model prediction 输入；无运行时 legacy adapter
+- `git diff -- src/mma` 为空
+
+### Tests
+
+- 全量 `pytest`（`PYTHONPATH` 指向本仓 `src`）：**408 passed**, 2 skipped, 0 failed, 44 deselected（legacy marker）
+
+### Docs
+
+- README 状态：**Medical Image Multi-task Annotation Dataflow V1 Frozen**
+- **未**写「最终发布完成」/ Final Release Completed
+
+### Planned（不阻塞冻结）
+
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
+## V1 — M0 文档定稿（2026-08-18）
+
+### Changed
+
+- README：Sprint D 勾选 M11 / M9 / M0；补充 `src/mma` → `mma` CLI → `deploy/v1` 调用关系；**未**宣布最终发布
+- `docs/formats.md`：纠正「`ls-import` 仍可能读取 prelabels」的过时〔现状〕表述（改为 Legacy only）
+- `docs/data_layout.md`：主路径现状同步至 M0；Planned 仅余 M12.6
+- `docs/labelstudio_usage.md`：标注员包 XML 副本路径；四角色文档交叉引用
+- `docs/real_batch_local_test_runbook.md`：现行 V1 主流程去掉「必须放置 prelabels」；历史半自动步骤保留并标 Legacy
+
+### Verified
+
+- **未修改** `src/mma/**`、`deploy/v1/**`、`tests/**`、XML
+- 角色文档（deploy README）审计一致：处理者六命令 / 标注员三命令；未改 deploy 文件
+- M9 DONE、M11 DONE；**M12.6 Final Freeze 仍为 pending**
+
+### Tests
+
+- 全量 `pytest`（文档改动后，`PYTHONPATH` 指向本仓 `src`）：**408 passed**, 2 skipped, 44 deselected
+
+### Docs
+
+- M0.1 需求叙述与实现一致（主 README 快速开始无 prelabels）
+- M0.2 架构叙述冻结为现有三层调用，无新概念
+- M0.3 四角色职责与 deploy 包一致（审计，未改 deploy）
+- M0.4 / M0.5 发布状态与 legacy 文档边界
+
+### Planned（仍未完成）
+
+- ~~**M12.6 Final Freeze**~~ → 见文首 M12.6 节
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
+## V1 — M9.1–M9.3 Label Studio 配置验收收口（2026-08-18）
+
+### Added
+
+- `tests/test_labelstudio_empty_task.py`：SEG/DET/CAP 无 `predictions` / 无 `prelabels` 时仍可 `build_ls_import_tasks`，任务仅含 `data`
+- `tests/test_labelstudio_deploy_sync.py`：源 XML 与 `deploy/v1/annotator_*/configs/` 换行 + 首尾空白归一化后一致
+- `tests/test_labelstudio_*_config.py`：配置文本不包含 `prediction` / `prelabel`（大小写不敏感）
+
+### Verified
+
+- **未修改** `src/mma` 核心业务逻辑与 Label Studio XML；未改 deploy 架构
+- M9.1：空任务导入兼容已由既有 `ls-import` + 本专项测试锁定
+- M9.2：角色包配置与 `src/mma/labelstudio/configs/` 同步
+- M9.3：既有 config 回归保留，并补无 pred/prelabel 断言
+
+### Tests
+
+- `pytest tests/test_labelstudio_*`：**27 passed**
+- 全量 `pytest`（`PYTHONPATH` 指向本仓 `src`）：**408 passed**, 2 skipped, 44 deselected（legacy marker）
+
+### Docs
+
+- README 实现状态勾选 M9；Sprint D 余项：~~M0~~（见文首 M0 节）、M12.6
+
+### Planned（仍未完成）
+
+- ~~**Sprint D 余项**：文档冻结（M0）~~ → 见文首 M0 节
+- **M12.6 Final Freeze**
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
+## V1 — M11.1–M11.5 deploy/v1 四角色部署包（2026-08-18）
+
+### Added
+
+- `deploy/v1/`：四角色薄包装包 `data_processor` / `annotator_seg` / `annotator_det` / `annotator_cap`
+- `deploy/v1/_lib/role_cli.py`：查找 `mma`、allowlist、强制 `--task`、构造 subprocess（无业务逻辑）
+- 各角色 `README.md`：环境、命令、数据目录；处理者区分协作主路径与本机全流程测试
+- 标注员包：本任务 LS 配置副本（`configs/*.xml`）+ 裁剪入口（ls-import / export-split / rework-import）
+- `deploy/v1/manifest.json`（sprint=D，M11.1–M11.5）与根 `deploy/v1/README.md`（分发 / 回传 / 交接）
+- `tests/test_m11_deploy.py`：目录结构、禁止项、XML 换行归一化一致性、`role_cli` 白名单
+
+### Verified
+
+- **未修改** `src/mma` 核心业务逻辑（preprocess / importer / exporter / merge / cli / 格式定义）
+- 入口仅调用已有 `mma` CLI（或 `python -m mma`）；不 import 内部业务模块
+- 无 `prelabels/`、无 prediction 相关部署物、无 legacy adapter 拷贝
+- 验收加固：多 `--task` 拒绝绕过；清理项目内 `__pycache__` / `*.pyc`；`.gitignore` 显式补充 `*.pyc`
+
+### Changed
+
+- `role_cli.inject_task`：出现多个 `--task` / `--task=` 时直接失败（禁止先匹配后忽略）
+- `tests/test_m11_deploy.py`：补充多 task、`__pycache__` 禁止、role_cli 无业务 import 扫描
+
+### Tests
+
+- `tests/test_m11_deploy.py`：**15 passed**（含多 `--task`、未跟踪 `__pycache__`、无业务 import 扫描）
+- 全量 `pytest`（`PYTHONPATH` 指向本仓 `src`）：**403 passed**, 2 skipped, 44 deselected（legacy marker）
+
+### Docs
+
+- 根 `README.md`：实现状态勾选 M11；指向 `deploy/v1/`
+- Sprint D 余项：~~M9~~（见文首 M9 节）、M0 文档定稿、M12.6 冻结
+
+### Planned（仍未完成）
+
+- **Sprint D 余项**：文档冻结（M0）、M12.6
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+
 ## V1 — M12.5 场景门禁：返工闭环 → merge 出 final（2026-08-17）
 
 ### Added
@@ -20,7 +145,8 @@
 
 ### Planned（仍未完成）
 
-- **Sprint D**：`deploy/v1`（M11）、文档冻结（M0）、M12.6
+- ~~**Sprint D：`deploy/v1`（M11）**~~ → 见文首 M11 节
+- **Sprint D 余项**：文档冻结（M0）、M12.6
 - **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
 
 ## V1 — M12.4 场景门禁：SEG/DET/CAP 独立运行（2026-08-17）

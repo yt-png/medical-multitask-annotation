@@ -18,7 +18,7 @@
 > - **Sprint A（已完成）**：空任务 `ls-import`（M4）；金标准仅人工 annotation、空标注→`rework/`、无 prelabels/prediction 主流程门禁（M6 / M5.1–M5.2 / M5.6 / M12.1–M12.3）。
 > - **Sprint B（已完成｜清理与隔离）**：adapters → `legacy/adapters`（M1）；formats 三分 + `legacy_prelabel`（M2 Phase A）；`seg_mask_paths` 无 prelabels fallback（M5.3–M5.5）；converter 语义「LS `predictions` ≠ 模型推理」（M3.2–M3.4）；CLI `convert` / examples 默认 V1（M3.3 / M10.2）；preprocess/packaging 无 legacy 依赖（M7）。
 > - **Sprint C（已完成｜必做项）**：M4.3 返工预填源仅 `previous_annotations`；M6.4 快照语义文档收口；M8.1–M8.3 merge；M12.4 独立运行；M12.5 返工闭环 → merge 出 final。
-> - **仍未完成（可选 / Sprint D）**：可选 B2（返工路径脱离 PrelabelItem）；`deploy/v1`（M11）；文档冻结（M0）；M12.6。详见 CHANGELOG「Planned」与 `.cursor/rules/V1 Development Tasks.md`。
+> - **Sprint D（已完成｜含 M12.6 冻结验收）**：四角色部署包 [`deploy/v1/`](deploy/v1/)（M11）；LS 配置回归（M9）；文档定稿（M0）。冻结报告：[docs/M12.6_FINAL_FREEZE_REPORT.md](docs/M12.6_FINAL_FREEZE_REPORT.md)。状态：**Medical Image Multi-task Annotation Dataflow V1 Frozen**（非「最终产品发布完成」）。可选 B2（返工路径脱离 PrelabelItem）不阻塞冻结。
 
 ## 流水线一览（V1）
 
@@ -50,6 +50,16 @@ pip install -e .
 ```
 
 入口：`mma -h` 或 `python -m mma -h`。无 `configs/default.yaml`；约定内嵌于代码与 CLI。
+
+调用关系（冻结叙述，不引入新层）：
+
+```text
+src/mma（业务实现）
+  → mma CLI（`mma` / `python -m mma`）
+  → deploy/v1 角色入口（薄包装，不复制业务代码）
+```
+
+四角色：`data_processor`、`annotator_seg`、`annotator_det`、`annotator_cap`。协作分发与本机测试说明见 [`deploy/v1/README.md`](deploy/v1/README.md)。
 
 **原始输入**：图像为 `.jpg`；诊断 Excel 为 `.xlsx`，首表列名固定 `image_name` / `diagnosis_text`。
 
@@ -116,6 +126,17 @@ mma merge --batch demo_batch --data-root data
 
 **LS 本地文件**：`--local-root`（默认等于 `--data-root`）须与 Label Studio Local Storage 根一致。详见 [docs/labelstudio_usage.md](docs/labelstudio_usage.md)。
 
+## 四角色部署包（M11）
+
+按角色分发的薄包装见 [`deploy/v1/`](deploy/v1/)：
+
+| 包 | 说明 |
+|---|---|
+| `data_processor` | 完整六命令（含本机全流程测试） |
+| `annotator_seg` / `annotator_det` / `annotator_cap` | 本任务 LS 配置 + ls-import / export-split / rework-import |
+
+不复制业务代码；入口调用 `mma` CLI。分发仅 `task_packages/`；详见该目录 README。
+
 ## Legacy 参考（非 V1 主流程）
 
 以下内容保留供对照冻结 V2 / 历史测试，**不是** V1 主流程必做步骤，主 README 不要求「必须准备 prelabels」：
@@ -130,9 +151,10 @@ mma merge --batch demo_batch --data-root data
 
 | 文档 | 内容 |
 |------|------|
+| [docs/M12.6_FINAL_FREEZE_REPORT.md](docs/M12.6_FINAL_FREEZE_REPORT.md) | M12.6 冻结验收报告 |
 | [docs/data_layout.md](docs/data_layout.md) | 目录树、落盘与合并语义（含 legacy `prelabels/` 说明） |
 | [docs/labelstudio_usage.md](docs/labelstudio_usage.md) | Label Studio 本地导入与标注（首轮 / 返工语义） |
 | [docs/formats.md](docs/formats.md) | **Legacy** 预标注中间格式与 LS 控件名 |
-| [docs/real_batch_local_test_runbook.md](docs/real_batch_local_test_runbook.md) | real_batch 全链路实测手册（仍可能描述当前实现路径） |
+| [docs/real_batch_local_test_runbook.md](docs/real_batch_local_test_runbook.md) | real_batch 全链路实测手册（**历史半自动步骤已标 Legacy**；V1 主路径见本文 README） |
 
 开发约定见 `.cursor/rules/`（V1 Requirement / Development Tasks / Specifications）。功能分支开发；提交前本地跑通检查再 `git commit`。

@@ -1,8 +1,14 @@
 # real_batch 本地真实数据全链路测试操作手册
 
+> **V1 文档冻结说明（M0）**  
+> **当前 V1 主流程不放置、不读取 `prelabels/`，首轮 `ls-import` 为空任务（无 prediction 预填）。**  
+> 下文中「阶段 2：放置 prelabels」及「应看到预标注」等步骤是 **Legacy / 历史半自动 SOP**，仅供对照冻结 V2 联调记录，**不是** V1 必做。  
+> 现行路径：`preprocess` → `package` → `ls-import`（空任务）→ Label Studio 人工标注 → `export-split` →（按需）`rework-import` → `merge`。详见仓库根 README 与 [labelstudio_usage.md](labelstudio_usage.md)。  
+> 历史段落予以保留，不删除。
+
 本文档是一份**自包含 SOP**：同伴在另一台 Windows 机器上，使用同一批 `real_batch` 真实数据，按本手册从零跑通 **P1 → P5**，且主流程**必须包含至少两轮返工**。
 
-不替代 [data_layout.md](data_layout.md)、[formats.md](formats.md)、[labelstudio_usage.md](labelstudio_usage.md)；细节契约以仓库文档与代码为准。本手册不接入真实 SEG/DET/CAP 算法；P2 预标注为统一中间格式落盘（由负责人提供压缩包）。
+不替代 [data_layout.md](data_layout.md)、[formats.md](formats.md)、[labelstudio_usage.md](labelstudio_usage.md)；细节契约以仓库文档与代码为准。本手册不接入真实 SEG/DET/CAP 算法。历史联调曾使用统一中间格式预标注包（P2）；**V1 不再要求该包。**
 
 ---
 
@@ -12,7 +18,8 @@
 |---|---|
 | 目的 | 复现 `real_batch` 本地真实数据全链路联调 |
 | 批次 | `batch_id = real_batch`，样本数 **N = 3** |
-| 主流程 | preprocess → package → 放置 prelabels → ls-import → LS 标注 → **export-split** → **返工第 1 轮** → **返工第 2 轮** → merge |
+| 主流程（**V1 现行**） | preprocess → package → **ls-import（空任务，无 prelabels）** → LS 标注 → **export-split** → **返工第 1 轮** → **返工第 2 轮** → merge |
+| 历史对照（Legacy，非 V1 必做） | 曾含「放置 prelabels」；见第 3.2 / 第 7 节 |
 | 不包含 | 真实算法、网盘自动化、Web/DB、业务代码修改 |
 
 ---
@@ -46,9 +53,9 @@ PowerShell 下多条命令请用 `;` 分隔，不要使用 `&&`。
 |---|---|
 | `img_001.jpg`、`img_002.jpg`、`img_003.jpg` | 原图 |
 | `diagnoses.xlsx` | 诊断文本表 |
-| `img_001.png`、`img_002.png`、`img_003.png` | SEG 预标注 mask 源文件 |
+| `img_001.png`、`img_002.png`、`img_003.png` | **Legacy**：历史 SEG 预标注 mask 源文件；V1 首轮不需要 |
 
-### 3.2 prelabels 包
+### 3.2 prelabels 包（**Legacy / 历史对照，V1 主流程不需要**）
 
 解压后应得到：
 
@@ -163,11 +170,11 @@ mma package --batch real_batch --data-root data
 - 存在 `data/task_packages/real_batch/{seg,det,cap}/images/`，各含 3 张 `{image_id}.jpg`
 - 各任务包 `manifest.json` 中 `package_id` 为 `real_batch__seg` / `__det` / `__cap`
 
-打开 `processed` manifest，确认 `image_id` 与 `source_image_name` 对应关系后再放置 prelabels。
+打开 `processed` manifest，确认 `image_id` 与 `source_image_name` 对应关系。**V1 至此即可进入 `ls-import`；不必放置 prelabels。** 若仅对照历史半自动 SOP，放置步骤见第 7 节（Legacy）。
 
 ---
 
-## 7. 阶段 2：放置 prelabels
+## 7. 阶段 2：放置 prelabels（**Legacy，跳过不影响 V1**）
 
 向负责人索取 **prelabels 包**，解压到：
 
@@ -223,7 +230,7 @@ data/ls_import/real_batch/cap/tasks.json
 | DET | `data/ls_import/real_batch/det/tasks.json` |
 | CAP | `data/ls_import/real_batch/cap/tasks.json` |
 
-打开样本应能看到原图及预标注（SEG 多边形 / DET 框 / CAP 文本）。不要混导任务类型。
+打开样本应能看到原图。**V1 首轮为空任务**，控件无模型/prelabel 预填；若仍见几何/文本，说明导入的是返工包或 Legacy convert 产物。不要混导任务类型。
 
 ---
 
@@ -235,7 +242,7 @@ data/ls_import/real_batch/cap/tasks.json
 
 | 控件 | 要求 |
 |---|---|
-| 预标注 | 可微调 |
+| 预标注 | **Legacy SOP**：可微调历史预填。**V1 首轮**：从空白人工绘制/填写 |
 | `human_confirmed` | 全部选 **`yes`** |
 | `needs_rework` | **至少 1 张**选 **`yes`**（建议某任务 1–2 张）；其余选 **`no`** |
 
@@ -357,9 +364,8 @@ data/ls_export/real_batch/{seg,det,cap}/round_003/export.json
 然后执行**一条** `export-split`（勿再跑 apply-current）：
 
 ```powershell
-mma export-split --batch real_batch --task det --export data/ls_export/real_batch/det/round_003/export.json --data-root data
+mma export-split --batch real_batch --task cap --export data/ls_export/real_batch/cap/round_003/export.json --data-root data
 ```
-
 ### 12.4 merge 前自检
 
 三路 `data/results/real_batch/{seg,det,cap}/current/annotations.json` 均满足：
@@ -396,7 +402,7 @@ mma merge --batch real_batch --data-root data
 | 环境 | `pip install -e .`；`mma -h` | 可执行 `mma` |
 | 阶段 0 | 整理 raw | `data/raw/real_batch/...` |
 | 阶段 1 | `mma preprocess` / `mma package` | `processed/`、`task_packages/` |
-| 阶段 2 | 解压 prelabels 包 | `data/prelabels/real_batch/...` |
+| 阶段 2 | **V1 跳过**（Legacy：解压 prelabels 包） | 历史路径 `data/prelabels/real_batch/...` |
 | 阶段 3 | `mma ls-import` ×3；LS 导入 | `ls_import/.../tasks.json` |
 | 首轮标注 | LS 标注 + Export | `ls_export/.../round_001/export.json` |
 | P4 第 1 轮 | `export-split` ×3（勿再连跑 apply-current） | `results/.../current|normal|rework/` |

@@ -83,6 +83,12 @@ def test_det_human_confirmed_choices() -> None:
     assert values == {"yes", "no"}
 
 
+def test_det_config_has_no_prediction_or_prelabel() -> None:
+    text = load_det_config_text().lower()
+    assert "prediction" not in text
+    assert "prelabel" not in text
+
+
 def test_det_needs_rework_choices() -> None:
     root = _parse_config()
     choices = [

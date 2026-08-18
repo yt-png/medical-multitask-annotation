@@ -35,7 +35,7 @@ V1 目标主流程见仓库 README：`task_packages` → 空 `tasks.json` → �
 
 | 用途 | 路径 |
 |---|---|
-| 运行时（gitignore 的 `data/`；**Legacy / 〔现状〕仍可能被 ls-import 读取**） | `data/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
+| 运行时（gitignore 的 `data/`；**Legacy only**。V1 `ls-import` **不读取**此路径） | `data/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
 | 测试 / 仓库内样例（**Legacy**） | `examples/prelabels/<batch_id>/{seg,det,cap}/prelabels.json` |
 | 包内 schema 样例 | `src/mma/formats/legacy_prelabel/{seg,det,cap}.json`（内容与文档样例同构） |
 

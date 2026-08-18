@@ -4,7 +4,7 @@
 运行时根目录为项目下的 `data/`（已列入 `.gitignore`，不入库）。
 
 **V1 目标**：纯人工金标准；主流程图**不**包含外部写入 `prelabels/` 或模型预标注步骤。  
-**主路径现状（Sprint A/B/C）**：`ls-import` 仅读 `task_packages/`（无 `prelabels/`）；金标准仅人工 annotation（无 prediction fallback）；返工预填源为 `previous_annotations`（人工历史）。`prelabels/` 仅 Legacy。未完成项见仓库根 `CHANGELOG.md`「Planned」与 `.cursor/rules/V1 Development Tasks.md`。
+**主路径现状（V1 Frozen）**：`ls-import` 仅读 `task_packages/`（无 `prelabels/`）；金标准仅人工 annotation（无 prediction fallback）；返工预填源为 `previous_annotations`（人工历史）。`prelabels/` 仅 Legacy。角色入口见 `deploy/v1/`。冻结报告：`docs/M12.6_FINAL_FREEZE_REPORT.md`。可选 Planned 见仓库根 `CHANGELOG.md`。
 
 默认数据根、Excel 列名等**不由** `configs/default.yaml` 加载，而由 `common/paths.py`、`common/io.py` 与 CLI 参数约定（配置内嵌）。
 
