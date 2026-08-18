@@ -1,5 +1,11 @@
 # Changelog
 
+## V1 — P7 README 补 pytest 验证步骤（2026-08-18）
+
+### Docs
+
+- README「环境与安装」：安装后增加 `pytest`；注明默认排除 `legacy`
+
 ## V1 — P6 prelabel 覆盖校验迁出主 importers（2026-08-18）
 
 ### Changed

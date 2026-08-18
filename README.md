@@ -51,6 +51,15 @@ pip install -e .
 
 入口：`mma -h` 或 `python -m mma -h`。无 `configs/default.yaml`；约定内嵌于代码与 CLI。
 
+验证（需另装 pytest，不在运行时依赖中）：
+
+```bash
+pip install pytest
+pytest
+```
+
+默认 `addopts = -m "not legacy"`，历史参考用例被 deselect。仅测 legacy：`pytest -m legacy`。
+
 调用关系（冻结叙述，不引入新层）：
 
 ```text
