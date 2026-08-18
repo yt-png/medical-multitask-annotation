@@ -1,5 +1,13 @@
 # Changelog
 
+## V1 — R4 M12.5 门禁补 SEG/DET 返工真闭环（2026-08-19）
+
+### Tests
+
+- `tests/test_m12_5_rework_loop_to_final.py`：SEG / DET 与 CAP 同构——空标注进 rework 时 merge 失败；`rework-import` → 第二轮 `export-split` → merge 出自包含 final
+- 被测任务走真闭环；另外两路仍 `overwrite_current` seed 就绪
+
+
 ## V1 — R3 删除返工 raw 预填旁路（2026-08-19）
 
 ### Changed
