@@ -1219,7 +1219,7 @@ mma -h
 
 **仍会整批失败的情况：** JSON 不是数组；缺 `data.image_id`；`human_confirmed` 值为非法（非 yes/no）；控件串任务；SEG 空样本且无法从任务包得到图像尺寸。
 
-**未出现在本轮 export 中的样本：** 不写入本轮 current（合并覆盖语义：未出现的保留旧值）。首轮请导出该任务本批全部样本。
+**未出现在本轮 export 中的样本：** current 里已有的 id **保留**旧值（支持返工子集导出）。任务包有、但本轮 export 与 current 都没有的 id，写入空结果（未确认、无有效载荷）并进入 **`rework/`**。export 含任务包没有的 `image_id`、或缺少任务包 `manifest.json`，整批失败。
 
 ---
 

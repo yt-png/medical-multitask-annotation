@@ -206,6 +206,21 @@ def _run_export_split_only_this_task(
         Image.new("RGB", (200, 100), color=(1, 2, 3)).save(
             images / f"{image_id}.jpg"
         )
+    write_json(
+        task_package_dir(_BATCH, task, data_root=tmp_path) / "manifest.json",
+        {
+            "package_id": f"{_BATCH}__{task}",
+            "task_type": task.upper(),
+            "batch_id": _BATCH,
+            "samples": [
+                {
+                    "image_id": image_id,
+                    "image_path": f"images/{image_id}.jpg",
+                    "diagnosis_text": f"diag-{image_id}",
+                }
+            ],
+        },
+    )
     export = tmp_path / f"{task}.json"
     write_json(export, [payload])
     export_split_from_export(
@@ -277,6 +292,21 @@ def test_m12_4_export_split_cap_does_not_rewrite_det_current(
     before = det_path.read_bytes()
 
     image_id = "img-cap-iso"
+    write_json(
+        task_package_dir(_BATCH, "cap", data_root=tmp_path) / "manifest.json",
+        {
+            "package_id": f"{_BATCH}__cap",
+            "task_type": "CAP",
+            "batch_id": _BATCH,
+            "samples": [
+                {
+                    "image_id": image_id,
+                    "image_path": f"images/{image_id}.jpg",
+                    "diagnosis_text": f"diag-{image_id}",
+                }
+            ],
+        },
+    )
     write_json(tmp_path / "cap.json", [_export_payload_cap(image_id)])
     export_split_from_export(
         tmp_path / "cap.json",

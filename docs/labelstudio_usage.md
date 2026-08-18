@@ -212,12 +212,12 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} --data-root data
 
 ### 8.2 `export-split` / `apply-current` 与导出范围
 
-二者均按 `image_id` **合并**写入 `current/`：导出里出现的样本覆盖；**未出现的样本保留**。日常用 `export-split`；勿对同一 export 再跑另一条。
+二者均按 `image_id` **合并**写入 `current/`：导出里出现的样本覆盖；**current 已有且本轮未出现的样本保留**。任务包有、但 export 与 current 都没有的样本写入空结果并进入 `rework/`。export 含任务包没有的 id、或缺少任务包 `manifest.json`，整批失败。日常用 `export-split`；勿对同一 export 再跑另一条。
 
 | 轮次 | 导出范围 | 说明 |
 |------|----------|------|
-| **全量轮**（首轮或刷新整批权威状态） | 从对应任务 LS 项目导出本批**全部**已标注样本，再 `export-split` | 避免旧返工标记因未出现在本轮 export 中而残留 |
-| **返工轮** | 可只导出返工子集再 `export-split` | 未导出的 id 留在 `current/`（含已 normal 样本），符合返工闭环 |
+| **全量轮**（首轮或刷新整批权威状态） | 建议从对应任务 LS 项目导出本批**全部**样本，再 `export-split` | 漏导出且尚未进入 current 的任务包样本会补为空结果并进 `rework/`，不会静默丢失 |
+| **返工轮** | 可只导出返工子集再 `export-split` | 未导出、但 current 已有的 id 保留（含已 normal 样本），符合返工闭环 |
 
 若只同步了子集，却希望尽快 `merge`，须保证 `current/` 中所有样本最终均被后续轮次刷新为不需返工（或本轮即为全量导出）。详见 [data_layout.md](data_layout.md) 中 `current/` 约定。
 

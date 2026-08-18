@@ -109,7 +109,33 @@ def _write_export(path: Path, tasks: list[dict]) -> Path:
     return path
 
 
+def _write_package_manifest(
+    data_root: Path,
+    task: str,
+    image_ids: list[str],
+    *,
+    batch_id: str = "batch1",
+) -> None:
+    write_json(
+        data_root / "task_packages" / batch_id / task / "manifest.json",
+        {
+            "package_id": f"{batch_id}__{task}",
+            "task_type": task.upper(),
+            "batch_id": batch_id,
+            "samples": [
+                {
+                    "image_id": image_id,
+                    "image_path": f"images/{image_id}.jpg",
+                    "diagnosis_text": "diag",
+                }
+                for image_id in image_ids
+            ],
+        },
+    )
+
+
 def test_mixed_cap_writes_normal_and_rework(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-a", "img-b"])
     export = _write_export(
         tmp_path / "cap.json",
         [
@@ -145,6 +171,7 @@ def test_mixed_cap_writes_normal_and_rework(tmp_path: Path) -> None:
 
 
 def test_all_normal_writes_empty_rework_array(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-a"])
     export = _write_export(
         tmp_path / "cap.json",
         [_cap_task(image_id="img-a", caption="only", rework="no")],
@@ -160,6 +187,7 @@ def test_all_normal_writes_empty_rework_array(tmp_path: Path) -> None:
 
 
 def test_all_rework_writes_empty_normal_array(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-a"])
     export = _write_export(
         tmp_path / "cap.json",
         [_cap_task(image_id="img-a", caption="bad", rework="yes")],
@@ -175,6 +203,7 @@ def test_all_rework_writes_empty_normal_array(tmp_path: Path) -> None:
 
 
 def test_unconfirmed_goes_to_rework_not_normal(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-u1", "img-u2", "img-ok"])
     export = _write_export(
         tmp_path / "cap.json",
         [
@@ -209,6 +238,7 @@ def test_unconfirmed_goes_to_rework_not_normal(tmp_path: Path) -> None:
 def test_empty_cap_caption_confirmed_goes_rework(tmp_path: Path) -> None:
     """Confirmed + empty caption → rework (empty payload), not normal."""
 
+    _write_package_manifest(tmp_path, "cap", ["img-empty"])
     export = _write_export(
         tmp_path / "cap.json",
         [_cap_task(image_id="img-empty", caption="", rework="no", human="yes")],
@@ -234,6 +264,7 @@ def test_empty_det_boxes_confirmed_goes_rework(tmp_path: Path) -> None:
     images = tmp_path / "task_packages" / "batch1" / "det" / "images"
     images.mkdir(parents=True)
     Image.new("RGB", (200, 100), color=(1, 2, 3)).save(images / "img-empty.jpg")
+    _write_package_manifest(tmp_path, "det", ["img-empty"])
     export = _write_export(
         tmp_path / "det.json",
         [
@@ -263,6 +294,7 @@ def test_det_split_uses_task_package_size(tmp_path: Path) -> None:
     images = tmp_path / "task_packages" / "batch1" / "det" / "images"
     images.mkdir(parents=True)
     Image.new("RGB", (200, 100), color=(1, 2, 3)).save(images / "img-a.jpg")
+    _write_package_manifest(tmp_path, "det", ["img-a"])
     export = _write_export(
         tmp_path / "det.json",
         [
@@ -311,6 +343,7 @@ def test_missing_export_and_bad_batch_id(tmp_path: Path) -> None:
 
 
 def test_writes_current_and_full_rebuilds_bundles(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-a"])
     export = _write_export(
         tmp_path / "cap.json",
         [_cap_task(image_id="img-a", caption="x", rework="yes")],
@@ -333,6 +366,7 @@ def test_writes_current_and_full_rebuilds_bundles(tmp_path: Path) -> None:
 
 
 def test_export_split_subset_rework_refreshes_full_normal(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-ok", "img-fix"])
     round1 = _write_export(
         tmp_path / "round1.json",
         [
@@ -364,6 +398,8 @@ def test_export_split_subset_rework_refreshes_full_normal(tmp_path: Path) -> Non
 def test_seg_split_uses_manual_mask_ref(tmp_path: Path) -> None:
     from mma.common.paths import results_manual_masks_dir
     from mma.converters.seg_brush import mask_to_ls_rle, manual_mask_ref
+
+    _write_package_manifest(tmp_path, "seg", ["img-a"])
 
     binary = [[1, 0], [0, 1]]
     rle = mask_to_ls_rle(binary)
@@ -426,6 +462,7 @@ def test_empty_seg_geometry_confirmed_goes_rework(tmp_path: Path) -> None:
     from mma.common.paths import results_manual_masks_dir
     from mma.converters.seg_brush import manual_mask_ref
 
+    _write_package_manifest(tmp_path, "seg", ["img-empty-seg"])
     export = _write_export(
         tmp_path / "seg-empty.json",
         [
@@ -486,6 +523,7 @@ def test_cap_without_predictions_key_goes_normal(tmp_path: Path) -> None:
 
     task = _cap_task(image_id="img-np", caption="ok text", rework="no", human="yes")
     assert "predictions" not in task
+    _write_package_manifest(tmp_path, "cap", ["img-np"])
     export = _write_export(tmp_path / "cap-np.json", [task])
     normal_path, rework_path = export_split_from_export(
         export,

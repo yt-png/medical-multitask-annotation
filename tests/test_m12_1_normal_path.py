@@ -26,6 +26,31 @@ def _write_export(path: Path, tasks: list[dict]) -> Path:
     return path
 
 
+def _write_package_manifest(
+    data_root: Path,
+    task: str,
+    image_ids: list[str],
+    *,
+    batch_id: str = "batch1",
+) -> None:
+    write_json(
+        data_root / "task_packages" / batch_id / task / "manifest.json",
+        {
+            "package_id": f"{batch_id}__{task}",
+            "task_type": task.upper(),
+            "batch_id": batch_id,
+            "samples": [
+                {
+                    "image_id": image_id,
+                    "image_path": f"images/{image_id}.jpg",
+                    "diagnosis_text": "diag",
+                }
+                for image_id in image_ids
+            ],
+        },
+    )
+
+
 def _assert_only_in_normal(
     normal_path: Path,
     rework_path: Path,
@@ -42,6 +67,7 @@ def _assert_only_in_normal(
 
 
 def test_m12_1_cap_confirmed_with_caption_goes_normal(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-cap-ok"])
     export = _write_export(
         tmp_path / "cap.json",
         [
@@ -87,6 +113,7 @@ def test_m12_1_det_confirmed_with_bbox_goes_normal(tmp_path: Path) -> None:
     images = tmp_path / "task_packages" / "batch1" / "det" / "images"
     images.mkdir(parents=True)
     Image.new("RGB", (200, 100), color=(1, 2, 3)).save(images / "img-det-ok.jpg")
+    _write_package_manifest(tmp_path, "det", ["img-det-ok"])
     export = _write_export(
         tmp_path / "det.json",
         [
@@ -135,6 +162,7 @@ def test_m12_1_det_confirmed_with_bbox_goes_normal(tmp_path: Path) -> None:
 
 
 def test_m12_1_seg_confirmed_with_foreground_goes_normal(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "seg", ["img-seg-ok"])
     rle = mask_to_ls_rle([[1, 0], [0, 1]])
     export = _write_export(
         tmp_path / "seg.json",

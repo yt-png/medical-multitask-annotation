@@ -31,6 +31,7 @@ from mma.common.paths import (
 from mma.common.task_image_paths import resolve_task_image_path
 from mma.converters import ImageMetadata
 from mma.exporters.cleanup_manual_masks import cleanup_unreferenced_manual_masks
+from mma.exporters.fill_missing_from_package import fill_missing_from_package
 from mma.exporters.overwrite_current import overwrite_current
 from mma.exporters.parse_ls_export import parse_ls_export
 from mma.exporters.refresh_normal_rework import refresh_normal_rework_from_current
@@ -60,13 +61,17 @@ def apply_current_from_export(
     (export-split already calls this function).
 
     - Matching ``image_id`` in the export overwrite current entries; others keep
+    - After parse, samples in the task package that are in neither this export
+      nor existing ``current/`` are filled as empty unconfirmed results (R1)
+      so they enter ``rework/``. Export ids not in the package fail the batch.
     - After write, ``normal/`` and ``rework/`` are fully rebuilt from current
       (not from the export subset alone)
     - For SEG, unreferenced ``manual_masks/*_manual.png`` files are removed
       after refresh so disk matches current ``mask_ref``
 
-    Empty parse results follow ``overwrite_current`` no-op semantics, then still
-    refresh bundles from whatever ``current/`` contains.
+    Empty parse results still follow ``overwrite_current`` no-op semantics when
+    there are no package placeholders; otherwise placeholders are written, then
+    bundles refresh from ``current/``.
     """
 
     cleaned = validate_batch_id(batch_id)
@@ -90,12 +95,20 @@ def apply_current_from_export(
     if task_type is TaskType.SEG:
         seg_mask_dir = results_manual_masks_dir(cleaned, data_root=root)
 
+    export_round = parse_export_round_from_path(path)
     results = parse_ls_export(
         path,
         task_type=task_type,
         image_metadata_by_id=metadata,
         seg_manual_mask_dir=seg_mask_dir,
-        export_round=parse_export_round_from_path(path),
+        export_round=export_round,
+    )
+    results = fill_missing_from_package(
+        results,
+        batch_id=cleaned,
+        task_type=task_type,
+        data_root=root,
+        export_round=export_round,
     )
     current_path = overwrite_current(
         results,

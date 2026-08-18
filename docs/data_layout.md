@@ -189,11 +189,14 @@ results/<batch>/<task>/rework/
 - 写入语义：同 `image_id` **覆盖**旧标注与旧勾选，不并行保留多版有效结果
 - **按 `image_id` 合并写入**（`apply-current` / `export-split` → `overwrite_current`）：
   - 本轮解析到的每个 `image_id`：覆盖标注与「人工确认 / 是否返工」勾选
-  - **未出现在本轮写入集合中的 `image_id`：保留原记录**（非整表清空）
-  - 本轮结果为空时：**不改写**已有 `current/`（no-op）
+  - **未出现在本轮写入集合中、但已在 `current/` 的 `image_id`：保留原记录**（非整表清空；支持返工子集导出）
+  - **任务包有、本轮 export 与 `current/` 都没有的 `image_id`：写入空结果**（未确认、无有效载荷）并在刷新后进入 `rework/`
+  - export 含任务包没有的 `image_id`：整批失败
+  - 无任务包 `manifest.json`：整批失败
+  - 本轮解析结果为空且无需补占位时：**不改写**已有 `current/`（no-op）
 - **操作约定**（日常推荐 `export-split`；与 `apply-current` 对同一 export **二选一**）：
-  - **全量轮**（首轮或意图刷新该任务整批权威状态）：应从对应 LS 项目导出本批该任务**全部已处理样本**，再执行 `export-split`（或等价的 `apply-current`）
-  - **返工轮**：允许只导出返工子集再 `export-split` / `apply-current`；未出现的 id **刻意保留**上一轮有效结果（含已 normal 的样本）
+  - **全量轮**（首轮或意图刷新该任务整批权威状态）：建议导出本批该任务全部样本再 `export-split`。若 export 漏掉任务包中、且 current 尚无的 id，系统写入空结果并进入 `rework/`（非整批静默丢失）
+  - **返工轮**：允许只导出返工子集再 `export-split` / `apply-current`；current 已有且本轮未出现的 id **刻意保留**上一轮有效结果（含已 normal 的样本）
   - **禁止**：从全量项目中随意导出少量样本并 apply，却期望其余样本被自动删除或状态被清空
 - 合并（P5）只读各任务的 `current/`
 - 建议清单文件：`current/annotations.json`（字段对齐 `TaskAnnotationResult`）。可选字段 `export_round`：当 `--export` 位于 `.../round_NNN/` 下时，由 `apply-current` / `export-split` 填入整数轮次（`round_001` → `1`）；非轮次目录为 `null`。**仅追溯**，分类/合并仍只看勾选与 `image_id`；历史排障仍可对照 `ls_export/.../round_XXX/`（及可选的 `normal|rework/round_XXX/` 快照）
@@ -260,7 +263,7 @@ raw
 
 ## 7. 返工覆盖规则（落盘语义）
 
-1. 每轮导出解析后，将有效结果**覆盖写入**对应任务的 `current/`。此处「覆盖」针对**本轮 export 中出现的** `image_id`；未出现在本轮集合中的样本**不删除**，以支持返工子集再写入。
+1. 每轮导出解析后，将有效结果**覆盖写入**对应任务的 `current/`。此处「覆盖」针对**本轮 export 中出现的** `image_id`；current 已有且本轮未出现的样本**不删除**，以支持返工子集再写入。任务包有、export 与 current 都没有的 id 写入空结果并进入 `rework/`。export 含任务包没有的 id、或缺少任务包 manifest，整批失败。
 2. 同一 `image_id` + 同一任务再次写入时，替换旧标注与「人工确认 / 是否返工」勾选。
 3. `current/` 中不并行保留历史多版本作为有效结果（同一 id 只保留最新一版）。
 4. **`current/` 为唯一真实数据源**。每次 `apply-current` / `export-split` 在更新 `current/` 后，必须按完整 `current/` **全量重建** `normal/` 与 `rework/`（覆盖写盘，禁止 append 历史子集）。

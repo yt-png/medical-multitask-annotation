@@ -146,6 +146,7 @@ def test_m12_3_export_split_cap_without_predictions_key(tmp_path: Path) -> None:
         ],
     }
     assert "predictions" not in task
+    _seed_package(tmp_path, "batch1", "cap", "img-cap-np")
     export = _write_export(tmp_path / "cap.json", [task])
     normal_path, rework_path = export_split_from_export(
         export,
@@ -163,6 +164,7 @@ def test_m12_3_export_split_det_without_predictions_key(tmp_path: Path) -> None:
     images = tmp_path / "task_packages" / "batch1" / "det" / "images"
     images.mkdir(parents=True)
     Image.new("RGB", (200, 100), color=(1, 2, 3)).save(images / "img-det-np.jpg")
+    _seed_package(tmp_path, "batch1", "det", "img-det-np", size=(200, 100))
     task = {
         "data": {
             "image_id": "img-det-np",
@@ -240,6 +242,7 @@ def test_m12_3_export_split_seg_without_predictions_key(tmp_path: Path) -> None:
         ],
     }
     assert "predictions" not in task
+    _seed_package(tmp_path, "batch1", "seg", "img-seg-np")
     export = _write_export(tmp_path / "seg.json", [task])
     normal_path, rework_path = export_split_from_export(
         export,

@@ -206,6 +206,23 @@ def test_apply_current_seg_empty_geometry_keeps_manual_mask(
             )
         ],
     )
+    manifest_path = tmp_path / "task_packages" / "batch1" / "seg" / "manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(
+        manifest_path,
+        {
+            "package_id": "batch1__seg",
+            "task_type": "SEG",
+            "batch_id": "batch1",
+            "samples": [
+                {
+                    "image_id": "img-a",
+                    "image_path": "images/img-a.jpg",
+                    "diagnosis_text": "diag",
+                }
+            ],
+        },
+    )
     apply_current_from_export(
         export1,
         batch_id="batch1",

@@ -25,6 +25,31 @@ def _write_export(path: Path, tasks: list[dict]) -> Path:
     return path
 
 
+def _write_package_manifest(
+    data_root: Path,
+    task: str,
+    image_ids: list[str],
+    *,
+    batch_id: str = "batch1",
+) -> None:
+    write_json(
+        data_root / "task_packages" / batch_id / task / "manifest.json",
+        {
+            "package_id": f"{batch_id}__{task}",
+            "task_type": task.upper(),
+            "batch_id": batch_id,
+            "samples": [
+                {
+                    "image_id": image_id,
+                    "image_path": f"images/{image_id}.jpg",
+                    "diagnosis_text": "diag",
+                }
+                for image_id in image_ids
+            ],
+        },
+    )
+
+
 def _assert_only_in_rework(
     normal_path: Path,
     rework_path: Path,
@@ -41,6 +66,7 @@ def _assert_only_in_rework(
 
 
 def test_m12_2_cap_confirmed_empty_caption_goes_rework(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-cap-empty"])
     export = _write_export(
         tmp_path / "cap.json",
         [
@@ -88,6 +114,7 @@ def test_m12_2_det_confirmed_empty_boxes_goes_rework(tmp_path: Path) -> None:
     Image.new("RGB", (200, 100), color=(1, 2, 3)).save(
         images / "img-det-empty.jpg"
     )
+    _write_package_manifest(tmp_path, "det", ["img-det-empty"])
     export = _write_export(
         tmp_path / "det.json",
         [
@@ -124,6 +151,7 @@ def test_m12_2_det_confirmed_empty_boxes_goes_rework(tmp_path: Path) -> None:
 
 
 def test_m12_2_seg_confirmed_empty_geometry_goes_rework(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "seg", ["img-seg-empty"])
     export = _write_export(
         tmp_path / "seg.json",
         [
@@ -198,6 +226,7 @@ def _assert_unsubmitted_in_rework(
 
 
 def test_m12_2_cap_no_annotations_goes_rework(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-cap-skip"])
     export = _write_export(
         tmp_path / "cap.json",
         [_unsubmitted_task(image_id="img-cap-skip", package_id="batch1__cap")],
@@ -220,6 +249,7 @@ def test_m12_2_det_no_annotations_goes_rework(tmp_path: Path) -> None:
     Image.new("RGB", (200, 100), color=(1, 2, 3)).save(
         images / "img-det-skip.jpg"
     )
+    _write_package_manifest(tmp_path, "det", ["img-det-skip"])
     export = _write_export(
         tmp_path / "det.json",
         [_unsubmitted_task(image_id="img-det-skip", package_id="batch1__det")],
@@ -240,6 +270,7 @@ def test_m12_2_seg_no_annotations_goes_rework(tmp_path: Path) -> None:
     images = tmp_path / "task_packages" / "batch1" / "seg" / "images"
     images.mkdir(parents=True)
     Image.new("RGB", (8, 6), color=(1, 2, 3)).save(images / "img-seg-skip.jpg")
+    _write_package_manifest(tmp_path, "seg", ["img-seg-skip"])
     export = _write_export(
         tmp_path / "seg.json",
         [_unsubmitted_task(image_id="img-seg-skip", package_id="batch1__seg")],
@@ -261,6 +292,7 @@ def test_m12_2_seg_no_annotations_goes_rework(tmp_path: Path) -> None:
 
 
 def test_m12_2_cap_empty_result_goes_rework(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-cap-empty-result"])
     export = _write_export(
         tmp_path / "cap.json",
         [
@@ -294,6 +326,7 @@ def test_m12_2_cap_empty_result_goes_rework(tmp_path: Path) -> None:
 
 
 def test_m12_2_cap_missing_human_confirmed_keeps_caption(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-cap-noconfirm"])
     export = _write_export(
         tmp_path / "cap.json",
         [
@@ -334,6 +367,7 @@ def test_m12_2_cap_missing_human_confirmed_keeps_caption(tmp_path: Path) -> None
 
 
 def test_m12_2_mixed_batch_does_not_fail(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-ok", "img-skip"])
     export = _write_export(
         tmp_path / "cap.json",
         [

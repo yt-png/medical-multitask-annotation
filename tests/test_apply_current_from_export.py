@@ -186,7 +186,33 @@ def _write_seg_image(data_root: Path, batch_id: str, image_id: str, size: tuple[
     _write_task_image(data_root, batch_id, "seg", image_id, size)
 
 
+def _write_package_manifest(
+    data_root: Path,
+    task: str,
+    image_ids: list[str],
+    *,
+    batch_id: str = "batch1",
+) -> None:
+    write_json(
+        data_root / "task_packages" / batch_id / task / "manifest.json",
+        {
+            "package_id": f"{batch_id}__{task}",
+            "task_type": task.upper(),
+            "batch_id": batch_id,
+            "samples": [
+                {
+                    "image_id": image_id,
+                    "image_path": f"images/{image_id}.jpg",
+                    "diagnosis_text": "diag",
+                }
+                for image_id in image_ids
+            ],
+        },
+    )
+
+
 def test_cap_and_seg_write_current(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-a", "img-b"])
     export_cap = _write_export(
         tmp_path / "cap.json",
         [
@@ -216,6 +242,7 @@ def test_cap_and_seg_write_current(tmp_path: Path) -> None:
         tmp_path / "seg.json",
         [_seg_task(image_id="img-a", mask_ref="masks/img-a.png")],
     )
+    _write_package_manifest(tmp_path, "seg", ["img-a"])
     apply_current_from_export(
         export_seg,
         batch_id="batch1",
@@ -237,6 +264,7 @@ def test_seg_brush_writes_manual_mask_ref(tmp_path: Path) -> None:
         [0, 1, 0],
         [0, 0, 1],
     ]
+    _write_package_manifest(tmp_path, "seg", ["img-brush"])
     export = _write_export(
         tmp_path / "seg.json",
         [
@@ -270,6 +298,7 @@ def test_seg_without_brush_writes_empty_manual_mask(tmp_path: Path) -> None:
     """No SEG geometry → empty manual mask (not data.mask_ref)."""
 
     _write_seg_image(tmp_path, "batch1", "img-nb", (2, 2))
+    _write_package_manifest(tmp_path, "seg", ["img-nb"])
     export = _write_export(
         tmp_path / "seg.json",
         [
@@ -300,6 +329,7 @@ def test_seg_without_brush_writes_empty_manual_mask(tmp_path: Path) -> None:
 
 def test_det_uses_task_package_image_size(tmp_path: Path) -> None:
     _write_det_image(tmp_path, "batch1", "img-a", (200, 100))
+    _write_package_manifest(tmp_path, "det", ["img-a"])
     export = _write_export(
         tmp_path / "det.json",
         [
@@ -328,6 +358,7 @@ def test_det_uses_task_package_image_size(tmp_path: Path) -> None:
 def test_det_missing_package_image_fails(tmp_path: Path) -> None:
     images = tmp_path / "task_packages" / "batch1" / "det" / "images"
     images.mkdir(parents=True, exist_ok=True)
+    _write_package_manifest(tmp_path, "det", ["missing"])
     export = _write_export(
         tmp_path / "det.json",
         [_det_task(image_id="missing", boxes_pct=[(0.0, 0.0, 10.0, 10.0)])],
@@ -342,6 +373,7 @@ def test_det_missing_package_image_fails(tmp_path: Path) -> None:
 
 
 def test_same_image_id_second_apply_overwrites(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-a"])
     first = _write_export(
         tmp_path / "cap1.json",
         [_cap_task(image_id="img-a", caption="old", rework="yes")],
@@ -384,6 +416,7 @@ def test_empty_export_is_noop(tmp_path: Path) -> None:
         data_root=tmp_path,
     )
     assert seed.is_file()
+    _write_package_manifest(tmp_path, "cap", ["img-a"])
     empty = _write_export(tmp_path / "empty.json", [])
     out = apply_current_from_export(
         empty,
@@ -422,6 +455,7 @@ def test_missing_export_file_and_bad_batch_id(tmp_path: Path) -> None:
 def test_apply_refreshes_normal_rework_from_current(tmp_path: Path) -> None:
     from mma.common.io import read_json
 
+    _write_package_manifest(tmp_path, "cap", ["img-a"])
     export = _write_export(
         tmp_path / "cap.json",
         [_cap_task(image_id="img-a", caption="x", rework="yes")],
@@ -445,6 +479,7 @@ def test_multi_round_rework_moves_sample_into_normal(tmp_path: Path) -> None:
 
     from mma.common.io import read_json
 
+    _write_package_manifest(tmp_path, "cap", ["img-ok", "img-fix"])
     round1 = _write_export(
         tmp_path / "round1.json",
         [
@@ -488,6 +523,7 @@ def test_multi_round_rework_moves_sample_into_normal(tmp_path: Path) -> None:
 
 
 def test_apply_current_sets_export_round_from_round_dir(tmp_path: Path) -> None:
+    _write_package_manifest(tmp_path, "cap", ["img-a"])
     export = _write_export(
         tmp_path / "round_003" / "export.json",
         [_cap_task(image_id="img-a", caption="c1", rework="no")],

@@ -303,6 +303,24 @@ def _write_cap_export(path: Path, *, image_id: str = "img-a", caption: str = "hi
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_cap_package(data_root: Path, batch_id: str, image_id: str) -> None:
+    manifest = {
+        "package_id": f"{batch_id}__cap",
+        "task_type": "CAP",
+        "batch_id": batch_id,
+        "samples": [
+            {
+                "image_id": image_id,
+                "image_path": f"images/{image_id}.jpg",
+                "diagnosis_text": "diag",
+            }
+        ],
+    }
+    out = data_root / "task_packages" / batch_id / "cap" / "manifest.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(manifest), encoding="utf-8")
+
+
 def test_apply_current_success(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -310,6 +328,7 @@ def test_apply_current_success(
     data_root = tmp_path / "data"
     export = tmp_path / "cap_export.json"
     _write_cap_export(export)
+    _write_cap_package(data_root, "batch_cli", "img-a")
     code = main(
         [
             "apply-current",
@@ -496,6 +515,7 @@ def test_export_split_success(
     data_root = tmp_path / "data"
     export = tmp_path / "cap_export.json"
     _write_cap_export(export, image_id="img-a", caption="hi")
+    _write_cap_package(data_root, "batch_cli", "img-a")
     code = main(
         [
             "export-split",

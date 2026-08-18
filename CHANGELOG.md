@@ -1,5 +1,23 @@
 # Changelog
 
+## V1 — R1 缺任务结果补进 rework（2026-08-19）
+
+### Changed
+
+- `export-split` / `apply-current`：对照任务包 `manifest.json`。任务包有、本轮 export 与 `current/` 都没有的 `image_id` 写入空结果（未确认、无有效载荷），经 `should_rework_result` 进入 `rework/`
+- export 含任务包没有的 `image_id`、或缺少任务包 manifest：整批失败
+- current 已有且本轮未出现的 id 仍保留（返工子集导出语义不变）
+- SEG 缺失样本写空 `manual_masks/`（`has_foreground=False`），保证后续 `rework-import` 能读到 mask
+
+### Tests
+
+- 新增 `tests/test_fill_missing_from_package.py`：缺样本进 rework、第二轮子集不冲掉 normal、空 export 补全、无包失败、多余 id 失败、DET/SEG 缺样本；SEG 空 mask 后 `rework-import` 成功
+- 现有 apply-current / export-split 用例补与 export 一致的最小任务包 manifest
+
+### Docs
+
+- README / `docs/data_layout.md` / `docs/labelstudio_usage.md` / `docs/V1_LOCAL_FULL_CHAIN_TEST_REPORT.md`：补洞规则与「未出现保留」拆开写清
+
 ## V1 — P10 冻结声明对齐 M2.2 B2 已完成（2026-08-19）
 
 ### Docs

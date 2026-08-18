@@ -115,7 +115,7 @@ mma merge --batch demo_batch --data-root data
 
 ## 关键约定（必读）
 
-**权威结果**：每任务以 `results/<batch>/<task>/current/` 为准。按 `image_id` **合并覆盖**——本轮出现的覆盖，未出现的保留；首轮请导出该任务本批全部样本。
+**权威结果**：每任务以 `results/<batch>/<task>/current/` 为准。按 `image_id` **合并覆盖**——本轮 export 出现的覆盖；current 已有且本轮未出现的保留。任务包有、但本轮 export 与 current 都没有的样本，写入空结果（未确认、无有效载荷）并进入 `rework/`。export 含任务包没有的 `image_id` 则整批失败。`export-split` / `apply-current` 必须能读到对应任务包 `manifest.json`。
 
 **分类规则（当前运行时）**：`should_rework_result = (not human_confirmed) or needs_rework or (not effective_payload)`。仅「已确认、不需返工、且有有效任务载荷」进 `normal/`；其余进 `rework/`（含未提交、空 result、未勾确认、空框/空文案、SEG 空 mask）。未提交或空 result **不中断整批** `export-split`。每次 `export-split` / `apply-current` 后按最新 `current/` **全量重建** normal/rework。旧勾选-only 辅助函数 `should_rework` 仍保留。
 
