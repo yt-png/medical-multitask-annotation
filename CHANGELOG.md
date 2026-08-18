@@ -1,5 +1,25 @@
 # Changelog
 
+## V1 — P1 空/未提交标注进 rework（2026-08-18）
+
+### Changed
+
+- `parse_ls_export` / `resolve_effective_result`：无 annotations、全 cancelled、`result` 为空/`null`、或缺少 `human_confirmed` 时，解析为空载荷（未确认默认 `false`），经 `should_rework_result` 进入 `rework/`，**不再整批失败**
+- 未提交 SEG 仍写空 `manual_masks/`（非空 `mask_ref`）；无法确定尺寸时仍报错
+- `extract_ls_raw_results`：空/未提交样本保留 `image_id` 键，值为空 tuple
+- `human_confirmed` 非法值 / 重复控件 / 非 list 的脏 `annotations`/`result`：仍 fail-closed
+
+### Tests
+
+- `tests/test_parse_ls_export.py`：空 annotations / null result / 缺 confirmed / 混合批次 / 非法结构
+- `tests/test_m12_2_empty_to_rework.py`：无 annotations 的 CAP/DET/SEG export-split；空 result；缺 confirmed 保留 caption；混合批次
+- `tests/test_extract_ls_raw_results.py`、`tests/test_effective_result.py`：空样本不 raise、predictions 不进 effective
+
+### Docs
+
+- README 分类规则：未提交/空 result 不中断整批
+- `docs/V1_LOCAL_FULL_CHAIN_TEST_REPORT.md` §6.7 与实现对齐
+
 ## V1 — M12.6 Final Freeze（2026-08-18）
 
 ### Added

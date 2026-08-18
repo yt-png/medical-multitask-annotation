@@ -398,3 +398,35 @@ def test_rework_shaped_predictions_do_not_become_effective() -> None:
     assert all(
         entry.get("from_name") != "det_bbox" for entry in effective.effective_result
     )
+
+
+def test_missing_annotations_source_empty_ignores_predictions() -> None:
+    task = {
+        "data": {"image_id": "img-skip", "package_id": "pkg"},
+        "annotations": [],
+        "predictions": [{"result": [_det_box(10.0, 20.0)]}],
+    }
+    effective = resolve_effective_result(
+        task, task_type=TaskType.DET, image_id="img-skip"
+    )
+    assert effective.source == "empty"
+    assert effective.effective_result == ()
+    assert effective.annotation_result == ()
+    traced = [
+        e for e in effective.prediction_result if e.get("from_name") == "det_bbox"
+    ]
+    assert len(traced) == 1
+
+
+def test_null_annotation_result_source_empty() -> None:
+    task = _task(image_id="img-null-result", ann_result=[])
+    task["annotations"][0]["result"] = None
+    task["predictions"] = [{"result": [_det_box(10.0, 20.0)]}]
+    effective = resolve_effective_result(
+        task, task_type=TaskType.DET, image_id="img-null-result"
+    )
+    assert effective.source == "empty"
+    assert effective.effective_result == ()
+    assert all(
+        entry.get("from_name") != "det_bbox" for entry in effective.effective_result
+    )

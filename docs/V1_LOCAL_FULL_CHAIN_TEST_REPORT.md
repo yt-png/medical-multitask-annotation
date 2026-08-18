@@ -1213,11 +1213,13 @@ mma -h
 
 ---
 
-## 6.7 `mma export-split` 报 no annotations
+## 6.7 `mma export-split` 与未提交 / 空标注
 
-**原因：** 导出了未提交任务；或 JSON 不是数组；或只导出了 predictions 没有 annotations。
+**现行行为（P1）：** 导出 JSON 里已出现的样本，若 `annotations` 为空/`null`、全部 cancelled、`result` 为空/`null`、或缺少 `human_confirmed`，会解析为空载荷（`human_confirmed=false`）并进入 **`rework/`**，**不**因此整批失败。金标准仍只认人工 annotation，不会用 predictions 回填。
 
-**解决：** 每张图必须 Submit。导出 JSON。确认每条有 `annotations`。V1 **不会**用 predictions 充当 annotation。
+**仍会整批失败的情况：** JSON 不是数组；缺 `data.image_id`；`human_confirmed` 值为非法（非 yes/no）；控件串任务；SEG 空样本且无法从任务包得到图像尺寸。
+
+**未出现在本轮 export 中的样本：** 不写入本轮 current（合并覆盖语义：未出现的保留旧值）。首轮请导出该任务本批全部样本。
 
 ---
 

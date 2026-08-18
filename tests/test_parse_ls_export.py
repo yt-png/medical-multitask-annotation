@@ -12,9 +12,11 @@ from mma.common.models import (
     DetAnnotation,
     SegAnnotation,
     TaskType,
+    should_rework_result,
 )
 from mma.converters import ImageMetadata
 from mma.exporters import parse_ls_export, parse_ls_export_data
+from mma.exporters.split_by_rework import split_by_rework
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _LS_EXPORT_ROOT = _REPO_ROOT / "data" / "ls_export" / "demo_batch"
@@ -776,7 +778,7 @@ def test_needs_rework_defaults_false_when_missing() -> None:
     assert results[0].needs_rework is False
 
 
-def test_human_confirmed_missing_or_invalid_raises() -> None:
+def test_human_confirmed_missing_defaults_false_keeps_payload() -> None:
     task = _cap_task(image_id="img-hc", caption="ok")
     task["annotations"][0]["result"] = [
         {
@@ -787,12 +789,22 @@ def test_human_confirmed_missing_or_invalid_raises() -> None:
         },
         _choice("needs_rework", "no"),
     ]
-    with pytest.raises(ValueError, match="human_confirmed"):
-        parse_ls_export_data([task], task_type=TaskType.CAP)
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].human_confirmed is False
+    assert isinstance(results[0].annotation, CapAnnotation)
+    assert results[0].annotation.caption == "ok"
+    assert should_rework_result(results[0]) is True
 
+
+def test_human_confirmed_invalid_or_duplicate_raises() -> None:
     task2 = _cap_task(image_id="img-hc2", caption="ok", human="maybe")
     with pytest.raises(ValueError, match="invalid choice"):
         parse_ls_export_data([task2], task_type=TaskType.CAP)
+
+    dup = _cap_task(image_id="img-hc-dup", caption="ok")
+    dup["annotations"][0]["result"].append(_choice("human_confirmed", "no"))
+    with pytest.raises(ValueError, match="duplicate choice"):
+        parse_ls_export_data([dup], task_type=TaskType.CAP)
 
 
 def test_duplicate_image_id_raises() -> None:
@@ -804,16 +816,146 @@ def test_duplicate_image_id_raises() -> None:
         parse_ls_export_data(data, task_type=TaskType.CAP)
 
 
-def test_missing_image_id_or_annotations_raises() -> None:
+def test_missing_image_id_raises() -> None:
     bad = _cap_task(image_id="x", caption="a")
     bad["data"].pop("image_id")
     with pytest.raises(ValueError, match="image_id"):
         parse_ls_export_data([bad], task_type=TaskType.CAP)
 
+
+def test_empty_annotations_parse_as_unconfirmed_rework() -> None:
     empty_ann = _cap_task(image_id="y", caption="a")
     empty_ann["annotations"] = []
-    with pytest.raises(ValueError, match="no annotations"):
-        parse_ls_export_data([empty_ann], task_type=TaskType.CAP)
+    results = parse_ls_export_data([empty_ann], task_type=TaskType.CAP)
+    assert len(results) == 1
+    assert results[0].human_confirmed is False
+    assert results[0].needs_rework is False
+    assert isinstance(results[0].annotation, CapAnnotation)
+    assert results[0].annotation.caption == ""
+    assert should_rework_result(results[0]) is True
+
+
+def test_annotations_null_parses_as_empty_rework() -> None:
+    task = _cap_task(image_id="img-null-ann", caption="ok")
+    task["annotations"] = None
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].human_confirmed is False
+    assert results[0].annotation.caption == ""
+    assert should_rework_result(results[0]) is True
+
+
+def test_all_cancelled_annotations_parse_as_empty_rework() -> None:
+    task = _cap_task(image_id="img-cancel", caption="kept-in-cancelled")
+    task["annotations"][0]["was_cancelled"] = True
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].human_confirmed is False
+    assert results[0].annotation.caption == ""
+    assert should_rework_result(results[0]) is True
+
+
+def test_empty_result_list_parses_as_empty_rework() -> None:
+    task = _cap_task(image_id="img-empty-result", caption="ok")
+    task["annotations"][0]["result"] = []
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].human_confirmed is False
+    assert results[0].annotation.caption == ""
+    assert should_rework_result(results[0]) is True
+
+
+def test_result_null_parses_as_empty_rework() -> None:
+    task = _cap_task(image_id="img-null-result", caption="ok")
+    task["annotations"][0]["result"] = None
+    results = parse_ls_export_data([task], task_type=TaskType.CAP)
+    assert results[0].human_confirmed is False
+    assert results[0].annotation.caption == ""
+    assert should_rework_result(results[0]) is True
+
+
+def test_mixed_submitted_and_unsubmitted_parses_both() -> None:
+    submitted = _cap_task(image_id="img-ok", caption="good", human="yes", rework="no")
+    unsubmitted = _cap_task(image_id="img-skip", caption="ignored")
+    unsubmitted["annotations"] = []
+    results = parse_ls_export_data(
+        [submitted, unsubmitted],
+        task_type=TaskType.CAP,
+    )
+    assert len(results) == 2
+    normal, rework = split_by_rework(results)
+    assert [item.image_id for item in normal] == ["img-ok"]
+    assert [item.image_id for item in rework] == ["img-skip"]
+
+
+def test_unsubmitted_seg_empty_mask_with_metadata(tmp_path: Path) -> None:
+    from mma.converters.seg_brush import load_foreground_mask, manual_mask_ref
+
+    task = {
+        "data": {
+            "image_id": "img-seg-skip",
+            "package_id": "pkg",
+            "diagnosis_text": "diag",
+        },
+        "annotations": [],
+    }
+    mask_dir = tmp_path / "manual_masks"
+    results = parse_ls_export_data(
+        [task],
+        task_type=TaskType.SEG,
+        image_metadata_by_id={
+            "img-seg-skip": ImageMetadata(width=8, height=6)
+        },
+        seg_manual_mask_dir=mask_dir,
+    )
+    assert results[0].human_confirmed is False
+    assert isinstance(results[0].annotation, SegAnnotation)
+    assert results[0].annotation.has_foreground is False
+    assert results[0].annotation.mask_ref == manual_mask_ref("img-seg-skip")
+    assert should_rework_result(results[0]) is True
+    loaded, width, height = load_foreground_mask(mask_dir / "img-seg-skip_manual.png")
+    assert (width, height) == (8, 6)
+    assert loaded == [[0] * 8 for _ in range(6)]
+
+
+def test_unsubmitted_seg_without_size_still_raises() -> None:
+    task = {
+        "data": {
+            "image_id": "img-seg-nosize",
+            "package_id": "pkg",
+            "diagnosis_text": "diag",
+        },
+        "annotations": [],
+    }
+    with pytest.raises(ValueError, match="cannot determine empty SEG mask size"):
+        parse_ls_export_data(
+            [task],
+            task_type=TaskType.SEG,
+            seg_manual_mask_dir=Path("unused"),
+        )
+
+
+def test_unsubmitted_det_empty_boxes() -> None:
+    task = {
+        "data": {"image_id": "img-det-skip", "package_id": "pkg"},
+        "annotations": [],
+    }
+    results = parse_ls_export_data([task], task_type=TaskType.DET)
+    assert results[0].human_confirmed is False
+    assert isinstance(results[0].annotation, DetAnnotation)
+    assert results[0].annotation.bboxes == ()
+    assert should_rework_result(results[0]) is True
+
+
+def test_annotations_wrong_type_still_raises() -> None:
+    task = _cap_task(image_id="img-bad-ann", caption="ok")
+    task["annotations"] = "bad"
+    with pytest.raises(ValueError, match="annotations must be a list"):
+        parse_ls_export_data([task], task_type=TaskType.CAP)
+
+
+def test_result_wrong_type_still_raises() -> None:
+    task = _cap_task(image_id="img-bad-result", caption="ok")
+    task["annotations"][0]["result"] = "bad"
+    with pytest.raises(ValueError, match="annotation result must be a list"):
+        parse_ls_export_data([task], task_type=TaskType.CAP)
 
 
 def test_export_root_must_be_list() -> None:

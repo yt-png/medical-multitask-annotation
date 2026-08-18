@@ -122,3 +122,34 @@ def test_extract_reads_file(tmp_path: Path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
     by_id = extract_ls_raw_results(path, task_type=TaskType.CAP)
     assert by_id["file-1"][0]["value"]["text"] == ["from file"]
+
+
+def test_extract_empty_annotations_maps_to_empty_tuple() -> None:
+    data = [
+        {
+            "data": {"image_id": "img-skip"},
+            "annotations": [],
+        }
+    ]
+    by_id = extract_ls_raw_results_data(data, task_type=TaskType.CAP)
+    assert set(by_id) == {"img-skip"}
+    assert by_id["img-skip"] == ()
+
+
+def test_extract_all_cancelled_maps_to_empty_tuple() -> None:
+    data = [
+        _task(
+            image_id="img-cancel",
+            result=[
+                {
+                    "from_name": "cap_text",
+                    "type": "textarea",
+                    "value": {"text": ["cancelled"]},
+                }
+            ],
+            cancelled=True,
+        )
+    ]
+    by_id = extract_ls_raw_results_data(data, task_type=TaskType.CAP)
+    assert set(by_id) == {"img-cancel"}
+    assert by_id["img-cancel"] == ()

@@ -49,9 +49,9 @@ def resolve_effective_result(
 
     1. Annotation has task payload controls → ``source="annotation"``,
        ``effective_result = annotation.result``
-    2. No task payload (confirm-only, human-cleared, or empty) →
-       ``source="empty"``; ``effective_result`` is ``annotation.result``
-       when present (may be Choices-only), else ``()``
+    2. No task payload (confirm-only, human-cleared, missing annotation,
+       or empty ``result``) → ``source="empty"``; ``effective_result`` is
+       ``annotation.result`` when present (may be Choices-only), else ``()``
     3. ``task["predictions"]`` is never merged into ``effective_result``
        (including rework LS JSON that still uses a ``predictions`` slot)
 
@@ -80,11 +80,10 @@ def resolve_effective_result(
             task.get("annotations"), image_id=resolved_id
         )
 
-    ann_raw = annotation.get("result")
-    if not isinstance(ann_raw, list):
-        raise ValueError(
-            f"annotation result must be a list (image_id={resolved_id!r})"
-        )
+    ann_raw = _coerce_annotation_result(
+        annotation.get("result"),
+        image_id=resolved_id,
+    )
     annotation_result = _deepcopy_result_list(ann_raw, image_id=resolved_id)
     prediction_result = _deepcopy_result_list(
         _prediction_result_items(task, task_type=task_type),
@@ -117,6 +116,21 @@ def resolve_effective_result(
         prediction_result=prediction_result,
         source=source,
         human_cleared=human_cleared,
+    )
+
+
+def _coerce_annotation_result(raw: Any, *, image_id: str) -> list[Any]:
+    """Treat missing / ``null`` annotation result as an empty list.
+
+    A non-list, non-null value is illegal JSON and still raises.
+    """
+
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return raw
+    raise ValueError(
+        f"annotation result must be a list (image_id={image_id!r})"
     )
 
 

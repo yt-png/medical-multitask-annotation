@@ -1,8 +1,9 @@
 """Extract Label Studio effective results by image_id (legacy rework channel).
 
 Uses ``resolve_effective_result`` (annotation-only effective). Confirm-only
-exports no longer carry prediction geometry/text. Prefer
-``previous_annotations`` for rework prefill.
+exports no longer carry prediction geometry/text. Missing / cancelled-only
+annotations map to an empty result tuple for that ``image_id`` (key kept).
+Prefer ``previous_annotations`` for rework prefill.
 """
 
 from __future__ import annotations

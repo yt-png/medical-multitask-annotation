@@ -8,9 +8,13 @@ Effective payload selection is owned solely by ``resolve_effective_result``
 into annotation objects and must not re-read ``task["predictions"]`` or use
 ``data.mask_ref`` / prediction geometry as the gold-standard source.
 
-SEG: geometry or empty/confirm-only / human_cleared → write ``manual_masks/``
-(requires ``seg_manual_mask_dir``). Empty mask size comes from annotation
-control ``original_*`` or ``image_metadata_by_id``.
+Empty / missing / cancelled-only ``annotations``, or empty ``result``, parse
+as an empty payload (``human_confirmed`` defaults false) so classification
+can send the sample to ``rework/`` instead of failing the whole export.
+
+SEG: geometry or empty/confirm-only / human_cleared / unsubmitted → write
+``manual_masks/`` (requires ``seg_manual_mask_dir``). Empty mask size comes
+from annotation control ``original_*`` or ``image_metadata_by_id``.
 
 DET: boxes from ``effective_result`` only (confirm-only / cleared → empty).
 
@@ -150,12 +154,8 @@ def _parse_one_task(
         image_id=image_id,
         annotation=annotation,
     )
-    # Choices always come from the original annotation.result (required yes/no).
+    # Choices come from the coerced annotation.result (missing confirmed → false).
     choice_items = list(effective.annotation_result)
-    if not isinstance(annotation.get("result"), list):
-        raise ValueError(
-            f"annotation result must be a list (image_id={image_id!r})"
-        )
 
     _assert_task_controls_match(choice_items, task_type=task_type, image_id=image_id)
     _assert_task_controls_match(
@@ -164,10 +164,11 @@ def _parse_one_task(
         image_id=image_id,
     )
 
-    human_confirmed = _parse_required_choice(
+    human_confirmed = _parse_optional_choice(
         choice_items,
         from_name=_FROM_HUMAN_CONFIRMED,
         image_id=image_id,
+        default=False,
     )
     needs_rework = _parse_optional_choice(
         choice_items,
@@ -207,9 +208,27 @@ def _parse_one_task(
     )
 
 
+def _empty_annotation_sentinel() -> dict[str, Any]:
+    """Return a stand-in annotation for missing / cancelled-only LS tasks."""
+
+    return {"result": [], "was_cancelled": False}
+
+
 def _select_annotation(annotations: Any, *, image_id: str) -> dict[str, Any]:
-    if not isinstance(annotations, list) or not annotations:
-        raise ValueError(f"no annotations for image_id={image_id!r}")
+    """Pick the latest non-cancelled annotation, or an empty sentinel.
+
+    ``None`` / ``[]`` / all-cancelled → empty ``result`` (V1: classify as
+    rework). A non-list value is illegal JSON shape and still raises.
+    """
+
+    if annotations is None:
+        return _empty_annotation_sentinel()
+    if not isinstance(annotations, list):
+        raise ValueError(
+            f"annotations must be a list (image_id={image_id!r})"
+        )
+    if not annotations:
+        return _empty_annotation_sentinel()
 
     candidates: list[dict[str, Any]] = []
     for item in annotations:
@@ -222,9 +241,7 @@ def _select_annotation(annotations: Any, *, image_id: str) -> dict[str, Any]:
         candidates.append(item)
 
     if not candidates:
-        raise ValueError(
-            f"no non-cancelled annotations for image_id={image_id!r}"
-        )
+        return _empty_annotation_sentinel()
 
     def sort_key(item: dict[str, Any]) -> tuple[str, int]:
         updated = item.get("updated_at")
@@ -322,26 +339,6 @@ def _parse_choice_value(entry: dict[str, Any], *, image_id: str, from_name: str)
         f"invalid choice for {from_name!r}: {raw!r} "
         f"(expected {_CHOICE_YES!r} or {_CHOICE_NO!r}, image_id={image_id!r})"
     )
-
-
-def _parse_required_choice(
-    result_items: Sequence[Any],
-    *,
-    from_name: str,
-    image_id: str,
-) -> bool:
-    matches = _choice_entries(
-        result_items, from_name=from_name, image_id=image_id
-    )
-    if not matches:
-        raise ValueError(
-            f"missing required choice {from_name!r} (image_id={image_id!r})"
-        )
-    if len(matches) > 1:
-        raise ValueError(
-            f"duplicate choice control {from_name!r} (image_id={image_id!r})"
-        )
-    return _parse_choice_value(matches[0], image_id=image_id, from_name=from_name)
 
 
 def _parse_optional_choice(
