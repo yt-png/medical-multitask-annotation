@@ -4,6 +4,10 @@ May emit a Label Studio ``predictions`` field. In **previous_annotations /
 rework** flows that field carries **historical human annotation prefill**,
 not a model prediction.
 
+V1 rework encoding uses ``bboxes_to_ls_rectangle_results``,
+``caption_to_ls_textarea_results``, and ``mask_ref_to_polygon_ls_results``
+(imported from the submodules; not re-exported here).
+
 Also retains **LEGACY** prelabel intermediate → LS import APIs (not used by
 V1 first-round ``ls-import``; empty tasks come from ``importers.build_ls_tasks``).
 Public APIs such as ``document_to_ls_tasks``, ``item_to_ls_task``,

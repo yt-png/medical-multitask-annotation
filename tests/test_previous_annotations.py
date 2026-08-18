@@ -44,6 +44,21 @@ def test_module_doc_states_previous_ne_prediction() -> None:
     assert "M6.1" in build_doc or "gold" in build_doc.lower() or "fallback" in build_doc.lower()
 
 
+@pytest.mark.parametrize("caption", ["", "   "])
+def test_previous_cap_empty_caption_prefills_empty_textarea(caption: str) -> None:
+    """Empty / whitespace-only human caption still prefills one empty textarea."""
+
+    results = build_ls_prediction_results_from_previous(
+        {"image_id": "img-1", "caption": caption},
+        task_type=TaskType.CAP,
+        image_id="img-1",
+        previous_root=Path("."),
+    )
+    assert results[0]["type"] == "textarea"
+    assert results[0]["from_name"] == "cap_text"
+    assert results[0]["value"]["text"] == [""]
+
+
 def _write_package(
     data_root: Path,
     *,

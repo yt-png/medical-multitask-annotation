@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PIL import Image
 
@@ -24,7 +24,9 @@ from mma.converters.to_labelstudio import (
     DEFAULT_LS_RESULT_SPECS,
     ImageMetadata,
 )
-from mma.formats.legacy_prelabel.intermediate import PrelabelItem, SegPrelabelPayload
+
+if TYPE_CHECKING:
+    from mma.formats.legacy_prelabel.intermediate import PrelabelItem
 
 # Foreground intensity written into LS RLE channel payload (matches LS converter).
 _FOREGROUND_VALUE = 255
@@ -502,7 +504,9 @@ def build_seg_brush_results(
     mask_root: Path | str,
     image_metadata: ImageMetadata | None = None,
 ) -> list[dict[str, Any]]:
-    """Build LS brush ``result`` entries for one SEG ``PrelabelItem``."""
+    """LEGACY: build LS brush ``result`` entries for one SEG item."""
+
+    from mma.formats.legacy_prelabel.intermediate import SegPrelabelPayload
 
     if item.task_type is not TaskType.SEG:
         raise ValueError(

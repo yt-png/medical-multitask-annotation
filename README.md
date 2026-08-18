@@ -18,7 +18,7 @@
 > - **Sprint A（已完成）**：空任务 `ls-import`（M4）；金标准仅人工 annotation、空标注→`rework/`、无 prelabels/prediction 主流程门禁（M6 / M5.1–M5.2 / M5.6 / M12.1–M12.3）。
 > - **Sprint B（已完成｜清理与隔离）**：adapters → `legacy/adapters`（M1）；formats 三分 + `legacy_prelabel`（M2 Phase A）；`seg_mask_paths` 无 prelabels fallback（M5.3–M5.5）；converter 语义「LS `predictions` ≠ 模型推理」（M3.2–M3.4）；CLI `convert` / examples 默认 V1（M3.3 / M10.2）；preprocess/packaging 无 legacy 依赖（M7）。
 > - **Sprint C（已完成｜必做项）**：M4.3 返工预填源仅 `previous_annotations`；M6.4 快照语义文档收口；M8.1–M8.3 merge；M12.4 独立运行；M12.5 返工闭环 → merge 出 final。
-> - **Sprint D（已完成｜含 M12.6 冻结验收）**：四角色部署包 [`deploy/v1/`](deploy/v1/)（M11）；LS 配置回归（M9）；文档定稿（M0）。冻结报告：[docs/M12.6_FINAL_FREEZE_REPORT.md](docs/M12.6_FINAL_FREEZE_REPORT.md)。状态：**Medical Image Multi-task Annotation Dataflow V1 Frozen**（非「最终产品发布完成」）。可选 B2（返工路径脱离 PrelabelItem）不阻塞冻结。
+> - **Sprint D（已完成｜含 M12.6 冻结验收）**：四角色部署包 [`deploy/v1/`](deploy/v1/)（M11）；LS 配置回归（M9）；文档定稿（M0）。冻结报告：[docs/M12.6_FINAL_FREEZE_REPORT.md](docs/M12.6_FINAL_FREEZE_REPORT.md)。状态：**Medical Image Multi-task Annotation Dataflow V1 Frozen**（非「最终产品发布完成」）。P2 / B2：返工几何编码已脱离 Prelabel 中间类型。
 
 ## 流水线一览（V1）
 
@@ -120,7 +120,7 @@ mma merge --batch demo_batch --data-root data
 
 **DET / CAP**：首轮导入无预填框/文本；导出不再回填 prediction；人工清空或 confirm-only → 空框 / 空文案。
 
-**返工预填**：`previous_annotations` = 上一轮**人工**快照（**`previous_annotations` ≠ prediction**）；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**；导出金标准不再将该槽位作 fallback（M6.1/M6.2）。**M4.3**：`rework-import` 默认只读 `previous_annotations/`，不读 `prelabels/`；`--export` 仅为 legacy 旁路。**M6.4**：快照模块命名/文档已收口。
+**返工预填**：`previous_annotations` = 上一轮**人工**快照（**`previous_annotations` ≠ prediction**）；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**；导出金标准不再将该槽位作 fallback（M6.1/M6.2）。几何编码使用 V1 框 / 文案 / mask 文件。**M4.3**：`rework-import` 默认只读 `previous_annotations/`，不读 `prelabels/`；`--export` 仅为 legacy 旁路。**M6.4**：快照模块命名/文档已收口。
 
 **final**：自包含（含 `images/`、`masks/` 与相对路径清单）；未就绪或缺任务则失败，不改写已有 final。
 

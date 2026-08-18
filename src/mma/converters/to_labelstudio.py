@@ -15,6 +15,8 @@ annotation prefill only. Gold-standard export must not treat it as inference.
 
 APIs such as ``document_to_ls_tasks`` / ``item_to_ls_task`` / ``ImageMetadata``
 and ``DEFAULT_LS_RESULT_SPECS`` are retained for legacy tests and callers.
+V1 rework encoders: ``bboxes_to_ls_rectangle_results``,
+``caption_to_ls_textarea_results`` (SEG: ``mask_ref_to_polygon_ls_results``).
 SEG geometry via ``mask_root`` remains available; default mode is
 polygonlabels (brush RLE via ``SEG_PREFILL_MODE``). Does not wire the V1 CLI
 main path or define Label Studio XML.
@@ -22,21 +24,18 @@ main path or define Label Studio XML.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from mma.common.models import TaskType
-from mma.formats.legacy_prelabel.intermediate import (
-    CapPrelabelPayload,
-    DetPrelabelPayload,
-    PrelabelBBox,
-    PrelabelDocument,
-    PrelabelItem,
-    SegPrelabelPayload,
-    assert_payload_matches_task,
-)
+from mma.common.models import BBox, TaskType
+
+if TYPE_CHECKING:
+    from mma.formats.legacy_prelabel.intermediate import (
+        PrelabelDocument,
+        PrelabelItem,
+    )
 
 MODEL_VERSION = "mma-prelabel-1.0"
 
@@ -94,10 +93,10 @@ class ImageMetadata:
 
 
 def _pixel_bbox_to_percent(
-    bbox: PrelabelBBox,
+    bbox: BBox,
     metadata: ImageMetadata,
 ) -> dict[str, float]:
-    """Convert a pixel ``PrelabelBBox`` to Label Studio percent value fields."""
+    """Convert a pixel ``BBox`` to Label Studio percent value fields."""
 
     return {
         "x": bbox.x / metadata.width * 100.0,
@@ -106,6 +105,49 @@ def _pixel_bbox_to_percent(
         "height": bbox.height / metadata.height * 100.0,
         "rotation": 0.0,
     }
+
+
+def bboxes_to_ls_rectangle_results(
+    bboxes: Sequence[BBox],
+    metadata: ImageMetadata,
+) -> list[dict[str, Any]]:
+    """Encode V1 DET boxes as Label Studio rectanglelabels ``result`` entries.
+
+    Empty ``bboxes`` yields ``[]``. Labels come from ``DEFAULT_LS_RESULT_SPECS``.
+    """
+
+    spec = DEFAULT_LS_RESULT_SPECS[TaskType.DET]
+    labels = list(spec["labels"])
+    results: list[dict[str, Any]] = []
+    for bbox in bboxes:
+        value = _pixel_bbox_to_percent(bbox, metadata)
+        value["rectanglelabels"] = labels
+        results.append(
+            {
+                "original_width": metadata.width,
+                "original_height": metadata.height,
+                "image_rotation": 0,
+                "from_name": spec["from_name"],
+                "to_name": spec["to_name"],
+                "type": spec["type"],
+                "value": value,
+            }
+        )
+    return results
+
+
+def caption_to_ls_textarea_results(caption: str) -> list[dict[str, Any]]:
+    """Encode a CAP caption (including ``""``) as one textarea ``result``."""
+
+    spec = DEFAULT_LS_RESULT_SPECS[TaskType.CAP]
+    return [
+        {
+            "from_name": spec["from_name"],
+            "to_name": spec["to_name"],
+            "type": spec["type"],
+            "value": {"text": [caption]},
+        }
+    ]
 
 
 def _build_common_data(item: PrelabelItem) -> dict[str, Any]:
@@ -145,6 +187,8 @@ def _build_seg_results(
     ``data.mask_ref`` is still set by the caller.
     """
 
+    from mma.formats.legacy_prelabel.intermediate import SegPrelabelPayload
+
     assert isinstance(item.payload, SegPrelabelPayload)
     if mask_root is None:
         return []
@@ -172,38 +216,21 @@ def _build_det_results(
     item: PrelabelItem,
     metadata: ImageMetadata,
 ) -> list[dict[str, Any]]:
+    from mma.formats.legacy_prelabel.intermediate import DetPrelabelPayload
+
     assert isinstance(item.payload, DetPrelabelPayload)
-    spec = DEFAULT_LS_RESULT_SPECS[TaskType.DET]
-    labels = list(spec["labels"])
-    results: list[dict[str, Any]] = []
-    for bbox in item.payload.bboxes:
-        value = _pixel_bbox_to_percent(bbox, metadata)
-        value["rectanglelabels"] = labels
-        results.append(
-            {
-                "original_width": metadata.width,
-                "original_height": metadata.height,
-                "image_rotation": 0,
-                "from_name": spec["from_name"],
-                "to_name": spec["to_name"],
-                "type": spec["type"],
-                "value": value,
-            }
-        )
-    return results
+    boxes = tuple(
+        BBox(x=b.x, y=b.y, width=b.width, height=b.height)
+        for b in item.payload.bboxes
+    )
+    return bboxes_to_ls_rectangle_results(boxes, metadata)
 
 
 def _build_cap_results(item: PrelabelItem) -> list[dict[str, Any]]:
+    from mma.formats.legacy_prelabel.intermediate import CapPrelabelPayload
+
     assert isinstance(item.payload, CapPrelabelPayload)
-    spec = DEFAULT_LS_RESULT_SPECS[TaskType.CAP]
-    return [
-        {
-            "from_name": spec["from_name"],
-            "to_name": spec["to_name"],
-            "type": spec["type"],
-            "value": {"text": [item.payload.caption]},
-        }
-    ]
+    return caption_to_ls_textarea_results(item.payload.caption)
 
 
 def _require_det_metadata(
@@ -238,6 +265,11 @@ def item_to_ls_task(
     Optional SEG ``image_metadata`` is only used to validate mask size when
     provided. CAP ignores ``mask_root`` / ``image_metadata``.
     """
+
+    from mma.formats.legacy_prelabel.intermediate import (
+        SegPrelabelPayload,
+        assert_payload_matches_task,
+    )
 
     assert_payload_matches_task(item.task_type, item.payload)
     data = _build_common_data(item)

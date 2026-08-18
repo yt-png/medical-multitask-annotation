@@ -1,5 +1,22 @@
 # Changelog
 
+## V1 — P2 返工编码脱离 PrelabelItem（2026-08-18）
+
+### Changed
+
+- 返工预填（`previous_annotations`）直接用 V1 `BBox` / caption / mask 文件编 LS result，不再构造 `PrelabelItem`
+- `to_labelstudio` / `seg_polygon` / `seg_brush` 对 legacy prelabel 类型改为函数内懒加载；V1 主路径 import 不再加载 `legacy_prelabel`
+- 保留 `item_to_ls_task` / `document_to_ls_tasks` / `build_seg_polygon_results` / `build_seg_brush_results` 作为 legacy 入口
+
+### Tests
+
+- `tests/test_m2_2_runtime_no_legacy_prelabel.py`：子进程 import 验收 + `previous_annotations.py` 源码 grep
+- `tests/test_previous_annotations.py`：空 / 空白 caption 预填为空 textarea
+
+### Docs
+
+- README：返工预填编码走 V1 类型；Sprint D 状态注明 P2 / B2 已完成
+
 ## V1 — P1 空/未提交标注进 rework（2026-08-18）
 
 ### Changed
@@ -43,7 +60,7 @@
 
 ### Planned（不阻塞冻结）
 
-- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem`
+- **M2.2 B2**（可选）：返工路径脱离 `PrelabelItem` → **已完成，见文首 P2 节**
 
 ## V1 — M0 文档定稿（2026-08-18）
 

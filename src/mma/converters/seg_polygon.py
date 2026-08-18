@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -31,7 +31,9 @@ from mma.converters.to_labelstudio import (
     DEFAULT_LS_RESULT_SPECS,
     ImageMetadata,
 )
-from mma.formats.legacy_prelabel.intermediate import PrelabelItem, SegPrelabelPayload
+
+if TYPE_CHECKING:
+    from mma.formats.legacy_prelabel.intermediate import PrelabelItem
 
 # Relative epsilon for approxPolyDP: fraction of contour perimeter.
 DEFAULT_APPROX_EPSILON_RATIO = 0.002
@@ -400,35 +402,28 @@ def _resolve_mask_path(mask_root: Path | str, mask_ref: str) -> Path:
     return resolved
 
 
-def build_seg_polygon_results(
-    item: PrelabelItem,
+def mask_ref_to_polygon_ls_results(
     *,
     mask_root: Path | str,
+    mask_ref: str,
+    image_id: str,
+    package_id: str,
     image_metadata: ImageMetadata | None = None,
     epsilon_ratio: float = DEFAULT_APPROX_EPSILON_RATIO,
 ) -> list[dict[str, Any]]:
-    """Build LS polygonlabels ``result`` entries for one SEG ``PrelabelItem``."""
+    """Build LS polygonlabels ``result`` entries from a mask file under ``mask_root``."""
 
-    if item.task_type is not TaskType.SEG:
-        raise ValueError(
-            f"build_seg_polygon_results requires SEG item, "
-            f"got {item.task_type.value}"
-        )
-    if not isinstance(item.payload, SegPrelabelPayload):
-        raise ValueError("SEG item payload must be SegPrelabelPayload")
-
-    mask_ref = item.payload.mask_ref
     try:
         path = _resolve_mask_path(mask_root, mask_ref)
     except ValueError as exc:
         raise ValueError(
-            f"{exc} (image_id={item.image_id!r}, package_id={item.package_id!r})"
+            f"{exc} (image_id={image_id!r}, package_id={package_id!r})"
         ) from exc
 
     if not path.is_file():
         raise ValueError(
             "mask file not found: "
-            f"{path} (image_id={item.image_id!r}, package_id={item.package_id!r}, "
+            f"{path} (image_id={image_id!r}, package_id={package_id!r}, "
             f"mask_ref={mask_ref!r})"
         )
 
@@ -436,7 +431,7 @@ def build_seg_polygon_results(
         binary, width, height = load_foreground_mask_numpy(path)
     except ValueError as exc:
         raise ValueError(
-            f"{exc} (image_id={item.image_id!r}, package_id={item.package_id!r}, "
+            f"{exc} (image_id={image_id!r}, package_id={package_id!r}, "
             f"mask_ref={mask_ref!r})"
         ) from exc
 
@@ -447,7 +442,7 @@ def build_seg_polygon_results(
             "mask size does not match image_metadata: "
             f"mask=({width}, {height}), "
             f"image_metadata=({image_metadata.width}, {image_metadata.height}), "
-            f"image_id={item.image_id!r}, package_id={item.package_id!r}"
+            f"image_id={image_id!r}, package_id={package_id!r}"
         )
 
     polygons = binary_mask_to_polygon_points(
@@ -479,11 +474,41 @@ def build_seg_polygon_results(
     return results
 
 
+def build_seg_polygon_results(
+    item: PrelabelItem,
+    *,
+    mask_root: Path | str,
+    image_metadata: ImageMetadata | None = None,
+    epsilon_ratio: float = DEFAULT_APPROX_EPSILON_RATIO,
+) -> list[dict[str, Any]]:
+    """LEGACY: build LS polygonlabels ``result`` entries for one SEG item."""
+
+    from mma.formats.legacy_prelabel.intermediate import SegPrelabelPayload
+
+    if item.task_type is not TaskType.SEG:
+        raise ValueError(
+            f"build_seg_polygon_results requires SEG item, "
+            f"got {item.task_type.value}"
+        )
+    if not isinstance(item.payload, SegPrelabelPayload):
+        raise ValueError("SEG item payload must be SegPrelabelPayload")
+
+    return mask_ref_to_polygon_ls_results(
+        mask_root=mask_root,
+        mask_ref=item.payload.mask_ref,
+        image_id=item.image_id,
+        package_id=item.package_id,
+        image_metadata=image_metadata,
+        epsilon_ratio=epsilon_ratio,
+    )
+
+
 __all__ = [
     "DEFAULT_APPROX_EPSILON_RATIO",
     "MANUAL_MASK_REL_DIR",
     "binary_mask_to_polygon_points",
     "build_seg_polygon_results",
+    "mask_ref_to_polygon_ls_results",
     "load_foreground_mask_numpy",
     "mask_iou",
     "manual_mask_filename",

@@ -23,6 +23,7 @@ from typing import Any
 
 from mma.common.io import read_json, write_json
 from mma.common.models import (
+    BBox,
     CapAnnotation,
     DetAnnotation,
     SegAnnotation,
@@ -36,12 +37,6 @@ from mma.common.paths import (
     validate_batch_id,
 )
 from mma.common.seg_mask_paths import resolve_current_seg_mask_path
-from mma.converters.to_labelstudio import DEFAULT_LS_RESULT_SPECS
-from mma.formats.legacy_prelabel.intermediate import (
-    SCHEMA_VERSION,
-    PrelabelItem,
-    SegPrelabelPayload,
-)
 
 PREVIOUS_ANNOTATIONS_DIRNAME = "previous_annotations"
 PREVIOUS_MASKS_DIRNAME = "masks"
@@ -278,27 +273,19 @@ def _polygons_from_mask_copy(
     masks_dir: Path,
     mask_file: str,
 ) -> list[dict[str, Any]]:
-    """Build polygon snapshot via ``build_seg_polygon_results`` (no reimplement)."""
+    """Build polygon snapshot via ``mask_ref_to_polygon_ls_results``."""
 
-    from mma.converters.seg_polygon import build_seg_polygon_results
+    from mma.converters.seg_polygon import mask_ref_to_polygon_ls_results
 
     assert isinstance(item.annotation, SegAnnotation)
     package_id = item.package_id or f"{batch_id}__seg"
-    # PrelabelItem here is legacy encoding reuse only — not reading prelabels/.
-    prelabel_item = PrelabelItem(
-        schema_version=SCHEMA_VERSION,
-        batch_id=batch_id,
-        package_id=package_id,
-        task_type=TaskType.SEG,
-        image_id=item.image_id,
-        diagnosis_text="(rework-snapshot)",
-        payload=SegPrelabelPayload(mask_ref=mask_file),
-    )
     # mask_root = previous_annotations dir (parent of masks/)
     mask_root = masks_dir.parent
-    results = build_seg_polygon_results(
-        prelabel_item,
+    results = mask_ref_to_polygon_ls_results(
         mask_root=mask_root,
+        mask_ref=mask_file,
+        image_id=item.image_id,
+        package_id=package_id,
     )
     polygons: list[dict[str, Any]] = []
     for entry in results:
@@ -336,8 +323,8 @@ def build_ls_prediction_results_from_previous(
     slot** used for UI prefill, not model inference. Input is historical
     human ``previous_annotations`` (``previous_annotations`` ≠ prediction).
     Output must never be treated as gold-standard fallback by M6.1
-    ``resolve_effective_result``. May reuse legacy ``PrelabelItem`` encoding
-    helpers without reading ``prelabels/``.
+    ``resolve_effective_result``. Encodes V1 boxes, caption, and mask files
+    into Label Studio result entries for UI prefill.
     """
 
     if task_type is TaskType.DET:
@@ -376,8 +363,7 @@ def _previous_det_to_ls(
     package_id: str,
     batch_id: str,
 ) -> list[dict[str, Any]]:
-    from mma.converters.to_labelstudio import ImageMetadata, _build_det_results
-    from mma.formats.legacy_prelabel.intermediate import DetPrelabelPayload, PrelabelBBox
+    from mma.converters.to_labelstudio import ImageMetadata, bboxes_to_ls_rectangle_results
 
     if image_width is None or image_height is None:
         raise ValueError(
@@ -388,7 +374,7 @@ def _previous_det_to_ls(
         raise ValueError(
             f"DET previous entry.bboxes must be a list (image_id={image_id!r})"
         )
-    boxes: list[PrelabelBBox] = []
+    boxes: list[BBox] = []
     for index, box in enumerate(bboxes_raw):
         if not isinstance(box, dict):
             raise ValueError(
@@ -396,11 +382,11 @@ def _previous_det_to_ls(
                 f"(image_id={image_id!r})"
             )
         # Optional label in snapshot is ignored for geometry; LS labels come
-        # from DEFAULT_LS_RESULT_SPECS inside _build_det_results (not forged
+        # from DEFAULT_LS_RESULT_SPECS inside the rectangle encoder (not forged
         # onto TaskAnnotationResult / BBox).
         try:
             boxes.append(
-                PrelabelBBox(
+                BBox(
                     x=float(box["x"]),
                     y=float(box["y"]),
                     width=float(box["width"]),
@@ -413,18 +399,8 @@ def _previous_det_to_ls(
                 f"(image_id={image_id!r})"
             ) from exc
 
-    # PrelabelItem / PrelabelBBox: legacy encoding reuse only (not prelabels/).
-    item = PrelabelItem(
-        schema_version=SCHEMA_VERSION,
-        batch_id=batch_id,
-        package_id=package_id,
-        task_type=TaskType.DET,
-        image_id=image_id,
-        diagnosis_text="(rework-snapshot)",
-        payload=DetPrelabelPayload(bboxes=tuple(boxes)),
-    )
-    return _build_det_results(
-        item,
+    return bboxes_to_ls_rectangle_results(
+        boxes,
         ImageMetadata(width=image_width, height=image_height),
     )
 
@@ -436,8 +412,7 @@ def _previous_cap_to_ls(
     package_id: str,
     batch_id: str,
 ) -> list[dict[str, Any]]:
-    from mma.converters.to_labelstudio import _build_cap_results
-    from mma.formats.legacy_prelabel.intermediate import CapPrelabelPayload
+    from mma.converters.to_labelstudio import caption_to_ls_textarea_results
 
     caption = entry.get("caption")
     if not isinstance(caption, str):
@@ -445,28 +420,7 @@ def _previous_cap_to_ls(
             f"CAP previous entry.caption must be a string "
             f"(image_id={image_id!r})"
         )
-    # CapPrelabelPayload rejects empty; empty is a valid human-clear snapshot.
-    if not caption.strip():
-        spec = DEFAULT_LS_RESULT_SPECS[TaskType.CAP]
-        return [
-            {
-                "from_name": spec["from_name"],
-                "to_name": spec["to_name"],
-                "type": spec["type"],
-                "value": {"text": [""]},
-            }
-        ]
-    # PrelabelItem: legacy encoding reuse only (not reading prelabels/).
-    item = PrelabelItem(
-        schema_version=SCHEMA_VERSION,
-        batch_id=batch_id,
-        package_id=package_id,
-        task_type=TaskType.CAP,
-        image_id=image_id,
-        diagnosis_text="(rework-snapshot)",
-        payload=CapPrelabelPayload(caption=caption.strip()),
-    )
-    return _build_cap_results(item)
+    return caption_to_ls_textarea_results(caption.strip())
 
 
 def _previous_seg_to_ls(
@@ -477,7 +431,7 @@ def _previous_seg_to_ls(
     package_id: str,
     batch_id: str,
 ) -> list[dict[str, Any]]:
-    from mma.converters.seg_polygon import build_seg_polygon_results
+    from mma.converters.seg_polygon import mask_ref_to_polygon_ls_results
 
     mask_file = entry.get("mask_file")
     if not isinstance(mask_file, str) or not mask_file.strip():
@@ -486,14 +440,9 @@ def _previous_seg_to_ls(
             f"(image_id={image_id!r})"
         )
     mask_file = mask_file.strip().replace("\\", "/")
-    # PrelabelItem: legacy encoding reuse only (not reading prelabels/).
-    item = PrelabelItem(
-        schema_version=SCHEMA_VERSION,
-        batch_id=batch_id,
-        package_id=package_id,
-        task_type=TaskType.SEG,
+    return mask_ref_to_polygon_ls_results(
+        mask_root=previous_root,
+        mask_ref=mask_file,
         image_id=image_id,
-        diagnosis_text="(rework-snapshot)",
-        payload=SegPrelabelPayload(mask_ref=mask_file),
+        package_id=package_id,
     )
-    return build_seg_polygon_results(item, mask_root=previous_root)
