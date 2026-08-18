@@ -1,5 +1,16 @@
 # Changelog
 
+## V1 — P6 prelabel 覆盖校验迁出主 importers（2026-08-18）
+
+### Changed
+
+- `validate_prelabel_coverage` 从 `mma.importers` 迁至 `mma.legacy`；V1 `ls-import` 仍不调用
+- `tests/test_build_ls_tasks.py` 不再测该 helper；用例迁 `tests/legacy/`（`pytest -m legacy`）
+
+### Tests
+
+- `tests/legacy/test_validate_prelabel_coverage.py`：集合相等 / Missing / Unknown
+
 ## V1 — P5 文档分类公式对齐 should_rework_result（2026-08-18）
 
 ### Docs

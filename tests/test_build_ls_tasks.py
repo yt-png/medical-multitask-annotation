@@ -18,7 +18,6 @@ from mma.importers import (
     build_ls_import_tasks,
     to_local_files_url,
 )
-from mma.importers.validate_prelabel_coverage import validate_prelabel_coverage
 
 _ALLOWED_DATA_KEYS = frozenset(
     {"image", "image_id", "package_id", "diagnosis_text"}
@@ -101,17 +100,6 @@ def test_to_local_files_url() -> None:
         to_local_files_url("task_packages/b/seg/images/a.jpg")
         == f"{LOCAL_FILES_PREFIX}task_packages/b/seg/images/a.jpg"
     )
-
-
-def test_validate_prelabel_coverage_still_available_as_legacy_helper() -> None:
-    """M4.2: helper file kept; no longer used by first-round import."""
-
-    validate_prelabel_coverage(["a", "b", "c"], ["a", "b", "c"])
-    with pytest.raises(ValueError, match="Missing prelabels"):
-        validate_prelabel_coverage(["a", "b", "c"], ["a", "b"])
-    with pytest.raises(ValueError, match="Unknown prelabels"):
-        validate_prelabel_coverage(["a", "b"], ["a", "b", "c"])
-    validate_prelabel_coverage(["a", "b", "c"], ["c", "a", "b"])
 
 
 def test_build_without_prelabels_writes_empty_cap_tasks(tmp_path: Path) -> None:

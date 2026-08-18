@@ -1,4 +1,8 @@
-"""Prelabel vs task-package image_id coverage checks for ls-import."""
+"""LEGACY: prelabel vs task-package image_id coverage checks.
+
+Historical helper for ``prelabels.json`` vs task-package ``image_id`` sets.
+V1 first-round ``ls-import`` does not call this module.
+"""
 
 from __future__ import annotations
 
