@@ -618,7 +618,7 @@ python -c "from pathlib import Path; p=Path('data/task_packages/real_batch/seg/i
 | DET | 同上 | `RectangleLabels name="det_bbox"`，标签 `object` | 同上 |
 | CAP | 同上 | `TextArea name="cap_text"` | 同上 |
 
-CAP XML 左侧标题仍可能显示「预标注文本」——这是控件标签遗留文案。V1 首轮 TextArea **为空**，必须人工填写，不要当成模型预填。
+CAP XML 左侧标题为「人工描述」。V1 首轮 TextArea **为空**，必须人工填写，不要当成模型预填。
 
 可用 Python 打印已安装包内路径：
 
@@ -1360,7 +1360,7 @@ merge:
 | `docs/real_batch_local_test_runbook.md` | 项目根写成 `D:\多任务标注平台`；含放置 prelabels、raw `masks/` | 本仓库为 V1 路径；preprocess 不读 masks；主流程不读 prelabels |
 | `docs/labelstudio_usage.md` §4 | 只强调 Local storage 根 = data | 实践上 DOCUMENT_ROOT=`data`，Cloud Storage 绝对路径须为 **子目录** `data/task_packages`（与旧 runbook 4.3 一致，且符合 LS 限制） |
 | `docs/formats.md` | 整份为 Legacy 预标注格式 | V1 验收不要准备 `prelabels.json` |
-| `src/mma/labelstudio/configs/cap.xml` | 界面标题「预标注文本」 | 首轮 `cap_text` 为空，须人工填写 |
+| `src/mma/labelstudio/configs/cap.xml` | 界面标题已改为「人工描述」 | 首轮 `cap_text` 为空，须人工填写 |
 | README vs 旧 runbook | README 已是空任务主路径 | 旧手册历史半自动步骤仅对照，不作为 V1 必做 |
 
 权威优先级：**`src/mma` 实现 > README.md > 本 SOP > 其它 docs。**

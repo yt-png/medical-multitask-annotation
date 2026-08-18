@@ -89,9 +89,15 @@ def test_cap_human_confirmed_choices() -> None:
 
 
 def test_cap_config_has_no_prediction_or_prelabel() -> None:
-    text = load_cap_config_text().lower()
-    assert "prediction" not in text
-    assert "prelabel" not in text
+    text = load_cap_config_text()
+    assert "预标注" not in text
+    lowered = text.lower()
+    assert "prediction" not in lowered
+    assert "prelabel" not in lowered
+    headers = [
+        el.get("value") for el in _find_all(_parse_config(), "Header")
+    ]
+    assert "人工描述" in headers
 
 
 def test_cap_needs_rework_choices() -> None:

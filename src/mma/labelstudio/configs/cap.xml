@@ -3,7 +3,7 @@
     <View style="flex: 2;">
       <Header value="原图"/>
       <Image name="image" value="$image"/>
-      <Header value="预标注文本"/>
+      <Header value="人工描述"/>
       <TextArea name="cap_text" toName="image" editable="true" rows="8"/>
     </View>
     <View style="flex: 1;">

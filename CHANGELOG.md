@@ -1,5 +1,19 @@
 # Changelog
 
+## V1 — P4 CAP 界面标题去掉预标注语义（2026-08-18）
+
+### Changed
+
+- `cap.xml`（src 与 `deploy/v1/annotator_cap`）：Header「预标注文本」改为「人工描述」；`cap_text` 控件名未改
+
+### Tests
+
+- `tests/test_labelstudio_cap_config.py`：配置不含「预标注」，且存在 Header「人工描述」
+
+### Docs
+
+- `docs/V1_LOCAL_FULL_CHAIN_TEST_REPORT.md`、`docs/M12.6_FINAL_FREEZE_REPORT.md` 过时「预标注文本」说明已对齐
+
 ## V1 — P3 M12.2 场景2门禁收口（2026-08-18）
 
 ### Verified
