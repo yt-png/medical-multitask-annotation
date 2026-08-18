@@ -200,7 +200,7 @@ def _annotation_from_dict(
                 f"SEG annotation.mask_ref must be non-empty "
                 f"(image_id={image_id!r})"
             )
-        has_foreground = raw.get("has_foreground", True)
+        has_foreground = raw.get("has_foreground", False)
         if not isinstance(has_foreground, bool):
             raise ValueError(
                 f"SEG annotation.has_foreground must be bool "

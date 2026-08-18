@@ -1,5 +1,21 @@
 # Changelog
 
+## V1 — R8 缺 has_foreground 加载为 False（2026-08-19）
+
+### Changed
+
+- 读 `current/` / rework `annotations.json`：SEG 缺 `has_foreground` 默认 `False`（无有效载荷，进 rework），不再默认 `True`
+- `SegAnnotation` 内存构造默认仍为 `True`；非 bool 仍拒绝
+
+### Tests
+
+- `tests/test_load_current.py`：缺字段 → `False` 且 `should_rework_result` 为真
+
+### Docs
+
+- README：有效载荷说明改为缺字段加载为 `False`
+
+
 ## V1 — R7 merge 拷图优先任务包（2026-08-19）
 
 ### Changed

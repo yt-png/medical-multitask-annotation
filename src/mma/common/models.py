@@ -57,7 +57,8 @@ class SegAnnotation:
 
     ``has_foreground`` is True when the manual mask has lesion foreground.
     False means an empty manual mask (no effective SEG payload). Missing
-    field in legacy ``current/`` JSON defaults to True on load.
+    field in ``current/`` JSON defaults to False on load. In-memory
+    construction still defaults to True when the argument is omitted.
     """
 
     mask_ref: str

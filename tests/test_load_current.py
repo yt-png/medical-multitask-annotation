@@ -15,6 +15,7 @@ from mma.common.models import (
     SegAnnotation,
     TaskAnnotationResult,
     TaskType,
+    should_rework_result,
 )
 from mma.common.paths import results_current_dir
 from mma.exporters import load_current, load_current_annotations_file, overwrite_current
@@ -147,7 +148,7 @@ def test_seg_has_foreground_roundtrip(tmp_path: Path) -> None:
     assert loaded[0].annotation.has_foreground is False
 
 
-def test_seg_legacy_json_missing_has_foreground_defaults_true(
+def test_seg_json_missing_has_foreground_defaults_false(
     tmp_path: Path,
 ) -> None:
     path = (
@@ -170,7 +171,8 @@ def test_seg_legacy_json_missing_has_foreground_defaults_true(
         ],
     )
     loaded = load_current("b1", TaskType.SEG, data_root=tmp_path)
-    assert loaded[0].annotation.has_foreground is True
+    assert loaded[0].annotation.has_foreground is False
+    assert should_rework_result(loaded[0]) is True
 
 
 def test_missing_file_raises(tmp_path: Path) -> None:
