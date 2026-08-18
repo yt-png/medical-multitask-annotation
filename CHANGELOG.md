@@ -1,5 +1,15 @@
 # Changelog
 
+## V1 — P10 冻结声明对齐 M2.2 B2 已完成（2026-08-19）
+
+### Docs
+
+- `docs/M12.6_FINAL_FREEZE_REPORT.md`：Non-blocking 第 1 条由「B2 未做且不阻塞」改为 **DONE（P2）**——返工预填不再构造 `PrelabelItem`，主路径 import 图不含 `legacy_prelabel`
+
+### Verified
+
+- 代码事实见文首 P2；无生产代码变更
+
 ## V1 — P9 rework-import 无快照不再用 --export 预填（2026-08-19）
 
 ### Changed
