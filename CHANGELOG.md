@@ -1,5 +1,17 @@
 # Changelog
 
+## V1 — P5 文档分类公式对齐 should_rework_result（2026-08-18）
+
+### Docs
+
+- `docs/data_layout.md` §4.7 / §7.5、`docs/labelstudio_usage.md`：运行时分类改为 `should_rework_result` 三支路（含空载荷）
+- 旧 `should_rework` 仅作勾选辅助说明；不写「未提交会解析失败」（P1 已覆盖）
+- `docs/V1_LOCAL_FULL_CHAIN_TEST_REPORT.md` 附录：§4.7 不再标过时
+
+### Changed
+
+- 无生产代码变更
+
 ## V1 — P4 CAP 界面标题去掉预标注语义（2026-08-18）
 
 ### Changed

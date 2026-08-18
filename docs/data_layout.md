@@ -144,21 +144,24 @@ data/
 
 #### `normal/`
 
-- 本轮（相对最新 `current/`）分类结果：`should_rework(...)` 为 **false**
-  - 即 `human_confirmed == true` **且** `needs_rework == false`
-  - 判定函数：`mma.common.models.should_rework`
+- 本轮（相对最新 `current/`）分类结果：`should_rework_result(...)` 为 **false**
+  - 即 `human_confirmed == true` **且** `needs_rework == false` **且**有有效任务载荷
+  - 判定函数：`mma.common.models.should_rework_result`
+  - 公式：`should_rework_result = (not human_confirmed) or needs_rework or (not effective_payload)`
+  - 旧 `should_rework` 仅为勾选辅助，**不用于** normal/rework 分桶
 - **始终表示当前全部已达最终确认状态的样本**；由 `apply-current` / `export-split` 在更新 `current/` 后**全量重建**（禁止按历史 append）
 - 建议按轮次另存快照：`normal/round_XXX/`（可选；权威仍以最新 `normal/annotations.json` 为准）
 - 用于网盘回传「正常结果包」
 
 #### `rework/`
 
-- 本轮（相对最新 `current/`）分类结果：`should_rework(...)` 为 **true**
-  - 定义：`should_rework = (not human_confirmed) OR needs_rework`
+- 本轮（相对最新 `current/`）分类结果：`should_rework_result(...)` 为 **true**
+  - 定义：`should_rework_result = (not human_confirmed) or needs_rework or (not effective_payload)`
   - **含义：未达到最终确认状态**，而不是「仅 `needs_rework=True`」
   - 包含：
-    - `human_confirmed == false`（无论 `needs_rework`）
+    - `human_confirmed == false`（无论 `needs_rework`；含未提交）
     - `human_confirmed == true` **且** `needs_rework == true`
+    - 已确认、不需返工，但无有效任务载荷（空框 / 空文案 / SEG 空 mask、空 result）
 - 与 `normal/` 同样在每次 apply / export-split 后**全量重建**
 - 建议按轮次另存快照：`rework/round_XXX/`（可选）
 - 用于网盘回传与返工再导入输入（未确认样本一并进入返工闭环）
@@ -261,7 +264,7 @@ raw
 2. 同一 `image_id` + 同一任务再次写入时，替换旧标注与「人工确认 / 是否返工」勾选。
 3. `current/` 中不并行保留历史多版本作为有效结果（同一 id 只保留最新一版）。
 4. **`current/` 为唯一真实数据源**。每次 `apply-current` / `export-split` 在更新 `current/` 后，必须按完整 `current/` **全量重建** `normal/` 与 `rework/`（覆盖写盘，禁止 append 历史子集）。
-5. 因此 `normal/` 始终等于「当前全部 `not should_rework` 样本」（已确认且不需返工）；`rework/` 等于「未达最终确认状态」样本。返工修好的 id 会从 rework 进入 normal，无需手工合并首轮 normal。
+5. 因此 `normal/` 始终等于「当前全部 `not should_rework_result` 样本」（已确认、不需返工、且有有效任务载荷）；`rework/` 等于「未达最终确认状态」样本。返工修好的 id 会从 rework 进入 normal，无需手工合并首轮 normal。
 6. `ls_export` 与可选的 `normal|rework/round_XXX/` 快照用于追溯与网盘协作，不替代 `current/` 的权威语义。
 7. 返工再导入必须能展示上一轮**人工**结果：优先使用 `rework/previous_annotations/`（标注快照自包含；**原图仍依赖** `task_packages`）。旧包无该目录时回退 `--export`（legacy）。`previous_annotations` ≠ 模型 / prelabel prediction；写入 LS 的 `predictions` 槽仅供预填；导出金标准禁止 prediction fallback（M6.1 / M4.3 已落地）。
 8. 仅当三任务 `current/` 均无 `should_rework_result` 残留（已确认、不需返工、且有有效任务载荷），且三路 `image_id` 集合彼此一致并与 `processed` 全量集合相等时，才允许生成 `final/<batch_id>/`。

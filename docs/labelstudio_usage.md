@@ -150,7 +150,7 @@ print(cap_config_path())
 
 - **原始诊断文本**：只读对照；CAP 请在 `cap_text` 中书写/编辑**人工**文案，不要把原文控件当成可提交结果。
 - **人工确认**（`human_confirmed`）：每张必选；选 `yes` 表示本样本已经过人工处理。选 `no` 表示未确认，导出分类时进入 **rework**（即使 `needs_rework=no`）。
-- **是否需要返工**（`needs_rework`）：不确定时可选 `yes`；未勾选/选 `no` **单独不足以**进 normal。分类规则（**当前已实现**）：`should_rework = (not human_confirmed) or needs_rework`。
+- **是否需要返工**（`needs_rework`）：不确定时可选 `yes`；未勾选/选 `no` **单独不足以**进 normal。分类规则（**当前已实现**）：`should_rework_result = (not human_confirmed) or needs_rework or (not effective_payload)`。
 - **空标注 → rework（已落地）**：无有效人工载荷（空 result / 缺 mask·bbox·text）也应进 `rework/`；另含未确认 / 勾选需返工等规则。金标准路径**无** prediction fallback。
 - 侧栏 `image_id` / `package_id` 仅供追溯，无需编辑。
 
@@ -198,7 +198,7 @@ mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.j
 ```
 
 - `apply-current`：**底层** export → merge `current/`（并全量重建 normal/rework / previous_annotations）；SEG 若有 brush/polygon 会写出 `manual_masks/`
-- `export-split`：**高级封装**，内部调用 apply-current，并返回 `normal/`、`rework/` 路径；分类规则（当前）：`should_rework = (not human_confirmed) or needs_rework`
+- `export-split`：**高级封装**，内部调用 apply-current，并返回 `normal/`、`rework/` 路径；分类规则（当前）：`should_rework_result = (not human_confirmed) or needs_rework or (not effective_payload)`
 - **金标准**：仅人工 annotation；**禁止**将 LS `predictions` 当作模型推理回填金标准（`prediction_fallback` 已删除）。返工预填槽位若存在，语义为人工历史。
 - `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）。**优先**读 `rework/previous_annotations/<task>.json`（无需 `--export`）；仅当该快照不存在时才需要 `--export`（旧包兼容）。**不读** `prelabels/`。快照不含原图，导入仍依赖同批 `task_packages` 图像路径
 

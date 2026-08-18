@@ -1356,7 +1356,7 @@ merge:
 
 | 来源 | 过时 / 不完整表述 | 代码实际 |
 |---|---|---|
-| `docs/data_layout.md` §4.7 | 分类写成 `should_rework = (not human_confirmed) OR needs_rework` | 运行时用 `should_rework_result`，**额外**包含空/缺有效载荷 |
+| `docs/data_layout.md` §4.7 | 已与 `should_rework_result` 三支路对齐 | 运行时：`(not human_confirmed) or needs_rework or (not effective_payload)` |
 | `docs/real_batch_local_test_runbook.md` | 项目根写成 `D:\多任务标注平台`；含放置 prelabels、raw `masks/` | 本仓库为 V1 路径；preprocess 不读 masks；主流程不读 prelabels |
 | `docs/labelstudio_usage.md` §4 | 只强调 Local storage 根 = data | 实践上 DOCUMENT_ROOT=`data`，Cloud Storage 绝对路径须为 **子目录** `data/task_packages`（与旧 runbook 4.3 一致，且符合 LS 限制） |
 | `docs/formats.md` | 整份为 Legacy 预标注格式 | V1 验收不要准备 `prelabels.json` |
