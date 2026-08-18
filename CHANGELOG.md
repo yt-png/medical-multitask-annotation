@@ -1,5 +1,21 @@
 # Changelog
 
+## V1 — P3 M12.2 场景2门禁收口（2026-08-18）
+
+### Verified
+
+- M12.2 / 规格场景 2「没有任何人工标注 → rework/」已由 P1 覆盖：`annotations: []` / 空 `result` 解析为空载荷并进 `rework/`，`export-split` 不整批失败
+- 原有三条「已确认 + 空载荷」M12.2 用例保留（空 caption / 空框 / SEG 无前景）
+- parse 对缺 `human_confirmed`、空/未提交标注保持正向可解析；非法结构仍 fail-closed
+
+### Tests
+
+- 无新增用例；覆盖见 P1：`tests/test_m12_2_empty_to_rework.py`、`tests/test_parse_ls_export.py`
+
+### Docs
+
+- README 分类规则已含未提交/空 result，本任务不改 README
+
 ## V1 — P2 返工编码脱离 PrelabelItem（2026-08-18）
 
 ### Changed
