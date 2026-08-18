@@ -1,11 +1,11 @@
 """Build rework LS import tasks (P4 CLI glue).
 
 V1 main path: self-contained ``rework/previous_annotations/`` (historical
-human annotation). Falls back to the legacy ``--export`` raw side-channel
-only when that snapshot is absent.
+human annotation). Prefill source is that snapshot only.
 
-Does not read ``prelabels/``. When previous snapshots exist, ``export_path``
-is ignored for prefill geometry.
+Does not read ``prelabels/``. ``export_path`` is ignored for prefill
+geometry (deprecated CLI flag). If the snapshot is missing, run
+``export-split`` or ``apply-current`` first.
 """
 
 from __future__ import annotations
@@ -55,13 +55,13 @@ def rework_import_from_export(
     data_root: Path | str | None = None,
     local_root: Path | str | None = None,
 ) -> Path:
-    """Build ``rework_tasks.json`` from previous_annotations or legacy export.
+    """Build ``rework_tasks.json`` from previous_annotations.
 
-    Priority:
-    1. If ``rework/previous_annotations/<task>.json`` exists → use it
-       (``export_path`` ignored for prefill geometry). Prefill is human
-       history written into the LS ``predictions`` slot, not model output.
-    2. Else require ``export_path`` and use the legacy raw-export path.
+    If ``rework/previous_annotations/<task>.json`` exists → use it
+    (``export_path`` ignored for prefill geometry). Prefill is human
+    history written into the LS ``predictions`` slot, not model output.
+
+    Else raise: run ``export-split`` / ``apply-current`` first.
 
     Does not read ``prelabels/``. Empty rework side writes ``[]``.
     """
@@ -82,17 +82,10 @@ def rework_import_from_export(
             local_root=local,
         )
     else:
-        if export_path is None:
-            raise ValueError(
-                "rework/previous_annotations is missing; provide --export "
-                f"for legacy import (expected {prev_path})"
-            )
-        tasks = _build_from_export(
-            export_path,
-            batch_id=cleaned,
-            task_type=task_type,
-            data_root=root,
-            local_root=local,
+        raise ValueError(
+            "rework/previous_annotations is missing; run export-split "
+            "(or apply-current) first "
+            f"(expected {prev_path})"
         )
 
     out_path = (

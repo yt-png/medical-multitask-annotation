@@ -1,5 +1,20 @@
 # Changelog
 
+## V1 — P9 rework-import 无快照不再用 --export 预填（2026-08-19）
+
+### Changed
+
+- `rework-import`：无 `previous_annotations` 时一律失败（即使传了 `--export`）；提示先 `export-split` / `apply-current`
+- CLI `--export` 仍保留、deprecated，不用于预填
+
+### Tests
+
+- 无快照 + `--export` 期望失败；CLI 成功路径先落盘快照
+
+### Docs
+
+- README / `labelstudio_usage` / `data_layout`：去掉无快照回退 `--export`
+
 ## V1 — P8 删除未用 prelabels_task_dir（2026-08-18）
 
 ### Changed

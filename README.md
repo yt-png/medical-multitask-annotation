@@ -129,7 +129,7 @@ mma merge --batch demo_batch --data-root data
 
 **DET / CAP**：首轮导入无预填框/文本；导出不再回填 prediction；人工清空或 confirm-only → 空框 / 空文案。
 
-**返工预填**：`previous_annotations` = 上一轮**人工**快照（**`previous_annotations` ≠ prediction**）；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**；导出金标准不再将该槽位作 fallback（M6.1/M6.2）。几何编码使用 V1 框 / 文案 / mask 文件。**M4.3**：`rework-import` 默认只读 `previous_annotations/`，不读 `prelabels/`；`--export` 仅为 legacy 旁路。**M6.4**：快照模块命名/文档已收口。
+**返工预填**：`previous_annotations` = 上一轮**人工**快照（**`previous_annotations` ≠ prediction**）；可写入 LS `predictions` 槽位供展示，**业务语义不是模型预测**；导出金标准不再将该槽位作 fallback（M6.1/M6.2）。几何编码使用 V1 框 / 文案 / mask 文件。**M4.3**：`rework-import` 只读 `previous_annotations/`，不读 `prelabels/`；无快照须先 `export-split`（或 `apply-current`）。`--export` 已 deprecated，不用于预填。**M6.4**：快照模块命名/文档已收口。
 
 **final**：自包含（含 `images/`、`masks/` 与相对路径清单）；未就绪或缺任务则失败，不改写已有 final。
 

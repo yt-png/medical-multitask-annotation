@@ -223,6 +223,8 @@ def test_rework_import_help_v1_wording() -> None:
     assert "previous_annotations" in text
     assert "does not read" in text
     assert "prelabel" in text
+    assert "deprecated" in text
+    assert "not used" in text or "ignored" in text
 
 
 def test_export_split_requires_export() -> None:
@@ -241,7 +243,7 @@ def test_rework_import_without_previous_needs_export(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Without previous_annotations, omitting --export fails in business logic."""
+    """Without previous_annotations, rework-import fails (run export-split first)."""
 
     code = main(
         [
@@ -257,6 +259,8 @@ def test_rework_import_without_previous_needs_export(
     captured = capsys.readouterr()
     assert code == 2
     assert "mma rework-import:" in captured.err
+    assert "export-split" in captured.err
+    assert "previous_annotations" in captured.err
 
 
 def _write_cap_export(path: Path, *, image_id: str = "img-a", caption: str = "hi") -> None:
@@ -421,6 +425,22 @@ def test_rework_import_success(
         }
     ]
     export.write_text(json.dumps(payload), encoding="utf-8")
+
+    split_code = main(
+        [
+            "export-split",
+            "--batch",
+            batch_id,
+            "--task",
+            "cap",
+            "--export",
+            str(export),
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    assert split_code == 0
+    capsys.readouterr()
 
     code = main(
         [

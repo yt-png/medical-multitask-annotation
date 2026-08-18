@@ -194,13 +194,13 @@ mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.jso
 # 或仅底层同步 current（实现上同样会刷新 normal/rework；勿再紧跟 export-split）
 mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 
-mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.json>] --data-root data
+mma rework-import --batch <batch_id> --task {seg|det|cap} --data-root data
 ```
 
 - `apply-current`：**底层** export → merge `current/`（并全量重建 normal/rework / previous_annotations）；SEG 若有 brush/polygon 会写出 `manual_masks/`
 - `export-split`：**高级封装**，内部调用 apply-current，并返回 `normal/`、`rework/` 路径；分类规则（当前）：`should_rework_result = (not human_confirmed) or needs_rework or (not effective_payload)`
 - **金标准**：仅人工 annotation；**禁止**将 LS `predictions` 当作模型推理回填金标准（`prediction_fallback` 已删除）。返工预填槽位若存在，语义为人工历史。
-- `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）。**优先**读 `rework/previous_annotations/<task>.json`（无需 `--export`）；仅当该快照不存在时才需要 `--export`（旧包兼容）。**不读** `prelabels/`。快照不含原图，导入仍依赖同批 `task_packages` 图像路径
+- `rework-import`：写出 `data/ls_import/<batch_id>/<task>/rework_tasks.json`（不覆盖首轮 `tasks.json`）。只读 `rework/previous_annotations/<task>.json`；无快照须先 `export-split`（或 `apply-current`）。可选 `--export` 已 deprecated，**不用于预填**。**不读** `prelabels/`。快照不含原图，导入仍依赖同批 `task_packages` 图像路径
 
 ### 8.1 返工预填 ≠ 模型预测
 
@@ -253,8 +253,8 @@ mma export-split --batch <batch_id> --task {seg|det|cap} --export <ls_export.jso
 # 或底层同步 current
 mma apply-current --batch <batch_id> --task {seg|det|cap} --export <ls_export.json> --data-root data
 
-# 生成返工再导入 tasks（不覆盖 tasks.json）
-mma rework-import --batch <batch_id> --task {seg|det|cap} [--export <ls_export.json>] --data-root data
+# 生成返工再导入 tasks（不覆盖 tasks.json；须已有 previous_annotations）
+mma rework-import --batch <batch_id> --task {seg|det|cap} --data-root data
 ```
 
 - [data_layout.md](data_layout.md) — `ls_import` / `ls_export` / `task_packages`；Legacy `prelabels`

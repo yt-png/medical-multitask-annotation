@@ -1,9 +1,8 @@
-"""Tests for rework_import_from_export (legacy ``--export`` side-channel).
+"""Tests for rework_import_from_export.
 
 V1 main path uses ``rework/previous_annotations/`` (see
 ``test_previous_annotations.py`` and ``test_build_rework_tasks.py``).
-These cases cover the optional raw-export fallback when that snapshot
-is absent.
+Without that snapshot, ``--export`` must not prefill (P9 / M4.3).
 """
 
 from __future__ import annotations
@@ -17,7 +16,6 @@ from mma.common.io import read_json, write_json
 from mma.common.models import TaskType
 from mma.common.paths import ls_import_task_dir
 from mma.importers import (
-    REWORK_MODEL_VERSION,
     REWORK_TASKS_JSON_NAME,
     TASKS_JSON_NAME,
     rework_import_from_export,
@@ -204,29 +202,13 @@ def test_mixed_cap_writes_only_rework_tasks(tmp_path: Path) -> None:
             _cap_task(image_id="img-b", caption="raw wins", rework="yes"),
         ],
     )
-    out = rework_import_from_export(
-        export,
-        batch_id=batch_id,
-        task="cap",
-        data_root=tmp_path,
-    )
-    expected = (
-        ls_import_task_dir(batch_id, TaskType.CAP, data_root=tmp_path)
-        / REWORK_TASKS_JSON_NAME
-    )
-    assert out == expected.resolve()
-    tasks = read_json(out)
-    assert len(tasks) == 1
-    task = tasks[0]
-    assert task["id"] == "img-b"
-    assert task["data"]["diagnosis_text"] == "diag-b"
-    assert task["data"]["image"].startswith("/data/local-files/?d=")
-    pred = task["predictions"][0]
-    assert pred["model_version"] == REWORK_MODEL_VERSION
-    assert pred["result"][0]["value"]["text"] == ["raw wins"]
-    from_names = {r["from_name"] for r in pred["result"]}
-    assert "human_confirmed" not in from_names
-    assert "needs_rework" not in from_names
+    with pytest.raises(ValueError, match="previous_annotations is missing"):
+        rework_import_from_export(
+            export,
+            batch_id=batch_id,
+            task="cap",
+            data_root=tmp_path,
+        )
 
 
 def test_all_normal_writes_empty_array(tmp_path: Path) -> None:
@@ -242,14 +224,13 @@ def test_all_normal_writes_empty_array(tmp_path: Path) -> None:
         export,
         [_cap_task(image_id="img-a", caption="ok", rework="no")],
     )
-    out = rework_import_from_export(
-        export,
-        batch_id=batch_id,
-        task="cap",
-        data_root=tmp_path,
-    )
-    assert out.is_file()
-    assert read_json(out) == []
+    with pytest.raises(ValueError, match="previous_annotations is missing"):
+        rework_import_from_export(
+            export,
+            batch_id=batch_id,
+            task="cap",
+            data_root=tmp_path,
+        )
 
 
 def test_seg_keeps_raw_rle_strips_choices(tmp_path: Path) -> None:
@@ -276,19 +257,13 @@ def test_seg_keeps_raw_rle_strips_choices(tmp_path: Path) -> None:
             )
         ],
     )
-    out = rework_import_from_export(
-        export,
-        batch_id=batch_id,
-        task="seg",
-        data_root=tmp_path,
-    )
-    task = read_json(out)[0]
-    from mma.converters.seg_brush import manual_mask_ref
-
-    assert task["data"]["mask_ref"] == manual_mask_ref(image_id)
-    pred = task["predictions"][0]["result"]
-    assert len(pred) == 1
-    assert pred[0]["value"]["rle"] == brush_rle
+    with pytest.raises(ValueError, match="previous_annotations is missing"):
+        rework_import_from_export(
+            export,
+            batch_id=batch_id,
+            task="seg",
+            data_root=tmp_path,
+        )
 
 
 def test_det_builds_with_package_images(tmp_path: Path) -> None:
@@ -311,19 +286,17 @@ def test_det_builds_with_package_images(tmp_path: Path) -> None:
             )
         ],
     )
-    out = rework_import_from_export(
-        export,
-        batch_id=batch_id,
-        task="det",
-        data_root=tmp_path,
-    )
-    box = read_json(out)[0]["predictions"][0]["result"][0]["value"]
-    assert box["x"] == 10.0
-    assert box["rectanglelabels"] == ["object"]
+    with pytest.raises(ValueError, match="previous_annotations is missing"):
+        rework_import_from_export(
+            export,
+            batch_id=batch_id,
+            task="det",
+            data_root=tmp_path,
+        )
 
 
 def test_missing_export_and_bad_batch_id(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ValueError, match="previous_annotations is missing"):
         rework_import_from_export(
             tmp_path / "missing.json",
             batch_id="batch1",
@@ -366,11 +339,12 @@ def test_does_not_overwrite_existing_tasks_json(tmp_path: Path) -> None:
         export,
         [_cap_task(image_id="img-a", caption="x", rework="yes")],
     )
-    rework_import_from_export(
-        export,
-        batch_id=batch_id,
-        task="cap",
-        data_root=tmp_path,
-    )
+    with pytest.raises(ValueError, match="previous_annotations is missing"):
+        rework_import_from_export(
+            export,
+            batch_id=batch_id,
+            task="cap",
+            data_root=tmp_path,
+        )
     assert read_json(tasks_path) == sentinel
-    assert (import_dir / REWORK_TASKS_JSON_NAME).is_file()
+    assert not (import_dir / REWORK_TASKS_JSON_NAME).is_file()

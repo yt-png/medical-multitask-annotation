@@ -283,7 +283,7 @@ def test_rework_import_from_previous_without_export(tmp_path: Path) -> None:
 
 
 def test_rework_import_legacy_export_without_previous(tmp_path: Path) -> None:
-    """C-compat: delete previous_annotations, --export still works."""
+    """Without previous_annotations, --export must not prefill (M4.3)."""
 
     batch_id = "legacy_rw"
     image_id = "img-a"
@@ -354,20 +354,19 @@ def test_rework_import_legacy_export_without_previous(tmp_path: Path) -> None:
         batch_id, TaskType.CAP, data_root=tmp_path
     ).is_file()
 
-    out = rework_import_from_export(
-        export,
-        batch_id=batch_id,
-        task="cap",
-        data_root=tmp_path,
-    )
-    tasks = read_json(out)
-    assert tasks[0]["predictions"][0]["result"][0]["value"]["text"] == [
-        "from-export-raw"
-    ]
+    with pytest.raises(
+        ValueError, match="previous_annotations is missing.*export-split"
+    ):
+        rework_import_from_export(
+            export,
+            batch_id=batch_id,
+            task="cap",
+            data_root=tmp_path,
+        )
 
 
 def test_rework_import_missing_previous_and_export_raises(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="previous_annotations is missing"):
+    with pytest.raises(ValueError, match="export-split"):
         rework_import_from_export(
             None,
             batch_id="no_prev",

@@ -177,7 +177,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Build rework import tasks from previous_annotations "
             "(V1 human-history prefill; does not read prelabels). "
-            "--export only for legacy packs."
+            "--export is deprecated and not used for prefill."
         ),
     )
     rework_import.add_argument("--batch", required=True, help="Batch ID")
@@ -191,8 +191,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--export",
         default=None,
         help=(
-            "Optional Label Studio export JSON (legacy packs only). "
-            "Not used when rework/previous_annotations/<task>.json exists. "
+            "Deprecated: ignored for prefill. Prefill comes only from "
+            "rework/previous_annotations. If that snapshot is missing, "
+            "run export-split (or apply-current) first. "
             "Does not read prelabels."
         ),
     )
