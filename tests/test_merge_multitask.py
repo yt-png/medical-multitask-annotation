@@ -16,6 +16,8 @@ from mma.common.models import (
     TaskAnnotationResult,
     TaskType,
 )
+from mma.common.paths import results_task_dir
+from mma.converters.seg_brush import save_binary_mask_png
 from mma.exporters import overwrite_current
 from mma.merge import assert_no_missing_tasks, merge_multitask
 from mma.merge.merge_multitask import _require_annotation
@@ -86,6 +88,13 @@ def _write_ready_triple(
         task_type=TaskType.SEG,
         data_root=data_root,
     )
+    for image_id in image_ids:
+        mask_path = (
+            results_task_dir(batch_id, TaskType.SEG, data_root=data_root)
+            / "masks"
+            / f"{image_id}.png"
+        )
+        save_binary_mask_png(mask_path, [[1]])
     overwrite_current(
         [_det(i) for i in image_ids],
         batch_id=batch_id,

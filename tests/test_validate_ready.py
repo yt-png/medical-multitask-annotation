@@ -15,9 +15,10 @@ from mma.common.models import (
     TaskAnnotationResult,
     TaskType,
 )
-from mma.common.paths import results_current_dir
+from mma.common.paths import results_current_dir, results_task_dir
 from mma.exporters import overwrite_current
 from mma.exporters.current_annotations import ANNOTATIONS_JSON_NAME
+from mma.converters.seg_brush import save_binary_mask_png
 from mma.merge import validate_ready
 
 
@@ -99,6 +100,13 @@ def _write_ready_triple(
         task_type=TaskType.SEG,
         data_root=data_root,
     )
+    for image_id in image_ids:
+        _write_dummy_seg_mask_png(
+            data_root=data_root,
+            batch_id=batch_id,
+            image_id=image_id,
+            foreground=True,
+        )
     overwrite_current(
         [_det(i) for i in image_ids],
         batch_id=batch_id,
@@ -114,7 +122,30 @@ def _write_ready_triple(
     _write_processed(data_root, batch_id, image_ids=image_ids)
 
 
+def _write_dummy_seg_mask_png(
+    *,
+    data_root: Path,
+    batch_id: str,
+    image_id: str,
+    foreground: bool,
+) -> None:
+    """Write a 1x1 dummy SEG mask PNG for tests.
+
+    validate_ready recomputes SEG has_foreground from mask pixels; missing
+    mask file => empty task payload => earlier failures.
+    """
+
+    mask_path = (
+        results_task_dir(batch_id, TaskType.SEG, data_root=data_root)
+        / "masks"
+        / f"{image_id}.png"
+    )
+    binary = [[1 if foreground else 0]]
+    save_binary_mask_png(mask_path, binary)
+
+
 def test_validate_ready_success(tmp_path: Path) -> None:
+    # Pre-create SEG mask pixels expected by `_seg(mask_ref="masks/<id>.png")`.
     _write_ready_triple(tmp_path, "batch1")
     assert validate_ready("batch1", data_root=tmp_path) is None
     assert not (tmp_path / "final").exists()
@@ -255,6 +286,19 @@ def test_multiple_flag_violations_aggregated(tmp_path: Path) -> None:
 
 
 def test_image_id_set_mismatch_raises(tmp_path: Path) -> None:
+    # Ensure SEG payload is not empty before checking image_id set mismatch.
+    _write_dummy_seg_mask_png(
+        data_root=tmp_path,
+        batch_id="batch1",
+        image_id="img-a",
+        foreground=True,
+    )
+    _write_dummy_seg_mask_png(
+        data_root=tmp_path,
+        batch_id="batch1",
+        image_id="img-b",
+        foreground=True,
+    )
     overwrite_current(
         [_seg("img-a"), _seg("img-b")],
         batch_id="batch1",
@@ -304,6 +348,13 @@ def test_extra_current_vs_processed_raises(tmp_path: Path) -> None:
 
 
 def test_missing_processed_manifest_raises(tmp_path: Path) -> None:
+    # Ensure SEG payload is not empty before checking missing processed manifest.
+    _write_dummy_seg_mask_png(
+        data_root=tmp_path,
+        batch_id="batch1",
+        image_id="img-a",
+        foreground=True,
+    )
     overwrite_current(
         [_seg("img-a")],
         batch_id="batch1",
@@ -336,3 +387,40 @@ def test_does_not_create_final_dir(tmp_path: Path) -> None:
     _write_ready_triple(tmp_path, "batch1")
     validate_ready("batch1", data_root=tmp_path)
     assert not (tmp_path / "final" / "batch1").exists()
+
+
+def test_validate_ready_missing_seg_mask_triggers_empty_payload(tmp_path: Path) -> None:
+    """Extra regression test for the SEG-mask dependency."""
+
+    overwrite_current(
+        [_seg("img-a")],
+        batch_id="batch1",
+        task_type=TaskType.SEG,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_det("img-a")],
+        batch_id="batch1",
+        task_type=TaskType.DET,
+        data_root=tmp_path,
+    )
+    overwrite_current(
+        [_cap("img-a")],
+        batch_id="batch1",
+        task_type=TaskType.CAP,
+        data_root=tmp_path,
+    )
+    _write_processed(tmp_path, "batch1", image_ids=("img-a",))
+
+    with pytest.raises(ValueError, match="empty task payload") as exc:
+        validate_ready("batch1", data_root=tmp_path)
+    assert "SEG:img-a" in str(exc.value)
+
+    _write_dummy_seg_mask_png(
+        data_root=tmp_path,
+        batch_id="batch1",
+        image_id="img-a",
+        foreground=True,
+    )
+    assert validate_ready("batch1", data_root=tmp_path) is None
+    assert not (tmp_path / "final").exists()
