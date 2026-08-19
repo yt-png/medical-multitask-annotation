@@ -134,6 +134,18 @@ def test_seg_needs_rework_choices() -> None:
     ]
     assert len(choices) == 1
     rework = choices[0]
-    assert rework.get("required") in (None, "false")
+    assert rework.get("required") == "true"
     values = {el.get("value") for el in rework.findall("Choice")}
     assert values == {"yes", "no"}
+
+
+def test_seg_choice_fields_both_required_for_submit() -> None:
+    """Both human_confirmed and needs_rework must block LS submit when unset."""
+
+    root = _parse_config()
+    required_names = {
+        el.get("name")
+        for el in _find_all(root, "Choices")
+        if el.get("required") == "true"
+    }
+    assert required_names == {"human_confirmed", "needs_rework"}
