@@ -30,6 +30,7 @@ from mma.common.paths import (
     task_dir_name,
     task_package_dir,
 )
+from mma.common.seg_mask_paths import compute_has_foreground
 from mma.common.task_image_paths import resolve_task_image_path
 from mma.converters.seg_brush import write_empty_manual_mask
 from mma.exporters.current_annotations import ANNOTATIONS_JSON_NAME
@@ -243,13 +244,18 @@ def _empty_seg_annotation(
             f"(image_id={image_id!r})"
         ) from exc
 
+    mask_dir = results_manual_masks_dir(batch_id, data_root=data_root)
     mask_ref = write_empty_manual_mask(
         image_id=image_id,
         width=width,
         height=height,
-        manual_mask_dir=results_manual_masks_dir(batch_id, data_root=data_root),
+        manual_mask_dir=mask_dir,
     )
-    return SegAnnotation(mask_ref=mask_ref, has_foreground=False)
+    mask_file = Path(mask_dir) / Path(mask_ref.replace("\\", "/")).name
+    return SegAnnotation(
+        mask_ref=mask_ref,
+        has_foreground=compute_has_foreground(mask_ref, mask_path=mask_file),
+    )
 
 
 def _format_id_list(ids: Sequence[str]) -> str:

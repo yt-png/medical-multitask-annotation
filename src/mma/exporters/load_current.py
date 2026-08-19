@@ -50,4 +50,9 @@ def load_current(
     path = results_current_dir(cleaned, task_type, data_root=root) / (
         ANNOTATIONS_JSON_NAME
     )
-    return load_current_annotations_file(path, task_type=task_type)
+    return read_annotations_json(
+        path,
+        task_type=task_type,
+        batch_id=cleaned,
+        data_root=root,
+    )

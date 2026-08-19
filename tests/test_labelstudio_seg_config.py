@@ -10,6 +10,11 @@ from mma.labelstudio import (
     seg_config_path,
 )
 
+# First-round ls-import data contract (no mask_ref).
+_FIRST_ROUND_DATA_KEYS = frozenset(
+    {"image", "image_id", "package_id", "diagnosis_text"}
+)
+
 
 def _parse_config() -> ET.Element:
     return ET.fromstring(load_seg_config_text())
@@ -17,6 +22,17 @@ def _parse_config() -> ET.Element:
 
 def _find_all(root: ET.Element, tag: str) -> list[ET.Element]:
     return list(root.iter(tag))
+
+
+def _xml_data_bindings(root: ET.Element) -> set[str]:
+    """Return data-field names referenced as ``value="$field"``."""
+
+    names: set[str] = set()
+    for element in root.iter():
+        value = element.get("value")
+        if isinstance(value, str) and value.startswith("$") and len(value) > 1:
+            names.add(value[1:])
+    return names
 
 
 def test_seg_config_packaged_and_readable() -> None:
@@ -63,10 +79,34 @@ def test_seg_readonly_diagnosis_and_ids() -> None:
     assert "$diagnosis_text" in text_values
     assert "$image_id" in text_values
     assert "$package_id" in text_values
-    assert "$mask_ref" in text_values
+    assert "$mask_ref" not in text_values
 
     for image in _find_all(root, "Image"):
         assert image.get("value") in {"$image"}
+
+
+def test_seg_config_does_not_bind_mask_ref() -> None:
+    """V1 first-round SEG config must not depend on ``$mask_ref``."""
+
+    text = load_seg_config_text()
+    assert "$mask_ref" not in text
+    assert "mask_ref_view" not in text
+    root = _parse_config()
+    assert "mask_ref" not in _xml_data_bindings(root)
+
+
+def test_seg_config_accepts_first_round_empty_task_data() -> None:
+    """Four-field first-round ``data`` is sufficient to bind SEG XML."""
+
+    root = _parse_config()
+    bindings = _xml_data_bindings(root)
+    assert bindings <= _FIRST_ROUND_DATA_KEYS
+    assert bindings == {
+        "image",
+        "image_id",
+        "package_id",
+        "diagnosis_text",
+    }
 
 
 def test_seg_human_confirmed_choices() -> None:

@@ -88,7 +88,7 @@ def test_roundtrip_seg_det_cap_via_overwrite(tmp_path: Path) -> None:
     assert len(seg) == 1
     assert isinstance(seg[0].annotation, SegAnnotation)
     assert seg[0].annotation.mask_ref == "masks/s1.png"
-    assert seg[0].annotation.has_foreground is True
+    assert seg[0].annotation.has_foreground is False
 
     assert [x.image_id for x in det] == ["d1", "d2"]
     assert det[0].annotation.bboxes == (BBox(1.0, 2.0, 3.0, 4.0),)
@@ -148,7 +148,7 @@ def test_seg_has_foreground_roundtrip(tmp_path: Path) -> None:
     assert loaded[0].annotation.has_foreground is False
 
 
-def test_seg_json_missing_has_foreground_defaults_false(
+def test_seg_json_missing_has_foreground_uses_mask_pixels(
     tmp_path: Path,
 ) -> None:
     path = (

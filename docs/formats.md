@@ -280,7 +280,7 @@ item = ExampleSegAdapter().adapt_item(
 | `Image name="image"` / `$image` | 与 T2.2 `data.image`、`DEFAULT_LS_RESULT_SPECS[SEG].to_name` |
 | `PolygonLabels name="seg_mask"` | 与 `from_name=seg_mask`；标签 `lesion`；多边形叠在原图上编辑（新任务默认） |
 | （历史）`BrushLabels` / `brushlabels`+`rle` | 解析层仍兼容；`seg_brush.py` 保留；legacy 预填可用 `mma.legacy.converters.SEG_PREFILL_MODE="brush"` |
-| `$diagnosis_text` / `$image_id` 等只读 Text | 与转换 `data.*` 字段名一致；`$mask_ref` 仅路径追溯，**不是**预标注主展示 |
+| `$diagnosis_text` / `$image_id` / `$package_id` 只读 Text | 与首轮 `data.*` 四字段一致；配置**不绑定** `$mask_ref`（首轮无该字段）。`mask_ref` 只存在于返工 JSON 追溯、人工结果文件引用、merge 后 final mask |
 | `Choices name="human_confirmed"` / `needs_rework` | value 为 `yes`/`no`；对齐契约 `human_confirmed` / `needs_rework` |
 
 预标注叠图写入 `predictions`（连通域拆分）属 **T3.1b／legacy**：调用 `mma.legacy.converters` 的 `item_to_ls_task` / `document_to_ls_tasks` 时传入 `mask_root`；默认 `SEG_PREFILL_MODE="polygon"`（几何在 `mma.converters.seg_polygon`），可选 `"brush"`（`mma.converters.seg_brush`）。导出解析同时接受 `polygonlabels.points`（百分比）与历史 `brushlabels.rle`，统一落盘为 `manual_masks/{image_id}_manual.png`。

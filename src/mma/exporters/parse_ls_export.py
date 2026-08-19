@@ -36,6 +36,7 @@ from mma.common.models import (
     TaskAnnotationResult,
     TaskType,
 )
+from mma.common.seg_mask_paths import compute_has_foreground
 from mma.converters.to_labelstudio import (
     DATA_KEY_IMAGE_ID,
     DATA_KEY_PACKAGE_ID,
@@ -438,20 +439,25 @@ def _parse_seg_annotation(
             brush_entries=brush_entries,
             polygon_entries=polygon_entries,
         )
-        return SegAnnotation(mask_ref=mask_ref, has_foreground=True)
-
-    width, height = _resolve_empty_mask_size(
-        control_entries,
-        image_id=image_id,
-        image_metadata_by_id=image_metadata_by_id,
+    else:
+        width, height = _resolve_empty_mask_size(
+            control_entries,
+            image_id=image_id,
+            image_metadata_by_id=image_metadata_by_id,
+        )
+        mask_ref = write_empty_manual_mask(
+            image_id=image_id,
+            width=width,
+            height=height,
+            manual_mask_dir=seg_manual_mask_dir,
+        )
+    mask_file = Path(seg_manual_mask_dir) / Path(
+        mask_ref.replace("\\", "/")
+    ).name
+    return SegAnnotation(
+        mask_ref=mask_ref,
+        has_foreground=compute_has_foreground(mask_ref, mask_path=mask_file),
     )
-    mask_ref = write_empty_manual_mask(
-        image_id=image_id,
-        width=width,
-        height=height,
-        manual_mask_dir=seg_manual_mask_dir,
-    )
-    return SegAnnotation(mask_ref=mask_ref, has_foreground=False)
 
 
 def _seg_entry_has_nonempty_rle(entry: Mapping[str, Any]) -> bool:

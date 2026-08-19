@@ -18,7 +18,7 @@ from mma.common.paths import (
     final_masks_dir,
     validate_batch_id,
 )
-from mma.common.seg_mask_paths import resolve_current_seg_mask_path
+from mma.common.seg_mask_paths import compute_has_foreground, resolve_current_seg_mask_path
 
 FINAL_SEG_MASK_REL_DIR = "masks"
 _FORBIDDEN_MASK_REF_MARKERS = ("final_assets/", "manual_masks/", "prelabels/")
@@ -68,7 +68,11 @@ def materialize_final_seg_mask(
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"{str(image_id).strip()}.png"
     shutil.copy2(source, dest)
-    return SegAnnotation(mask_ref=final_seg_mask_ref(image_id), has_foreground=True)
+    final_ref = final_seg_mask_ref(image_id)
+    return SegAnnotation(
+        mask_ref=final_ref,
+        has_foreground=compute_has_foreground(final_ref, mask_path=dest),
+    )
 
 
 def materialize_final_seg_masks(

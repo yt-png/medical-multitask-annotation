@@ -18,6 +18,7 @@ from mma.common.models import (
     TaskAnnotationResult,
     TaskType,
 )
+from mma.common.seg_mask_paths import compute_has_foreground
 
 ANNOTATIONS_JSON_NAME = "annotations.json"
 
@@ -40,6 +41,9 @@ def task_annotation_result_from_dict(
     raw: Any,
     *,
     index: int,
+    mask_root: Path | str | None = None,
+    batch_id: str | None = None,
+    data_root: Path | str | None = None,
 ) -> TaskAnnotationResult:
     """Parse one JSON object into ``TaskAnnotationResult``."""
 
@@ -94,7 +98,12 @@ def task_annotation_result_from_dict(
         )
 
     annotation = _annotation_from_dict(
-        annotation_raw, task_type=task_type, image_id=image_id
+        annotation_raw,
+        task_type=task_type,
+        image_id=image_id,
+        mask_root=mask_root,
+        batch_id=batch_id,
+        data_root=data_root,
     )
     return TaskAnnotationResult(
         image_id=image_id,
@@ -112,6 +121,9 @@ def parse_annotations_payload(
     *,
     task_type: TaskType,
     source: str,
+    mask_root: Path | str | None = None,
+    batch_id: str | None = None,
+    data_root: Path | str | None = None,
 ) -> tuple[TaskAnnotationResult, ...]:
     """Parse an in-memory annotations JSON payload (must be a list)."""
 
@@ -123,7 +135,13 @@ def parse_annotations_payload(
     items: list[TaskAnnotationResult] = []
     seen: set[str] = set()
     for index, raw in enumerate(payload):
-        item = task_annotation_result_from_dict(raw, index=index)
+        item = task_annotation_result_from_dict(
+            raw,
+            index=index,
+            mask_root=mask_root,
+            batch_id=batch_id,
+            data_root=data_root,
+        )
         if item.task_type is not task_type:
             raise ValueError(
                 f"existing current item task_type {item.task_type.value} "
@@ -143,17 +161,27 @@ def read_annotations_json(
     path: Path | str,
     *,
     task_type: TaskType,
+    batch_id: str | None = None,
+    data_root: Path | str | None = None,
 ) -> tuple[TaskAnnotationResult, ...]:
-    """Read ``annotations.json`` from ``path`` (file must exist)."""
+    """Read ``annotations.json`` from ``path`` (file must exist).
+
+    SEG ``has_foreground`` is recomputed from mask pixels. ``mask_root`` is
+    the task directory (parent of ``current/`` / ``rework/``).
+    """
 
     target = Path(path)
     if not target.is_file():
         raise FileNotFoundError(f"json file not found: {target}")
     payload = read_json(target)
+    mask_root = target.resolve().parent.parent
     return parse_annotations_payload(
         payload,
         task_type=task_type,
         source=str(target),
+        mask_root=mask_root,
+        batch_id=batch_id,
+        data_root=data_root,
     )
 
 
@@ -188,6 +216,9 @@ def _annotation_from_dict(
     *,
     task_type: TaskType,
     image_id: str,
+    mask_root: Path | str | None = None,
+    batch_id: str | None = None,
+    data_root: Path | str | None = None,
 ) -> SegAnnotation | DetAnnotation | CapAnnotation:
     if not isinstance(raw, dict):
         raise ValueError(
@@ -200,15 +231,22 @@ def _annotation_from_dict(
                 f"SEG annotation.mask_ref must be non-empty "
                 f"(image_id={image_id!r})"
             )
-        has_foreground = raw.get("has_foreground", False)
-        if not isinstance(has_foreground, bool):
+        if "has_foreground" in raw and not isinstance(
+            raw["has_foreground"], bool
+        ):
             raise ValueError(
                 f"SEG annotation.has_foreground must be bool "
                 f"(image_id={image_id!r})"
             )
+        cleaned_ref = mask_ref.strip()
         return SegAnnotation(
-            mask_ref=mask_ref.strip(),
-            has_foreground=has_foreground,
+            mask_ref=cleaned_ref,
+            has_foreground=compute_has_foreground(
+                cleaned_ref,
+                mask_root=mask_root,
+                batch_id=batch_id,
+                data_root=data_root,
+            ),
         )
     if task_type is TaskType.DET:
         bboxes_raw = raw.get("bboxes")

@@ -50,7 +50,12 @@ def overwrite_current(
         return out_path.resolve()
 
     incoming = _validate_incoming(results, task_type=task_type)
-    existing = _read_existing_items(out_path, task_type=task_type)
+    existing = _read_existing_items(
+        out_path,
+        task_type=task_type,
+        batch_id=cleaned,
+        data_root=root,
+    )
     merged = _merge_by_image_id(existing, incoming)
     _atomic_write_json(
         out_path,
@@ -111,12 +116,21 @@ def _read_existing_items(
     path: Path,
     *,
     task_type: TaskType,
+    batch_id: str | None = None,
+    data_root: Path | str | None = None,
 ) -> list[TaskAnnotationResult]:
     """Load existing current items; missing file means empty list (overwrite)."""
 
     if not path.is_file():
         return []
-    return list(read_annotations_json(path, task_type=task_type))
+    return list(
+        read_annotations_json(
+            path,
+            task_type=task_type,
+            batch_id=batch_id,
+            data_root=data_root,
+        )
+    )
 
 
 def _atomic_write_json(path: Path, payload: Any) -> None:

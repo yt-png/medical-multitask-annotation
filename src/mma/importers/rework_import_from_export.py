@@ -103,7 +103,12 @@ def _build_from_previous(
         raise FileNotFoundError(
             f"rework annotations not found: {rework_ann}"
         )
-    rework = read_annotations_json(rework_ann, task_type=task_type)
+    rework = read_annotations_json(
+        rework_ann,
+        task_type=task_type,
+        batch_id=batch_id,
+        data_root=data_root,
+    )
     return build_rework_ls_tasks(
         rework,
         batch_id=batch_id,

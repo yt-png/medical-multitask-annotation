@@ -157,8 +157,9 @@ print(cap_config_path())
 ### 7.2 SEG
 
 - 工作台为 **PolygonLabels**（`seg_mask` / `lesion`），用**多边形**增删改区域。
-- 首轮从空白开始勾画病灶；返工预填若出现，来自上一轮人工历史（非 model/prelabel）。
-- `$mask_ref` 仅为路径追溯（若出现），不是主展示图。
+- 首轮从空白开始勾画病灶；SEG 配置**不绑定** `$mask_ref`（首轮 `tasks.json` 仅有 `image` / `image_id` / `package_id` / `diagnosis_text`）。
+- 返工预填若出现，来自上一轮人工历史（非 model/prelabel），几何在 LS `predictions` 槽；`data.mask_ref` 若存在仅为返工 JSON 路径追溯，工作台不展示。
+- `mask_ref` 仍用于：返工历史追踪、人工结果文件引用（`current/` / `manual_masks/`）、merge 后 final `masks/{image_id}.png`。
 - 解析仍兼容历史 Brush RLE 导出；新任务工作台为 polygon。
 
 ### 7.3 DET

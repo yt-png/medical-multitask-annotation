@@ -55,10 +55,10 @@ class BBox:
 class SegAnnotation:
     """V1 SEG annotation payload; mask stored as a string reference.
 
-    ``has_foreground`` is True when the manual mask has lesion foreground.
-    False means an empty manual mask (no effective SEG payload). Missing
-    field in ``current/`` JSON defaults to False on load. In-memory
-    construction still defaults to True when the argument is omitted.
+    This type is a data container only. It does not inspect ``mask_ref`` or
+    JSON to decide ``has_foreground``. Runtime writers must pass the result
+    of ``compute_has_foreground`` (mask pixels). The dataclass default is
+    not a payload judgment.
     """
 
     mask_ref: str
@@ -174,8 +174,8 @@ def has_effective_task_payload(
 
     - DET: at least one bbox
     - CAP: non-empty caption after strip
-    - SEG: non-empty ``mask_ref`` and ``has_foreground`` (empty manual mask
-      sets ``has_foreground=False`` at parse time)
+    - SEG: non-empty ``mask_ref`` and stored ``has_foreground`` (that flag
+      must come from mask pixels via ``compute_has_foreground``)
 
     ``task_type`` must match ``annotation`` (same as ``assert_annotation_matches_task``).
     """

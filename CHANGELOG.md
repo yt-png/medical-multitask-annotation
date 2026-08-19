@@ -1,5 +1,34 @@
 # Changelog
 
+## V1 — R10 `has_foreground` 只认 mask 像素（2026-08-19）
+
+### Changed
+
+- 统一 `compute_has_foreground`：空 `mask_ref` / 缺文件 / 全黑 → `False`；有前景像素 → `True`
+- JSON `has_foreground` 仅做 bool 校验，加载时以 mask 内容为准
+- `parse_ls_export` / `fill_missing` / `materialize_final_seg` 不再写死 True/False
+
+### Tests
+
+- `tests/test_seg_mask_paths.py`：空 ref、全黑、有前景、JSON false 但 mask 有前景
+- `tests/test_load_current.py`：无 mask 文件不再断言 True
+
+## V1 — R9 SEG 工作台去掉 `$mask_ref`（2026-08-19）
+
+### Changed
+
+- `seg.xml`（src 与 `deploy/v1/annotator_seg`）：删除侧栏 `$mask_ref` 展示，与首轮空任务四字段契约对齐
+- 不改首轮 `ls-import`、返工 `data.mask_ref`、结果/merge `annotation.mask_ref`
+
+### Tests
+
+- `tests/test_labelstudio_seg_config.py`：配置禁止 `$mask_ref`；四字段 data 足够绑定 XML
+
+### Docs
+
+- `docs/labelstudio_usage.md` / `docs/formats.md`：首轮 SEG 不依赖 `mask_ref`；保留结果层与返工追溯说明
+
+
 ## V1 — R8 缺 has_foreground 加载为 False（2026-08-19）
 
 ### Changed

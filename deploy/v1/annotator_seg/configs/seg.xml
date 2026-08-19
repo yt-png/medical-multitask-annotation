@@ -14,8 +14,6 @@
       <Text name="image_id_view" value="$image_id"/>
       <Header value="package_id"/>
       <Text name="package_id_view" value="$package_id"/>
-      <Header value="mask_ref（路径追溯，非主展示）"/>
-      <Text name="mask_ref_view" value="$mask_ref"/>
     </View>
   </View>
 

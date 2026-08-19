@@ -3,11 +3,16 @@
 V1 resolves only under ``results/<batch>/seg/`` (``manual_masks/...``).
 Does not fall back to ``prelabels/``. Does not materialize final masks or
 write previous_annotations copies.
+
+``has_foreground`` is computed only from mask pixels
+(``compute_has_foreground``). This module does not construct annotations.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+
+from PIL import Image
 
 from mma.common.models import TaskType
 from mma.common.paths import (
@@ -66,3 +71,87 @@ def _assert_under_base(path: Path, base: Path, *, mask_ref: str) -> None:
             f"SEG mask_ref escapes expected root: mask_ref={mask_ref!r}, "
             f"resolved={path}, base={base}"
         ) from exc
+
+
+def compute_has_foreground(
+    mask_ref: str | None,
+    *,
+    mask_path: Path | str | None = None,
+    mask_root: Path | str | None = None,
+    batch_id: str | None = None,
+    data_root: Path | str | None = None,
+) -> bool:
+    """Return whether the SEG mask file contains any foreground pixel.
+
+    Source of truth is mask **content**, not ``mask_ref`` presence and not a
+    JSON ``has_foreground`` field. Empty / blank ``mask_ref`` → False.
+    Missing or unreadable file → False.
+
+    File resolution order: ``mask_path``; else ``mask_root / mask_ref``;
+    else current-stage path from ``batch_id``.
+    """
+
+    if mask_ref is None or not str(mask_ref).strip():
+        return False
+
+    path = _locate_mask_file_for_foreground(
+        str(mask_ref).strip().replace("\\", "/"),
+        mask_path=mask_path,
+        mask_root=mask_root,
+        batch_id=batch_id,
+        data_root=data_root,
+    )
+    if path is None or not path.is_file():
+        return False
+    return _png_has_foreground_pixel(path)
+
+
+def _locate_mask_file_for_foreground(
+    mask_ref: str,
+    *,
+    mask_path: Path | str | None,
+    mask_root: Path | str | None,
+    batch_id: str | None,
+    data_root: Path | str | None,
+) -> Path | None:
+    if mask_path is not None:
+        return Path(mask_path)
+    if mask_root is not None:
+        return _join_under_mask_root(Path(mask_root), mask_ref)
+    if batch_id is not None:
+        try:
+            return resolve_current_seg_mask_path(
+                mask_ref, batch_id=batch_id, data_root=data_root
+            )
+        except ValueError:
+            return None
+    return None
+
+
+def _join_under_mask_root(mask_root: Path, mask_ref: str) -> Path | None:
+    ref = mask_ref.strip().replace("\\", "/")
+    if not ref:
+        return None
+    if Path(ref).is_absolute() or ref.startswith("/") or ref.startswith(".."):
+        return None
+    root = mask_root.resolve()
+    path = (root / ref).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
+
+
+def _png_has_foreground_pixel(path: Path) -> bool:
+    try:
+        with Image.open(path) as img:
+            if img.mode in ("RGBA", "LA") or (
+                img.mode == "P" and "transparency" in img.info
+            ):
+                extrema = img.convert("RGBA").getextrema()
+                return bool(extrema[3][1] > 0)
+            extrema = img.convert("L").getextrema()
+            return bool(extrema[1] > 0)
+    except OSError:
+        return False

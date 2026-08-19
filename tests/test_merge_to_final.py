@@ -415,12 +415,14 @@ def test_case2_legacy_prelabel_mask_ref_rejected(tmp_path: Path) -> None:
     )
     _write_processed(tmp_path, "batch1", image_ids=(image_id,))
 
-    with pytest.raises(ValueError, match="manual_masks|not a V1 fallback"):
+    with pytest.raises(
+        ValueError, match="empty task payload|manual_masks|not a V1 fallback"
+    ):
         merge_to_final("batch1", data_root=tmp_path)
 
 
 def test_case3_empty_manual_mask_is_copied_not_regenerated(tmp_path: Path) -> None:
-    """Case3: empty manual mask is copied as-is into final masks/."""
+    """Case3: empty mask is not merge-ready; materialize still copies as-is."""
 
     image_id = "a"
     _write_manual_mask(tmp_path, "batch1", image_id, empty=True)
@@ -444,9 +446,20 @@ def test_case3_empty_manual_mask_is_copied_not_regenerated(tmp_path: Path) -> No
     )
     _write_processed(tmp_path, "batch1", image_ids=(image_id,))
 
-    path = merge_to_final("batch1", data_root=tmp_path)
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["items"][0]["seg"]["mask_ref"] == final_seg_mask_ref(image_id)
+    with pytest.raises(ValueError, match="empty task payload"):
+        merge_to_final("batch1", data_root=tmp_path)
+
+    copied = materialize_final_seg_mask(
+        image_id=image_id,
+        seg=SegAnnotation(
+            mask_ref=f"manual_masks/{image_id}_manual.png",
+            has_foreground=False,
+        ),
+        batch_id="batch1",
+        data_root=tmp_path,
+    )
+    assert copied.mask_ref == final_seg_mask_ref(image_id)
+    assert copied.has_foreground is False
     out = tmp_path / "final" / "batch1" / "masks" / f"{image_id}.png"
     loaded, width, height = load_foreground_mask(out)
     assert (width, height) == (2, 2)
